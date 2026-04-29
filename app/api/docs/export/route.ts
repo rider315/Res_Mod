@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const pdfBuffer = await exportDocAsPdf(session.accessToken, documentId)
-    return new NextResponse(pdfBuffer, {
+    return new NextResponse(new Uint8Array(pdfBuffer), {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': 'attachment; filename="optimized-resume.pdf"',
