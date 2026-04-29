@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { z } from 'zod'
 import { authOptions } from '@/lib/auth'
-import { applyChangesToDocument } from '@/lib/googleDocs'
+import { applyChangesToDocument, renameDocument } from '@/lib/googleDocs'
 
 const schema = z.object({
   documentId: z.string().min(1),
@@ -15,6 +15,7 @@ const schema = z.object({
       approved: z.boolean().nullable(),
     })
   ),
+  companyName: z.string().optional(),
 })
 
 export async function POST(req: NextRequest) {
@@ -27,7 +28,7 @@ export async function POST(req: NextRequest) {
   if (!parsed.success)
     return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
 
-  const { documentId, changes } = parsed.data
+  const { documentId, changes, companyName } = parsed.data
   const approved = changes
     .filter((c) => c.approved === true)
     .map((c) => ({ original: c.original, proposed: c.proposed, sectionTitle: c.sectionTitle }))
@@ -37,6 +38,13 @@ export async function POST(req: NextRequest) {
 
   try {
     await applyChangesToDocument(session.accessToken, documentId, approved)
+    
+    // Rename document if companyName is provided
+    if (companyName && companyName !== 'Company') {
+      const newName = `Gaurav Chaudhary Resume_${companyName}`
+      await renameDocument(session.accessToken, documentId, newName)
+    }
+
     return NextResponse.json({
       success: true,
       appliedCount: approved.length,

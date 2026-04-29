@@ -11,7 +11,7 @@ const SYSTEM_INSTRUCTION = `You are an expert ATS resume optimizer. Your ABSOLUT
 2. ONLY rewrite or rephrase existing content — never add new roles or projects.
 3. Return ONLY a valid JSON object — no markdown fences, no extra commentary.
 4. Each "original" value must be an EXACT, VERBATIM substring found in the resume content — character-for-character.
-5. Each "proposed" value MUST be within ±5 characters of the "original" length. This is critical to preserve document formatting.
+5. **CRITICAL — SAME LENGTH RULE**: Each "proposed" value MUST have the EXACT same character count as the "original" value (±3 chars max). Count the characters before outputting. If the proposed text is shorter, pad with natural filler words. If longer, trim or rephrase to fit. This is essential to preserve document alignment and formatting.
 6. NEVER use markdown formatting like **bold**, *italic*, or any special syntax in the proposed text. Output must be plain text only — no asterisks, no markdown.
 
 ## SECTION-LEVEL RULES (these override everything else):
@@ -81,8 +81,8 @@ ${softInstructions || 'Use strong action verbs. Quantify achievements where poss
 
 
 ## CRITICAL LENGTH RULE
-For every change, the "proposed" text MUST be within ±5 characters of the "original" text length.
-Count carefully. If original is 120 characters, proposed must be 115-125 characters.
+For every change, the "proposed" text MUST have the EXACT same character count as the "original" text (±3 chars max).
+Count carefully. If original is 120 characters, proposed must be 117-123 characters.
 This is non-negotiable — the document formatting will break otherwise.
 
 
@@ -90,6 +90,7 @@ This is non-negotiable — the document formatting will break otherwise.
 Return this exact JSON structure:
 {
   "summary": "One paragraph describing what was optimized and why",
+  "companyName": "The company name extracted from the job description (e.g. Google, Amazon, KPIT). If not found, use 'Company'",
   "keywordsAdded": ["keyword1", "keyword2"],
   "sectionsModified": ["Section Title 1", "Section Title 2"],
   "changes": [
@@ -97,7 +98,7 @@ Return this exact JSON structure:
       "sectionId": "exact section id from the resume (e.g. section_0, section_1)",
       "sectionTitle": "Section Title",
       "original": "exact verbatim text from resume — must be findable via string search, character-for-character",
-      "proposed": "improved plain-text replacement (MUST be within ±5 chars of original length, NO markdown, NO asterisks)",
+      "proposed": "improved plain-text replacement (MUST be within ±3 chars of original length, NO markdown, NO asterisks)",
       "reason": "why this change improves the resume for this specific role",
       "type": "rewrite|add_keywords|improve_clarity|action_verb"
     }
@@ -117,7 +118,7 @@ Do NOT generate any changes for sections whose title contains any of these (case
 - Suggest 8 to 15 high-impact changes only
 - "original" must EXACTLY match text that exists in the resume — no paraphrasing, no trimming
 - NEVER touch frozen fields (company names, role titles, dates, project names)
-- Maintain the same character length (±5 chars) for every proposed change`
+- Maintain the same character length (±3 chars) for every proposed change`
 }
 
 
@@ -127,9 +128,9 @@ export async function optimizeResume(
   hardInstructions: string,
   softInstructions: string
 ): Promise<OptimizationResult> {
-  // ✅ Use gemini-2.0-flash — fastest, cheapest, fully available
+  // ✅ Use gemini-2.5-pro — best reasoning quality for resume optimization
   const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-2.5-pro',
     systemInstruction: SYSTEM_INSTRUCTION,
     generationConfig: {
       responseMimeType: 'application/json',
@@ -159,6 +160,7 @@ export async function optimizeResume(
 
   return {
     summary: raw.summary ?? '',
+    companyName: raw.companyName || 'Company',
     keywordsAdded: raw.keywordsAdded ?? [],
     sectionsModified: raw.sectionsModified ?? [],
     changes,

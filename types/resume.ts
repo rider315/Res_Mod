@@ -23,6 +23,7 @@ export interface ResumeChange {
 
 export interface OptimizationResult {
   summary: string
+  companyName: string
   keywordsAdded: string[]
   sectionsModified: string[]
   changes: ResumeChange[]

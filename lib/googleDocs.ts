@@ -43,6 +43,19 @@ export async function copyDocument(
   }
 }
 
+export async function renameDocument(
+  accessToken: string,
+  documentId: string,
+  newName: string
+): Promise<void> {
+  const auth = getOAuthClient(accessToken)
+  const drive = google.drive({ version: 'v3', auth })
+  await drive.files.update({
+    fileId: documentId,
+    requestBody: { name: newName },
+  })
+}
+
 export async function applyChangesToDocument(
   accessToken: string,
   documentId: string,

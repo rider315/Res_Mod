@@ -27,6 +27,109 @@ function Spinner() {
   )
 }
 
+function AnimatedPhaseText({ phases }: { phases: string[] }) {
+  const [idx, setIdx] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setIdx((i) => (i + 1) % phases.length), 2200)
+    return () => clearInterval(t)
+  }, [phases.length])
+  return <p key={idx} className="text-sm text-[var(--color-text-muted)] anim-fade-in">{phases[idx]}</p>
+}
+
+function ParsingAnimation() {
+  return (
+    <div className="anim-page-enter flex flex-col items-center justify-center py-20 space-y-8">
+      <div className="relative anim-float">
+        <svg width="80" height="100" viewBox="0 0 80 100" fill="none">
+          <rect x="4" y="4" width="72" height="92" rx="8" stroke="var(--color-primary)" strokeWidth="2" fill="var(--color-surface)" />
+          <rect x="16" y="20" width="48" height="4" rx="2" fill="var(--color-primary-highlight)" />
+          <rect x="16" y="32" width="40" height="4" rx="2" fill="var(--color-primary-highlight)" />
+          <rect x="16" y="44" width="44" height="4" rx="2" fill="var(--color-primary-highlight)" />
+          <rect x="16" y="56" width="36" height="4" rx="2" fill="var(--color-primary-highlight)" />
+          <rect x="16" y="68" width="48" height="4" rx="2" fill="var(--color-primary-highlight)" />
+        </svg>
+        <div className="anim-scan-line" />
+      </div>
+      <div className="text-center space-y-2">
+        <h2 className="text-xl font-bold text-[var(--color-text)]">Preparing your resume</h2>
+        <AnimatedPhaseText phases={['Copying document to workspace…', 'Scanning resume structure…', 'Extracting sections & content…', 'Almost ready…']} />
+      </div>
+      <div className="w-48 h-1.5 rounded-full bg-[var(--color-border)] overflow-hidden">
+        <div className="h-full rounded-full anim-shimmer" style={{ width: '100%' }} />
+      </div>
+    </div>
+  )
+}
+
+function AnalyzingAnimation() {
+  return (
+    <div className="anim-page-enter flex flex-col items-center justify-center py-20 space-y-8">
+      <div className="flex items-center gap-6">
+        <div className="relative anim-float" style={{ animationDelay: '0s' }}>
+          <svg width="56" height="70" viewBox="0 0 56 70" fill="none">
+            <rect x="2" y="2" width="52" height="66" rx="6" stroke="var(--color-primary)" strokeWidth="2" fill="var(--color-surface)" />
+            <rect x="10" y="14" width="36" height="3" rx="1.5" fill="var(--color-primary-highlight)" />
+            <rect x="10" y="22" width="28" height="3" rx="1.5" fill="var(--color-primary-highlight)" />
+            <rect x="10" y="30" width="32" height="3" rx="1.5" fill="var(--color-primary-highlight)" />
+          </svg>
+          <p className="text-xs text-center text-[var(--color-text-muted)] mt-2 font-medium">Resume</p>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          {[0, 0.3, 0.6].map((d) => (
+            <div key={d} className="w-2 h-2 rounded-full bg-[var(--color-primary)] anim-flow-dot" style={{ animationDelay: `${d}s` }} />
+          ))}
+        </div>
+        <div className="relative anim-float" style={{ animationDelay: '0.5s' }}>
+          <svg width="56" height="70" viewBox="0 0 56 70" fill="none">
+            <rect x="2" y="2" width="52" height="66" rx="6" stroke="var(--color-gold)" strokeWidth="2" fill="var(--color-surface)" />
+            <rect x="10" y="14" width="36" height="3" rx="1.5" fill="var(--color-gold-highlight)" />
+            <rect x="10" y="22" width="30" height="3" rx="1.5" fill="var(--color-gold-highlight)" />
+            <rect x="10" y="30" width="34" height="3" rx="1.5" fill="var(--color-gold-highlight)" />
+          </svg>
+          <p className="text-xs text-center text-[var(--color-text-muted)] mt-2 font-medium">Job Description</p>
+        </div>
+      </div>
+      <div className="text-center space-y-2">
+        <h2 className="text-xl font-bold text-[var(--color-text)]">Analyzing with Gemini Pro</h2>
+        <AnimatedPhaseText phases={['Reading job requirements…', 'Matching keywords to resume…', 'Generating section optimizations…', 'Refining suggestions…']} />
+      </div>
+      <div className="w-48 h-1.5 rounded-full bg-[var(--color-border)] overflow-hidden">
+        <div className="h-full rounded-full anim-shimmer" style={{ width: '100%' }} />
+      </div>
+    </div>
+  )
+}
+
+function MergeAnimation({ count }: { count: number }) {
+  return (
+    <div className="anim-page-enter flex flex-col items-center justify-center py-20 space-y-8">
+      <div className="flex items-center gap-0">
+        <div className="anim-merge-l">
+          <svg width="48" height="60" viewBox="0 0 48 60" fill="none">
+            <rect x="2" y="2" width="44" height="56" rx="5" stroke="var(--color-primary)" strokeWidth="2" fill="var(--color-surface)" />
+            <rect x="10" y="12" width="28" height="3" rx="1.5" fill="var(--color-primary-highlight)" />
+            <rect x="10" y="20" width="22" height="3" rx="1.5" fill="var(--color-primary-highlight)" />
+          </svg>
+        </div>
+        <div className="anim-merge-r">
+          <svg width="48" height="60" viewBox="0 0 48 60" fill="none">
+            <rect x="2" y="2" width="44" height="56" rx="5" stroke="var(--color-success)" strokeWidth="2" fill="var(--color-surface)" />
+            <rect x="10" y="12" width="28" height="3" rx="1.5" fill="var(--color-success-highlight)" />
+            <rect x="10" y="20" width="22" height="3" rx="1.5" fill="var(--color-success-highlight)" />
+          </svg>
+        </div>
+      </div>
+      <div className="text-center space-y-2">
+        <h2 className="text-xl font-bold text-[var(--color-text)]">Merging changes</h2>
+        <p className="text-sm text-[var(--color-text-muted)]">Applying {count} approved change{count !== 1 ? 's' : ''} to your document…</p>
+      </div>
+      <div className="w-48 h-1.5 rounded-full bg-[var(--color-border)] overflow-hidden">
+        <div className="h-full rounded-full anim-shimmer" style={{ width: '100%' }} />
+      </div>
+    </div>
+  )
+}
+
 function ErrorBanner({ message, onDismiss }: { message: string; onDismiss: () => void }) {
   return (
     <div className="flex items-start gap-3 bg-[var(--color-error-highlight)] border border-[var(--color-error)] rounded-xl p-4 text-sm text-[var(--color-error)]">
@@ -138,6 +241,7 @@ useEffect(() => {
         body: JSON.stringify({
           documentId: state.copiedDocId,
           changes: state.optimizationResult.changes,
+          companyName: state.optimizationResult.companyName,
         }),
       })
       const data = await res.json()
@@ -206,7 +310,7 @@ useEffect(() => {
             <path d="M8 16h10" stroke="white" strokeWidth="2" strokeLinecap="round" />
             <path d="M8 20h7" stroke="white" strokeWidth="2" strokeLinecap="round" />
           </svg>
-          <span className="font-semibold text-[var(--color-text)] text-base">ResumeAI</span>
+          <span className="font-semibold text-[var(--color-text)] text-base">ResMod</span>
         </div>
         <StepIndicator currentStep={state.step} />
         <div className="flex items-center gap-3">
@@ -234,9 +338,10 @@ useEffect(() => {
       <main className="max-w-4xl mx-auto px-4 py-8 space-y-6">
         {state.error && <ErrorBanner message={state.error} onDismiss={() => setError(null)} />}
 
-        {/* Step 1 */}
-        {(state.step === 'input' || state.step === 'parsing') && (
-          <div className="space-y-6">
+        {state.step === 'parsing' && <ParsingAnimation />}
+
+        {state.step === 'input' && (
+          <div className="space-y-6 anim-page-enter">
             <div>
               <h1 className="text-2xl font-bold text-[var(--color-text)] mb-1">Optimize your resume</h1>
               <p className="text-sm text-[var(--color-text-muted)]">Paste your Google Docs resume link. A copy is created — your original is never modified.</p>
@@ -244,35 +349,25 @@ useEffect(() => {
             <div className="bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] p-6 space-y-4">
               <label className="block">
                 <span className="text-sm font-semibold text-[var(--color-text)] mb-2 block">Google Docs Resume URL</span>
-                <input
-                  type="url"
-                  placeholder="https://docs.google.com/document/d/..."
-                  value={state.resumeUrl}
-                  onChange={(e) => setState((s) => ({ ...s, resumeUrl: e.target.value }))}
-                  onKeyDown={(e) => e.key === 'Enter' && handleLoadResume()}
-                  className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-sm placeholder:text-[var(--color-text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition-all"
-                />
+                <input type="url" placeholder="https://docs.google.com/document/d/..." value={state.resumeUrl} onChange={(e) => setState((s) => ({ ...s, resumeUrl: e.target.value }))} onKeyDown={(e) => e.key === 'Enter' && handleLoadResume()}
+                  className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-sm placeholder:text-[var(--color-text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition-all" />
               </label>
-              <button
-                onClick={handleLoadResume}
-                disabled={loading || !state.resumeUrl.trim()}
-                className="w-full py-3 px-6 rounded-xl bg-[var(--color-primary)] text-white font-semibold text-sm hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
-              >
-                {loading ? <><Spinner />Copying &amp; parsing document…</> : 'Load Resume →'}
+              <button onClick={handleLoadResume} disabled={loading || !state.resumeUrl.trim()}
+                className="w-full py-3 px-6 rounded-xl bg-[var(--color-primary)] text-white font-semibold text-sm hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2">
+                Load Resume →
               </button>
             </div>
             <div className="rounded-xl bg-[var(--color-primary-highlight)] border border-[var(--color-border)] p-4 text-sm text-[var(--color-text-muted)] flex gap-3">
-              <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-[var(--color-primary)]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" />
-              </svg>
+              <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-[var(--color-primary)]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
               All edits go to the copy only. Make sure your document is accessible by your Google account.
             </div>
           </div>
         )}
 
-        {/* Step 2 */}
-        {(state.step === 'instructions' || state.step === 'optimizing') && state.parsedResume && (
-          <div className="space-y-6">
+        {state.step === 'optimizing' && <AnalyzingAnimation />}
+
+        {state.step === 'instructions' && state.parsedResume && (
+          <div className="space-y-6 anim-page-enter">
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-2xl font-bold text-[var(--color-text)] mb-1">Define your optimization goals</h1>
@@ -314,14 +409,15 @@ useEffect(() => {
             </div>
             <button onClick={handleOptimize} disabled={loading || !state.jobDescription.trim()}
               className="w-full py-3 px-6 rounded-xl bg-[var(--color-primary)] text-white font-semibold text-sm hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2">
-              {loading ? <><Spinner />Analyzing with Gemini 1.5 Pro…</> : 'Generate Optimizations →'}
+              Generate Optimizations →
             </button>
           </div>
         )}
 
-        {/* Step 3 */}
-        {(state.step === 'review' || state.step === 'applying') && state.optimizationResult && (
-          <div className="space-y-6">
+        {state.step === 'applying' && <MergeAnimation count={approvedCount} />}
+
+        {state.step === 'review' && state.optimizationResult && (
+          <div className="space-y-6 anim-page-enter">
             <div>
               <h1 className="text-2xl font-bold text-[var(--color-text)] mb-1">Review proposed changes</h1>
               <p className="text-sm text-[var(--color-text-muted)]">Approve or reject each suggestion. Only approved changes will be written to your document.</p>
@@ -346,27 +442,63 @@ useEffect(() => {
               </p>
               <button onClick={handleApplyChanges} disabled={loading || approvedCount === 0}
                 className="py-2.5 px-6 rounded-xl bg-[var(--color-primary)] text-white font-semibold text-sm hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2">
-                {loading ? <><Spinner />Applying…</> : `Apply ${approvedCount} Change${approvedCount !== 1 ? 's' : ''} →`}
+                {`Apply ${approvedCount} Change${approvedCount !== 1 ? 's' : ''} →`}
               </button>
             </div>
           </div>
         )}
 
-        {/* Step 4 */}
+        {/* Step 4 — Enhanced Done */}
         {state.step === 'done' && (
-          <div className="space-y-6 text-center py-8">
-            <div className="w-16 h-16 rounded-full bg-[var(--color-success-highlight)] flex items-center justify-center mx-auto">
-              <svg className="w-8 h-8 text-[var(--color-success)]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <polyline points="20 6 9 17 4 12" />
+          <div className="space-y-8 text-center py-12 anim-page-enter relative">
+            {/* Confetti */}
+            <div className="confetti-container">
+              {Array.from({ length: 20 }).map((_, i) => (
+                <div key={i} className="confetti-particle" style={{
+                  left: `${5 + Math.random() * 90}%`,
+                  backgroundColor: ['#01696f','#437a22','#d19900','#7a39bb','#006494'][i % 5],
+                  animationDelay: `${Math.random() * 0.8}s`,
+                  animationDuration: `${1.2 + Math.random() * 0.8}s`,
+                  width: `${4 + Math.random() * 4}px`,
+                  height: `${4 + Math.random() * 4}px`,
+                  borderRadius: Math.random() > 0.5 ? '50%' : '1px',
+                }} />
+              ))}
+            </div>
+
+            {/* Animated checkmark */}
+            <div className="w-20 h-20 rounded-full bg-[var(--color-success-highlight)] flex items-center justify-center mx-auto anim-circle-pop">
+              <svg className="w-10 h-10 text-[var(--color-success)]" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" className="anim-check-draw" />
               </svg>
             </div>
+
             <div>
               <h1 className="text-2xl font-bold text-[var(--color-text)] mb-2">Resume optimized!</h1>
-              <p className="text-sm text-[var(--color-text-muted)]">Your changes have been applied to the copied document.</p>
+              <p className="text-sm text-[var(--color-text-muted)]">Your changes have been merged into the copied document.</p>
             </div>
+
+            {/* Stats */}
+            {state.optimizationResult && (
+              <div className="flex justify-center gap-6">
+                <div className="bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] px-5 py-3 text-center">
+                  <p className="text-2xl font-bold text-[var(--color-primary)]">{state.optimizationResult.sectionsModified.length}</p>
+                  <p className="text-xs text-[var(--color-text-muted)]">Sections</p>
+                </div>
+                <div className="bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] px-5 py-3 text-center">
+                  <p className="text-2xl font-bold text-[var(--color-success)]">{approvedCount}</p>
+                  <p className="text-xs text-[var(--color-text-muted)]">Changes</p>
+                </div>
+                <div className="bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] px-5 py-3 text-center">
+                  <p className="text-2xl font-bold text-[var(--color-gold)]">{state.optimizationResult.keywordsAdded.length}</p>
+                  <p className="text-xs text-[var(--color-text-muted)]">Keywords</p>
+                </div>
+              </div>
+            )}
+
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <a href={state.copiedDocUrl ?? '#'} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-[var(--color-primary)] text-white font-semibold text-sm hover:bg-[var(--color-primary-hover)] transition-all">
+                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-[var(--color-primary)] text-white font-semibold text-sm hover:bg-[var(--color-primary-hover)] transition-all shadow-md hover:shadow-lg">
                 <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
                 </svg>
@@ -380,8 +512,8 @@ useEffect(() => {
                 Export as PDF
               </button>
             </div>
-            <button onClick={() => setState(INITIAL_STATE)} className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] underline">
-              Optimize another resume
+            <button onClick={() => setState(INITIAL_STATE)} className="text-sm text-[var(--color-primary)] hover:text-[var(--color-primary-hover)] font-medium transition-colors">
+              ← Optimize another resume
             </button>
           </div>
         )}
