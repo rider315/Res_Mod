@@ -304,11 +304,18 @@ useEffect(() => {
     <div className="min-h-screen bg-[var(--color-bg)]">
       <header className="sticky top-0 z-10 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-label="ResumeAI">
-            <rect width="28" height="28" rx="7" fill="var(--color-primary)" />
-            <path d="M8 8h8a4 4 0 010 8H8V8z" fill="white" opacity="0.9" />
-            <path d="M8 16h10" stroke="white" strokeWidth="2" strokeLinecap="round" />
-            <path d="M8 20h7" stroke="white" strokeWidth="2" strokeLinecap="round" />
+          <svg width="28" height="28" viewBox="0 0 52 52" fill="none" aria-label="ResMod">
+            <rect x="1" y="1" width="50" height="50" rx="13" fill="var(--color-primary)" />
+            <rect x="13" y="10" width="22" height="30" rx="3" fill="white" opacity="0.95" />
+            <path d="M29 10 L35 16 L29 16 Z" fill="var(--color-primary)" opacity="0.3" />
+            <rect x="17" y="19" width="14" height="2" rx="1" fill="var(--color-primary)" opacity="0.5" />
+            <rect x="17" y="24" width="11" height="2" rx="1" fill="var(--color-primary)" opacity="0.35" />
+            <rect x="17" y="29" width="14" height="2" rx="1" fill="var(--color-primary)" opacity="0.5" />
+            <rect x="17" y="34" width="8" height="2" rx="1" fill="var(--color-primary)" opacity="0.35" />
+            <g transform="translate(30, 28) rotate(-45)">
+              <rect x="0" y="0" width="4" height="14" rx="1" fill="white" />
+              <polygon points="0,14 4,14 2,18" fill="white" />
+            </g>
           </svg>
           <span className="font-semibold text-[var(--color-text)] text-base">ResMod</span>
         </div>
@@ -325,10 +332,14 @@ useEffect(() => {
               </svg>
             )}
           </button>
-          {session?.user?.image && (
+          {session?.user?.image ? (
             <img src={session.user.image} alt={session.user.name ?? ''} width="28" height="28" className="rounded-full" />
-          )}
-          <span className="text-sm text-[var(--color-text-muted)] hidden sm:inline">{session?.user?.name}</span>
+          ) : session?.user?.name ? (
+            <div className="w-7 h-7 rounded-full bg-[var(--color-primary)] text-white text-xs font-semibold flex items-center justify-center flex-shrink-0">
+              {session.user.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+            </div>
+          ) : null}
+          <span className="text-sm text-[var(--color-text-muted)] hidden sm:inline truncate max-w-[120px]">{session?.user?.name}</span>
           <button onClick={() => signOut({ callbackUrl: '/' })} className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-error)] transition-colors">
             Sign out
           </button>
@@ -341,7 +352,7 @@ useEffect(() => {
         {state.step === 'parsing' && <ParsingAnimation />}
 
         {state.step === 'input' && (
-          <div className="space-y-6 anim-page-enter">
+          <div className="space-y-6">
             <div>
               <h1 className="text-2xl font-bold text-[var(--color-text)] mb-1">Optimize your resume</h1>
               <p className="text-sm text-[var(--color-text-muted)]">Paste your Google Docs resume link. A copy is created — your original is never modified.</p>

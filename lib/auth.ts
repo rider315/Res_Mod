@@ -1,6 +1,7 @@
 import { NextAuthOptions } from 'next-auth'
 import GoogleProvider from 'next-auth/providers/google'
 
+
 export const authOptions: NextAuthOptions = {
   providers: [
     GoogleProvider({
@@ -13,7 +14,7 @@ export const authOptions: NextAuthOptions = {
             'email',
             'profile',
             'https://www.googleapis.com/auth/documents',
-            'https://www.googleapis.com/auth/drive',
+            'https://www.googleapis.com/auth/drive.file',  // ← changed from drive
           ].join(' '),
           access_type: 'offline',
           prompt: 'consent',

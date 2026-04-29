@@ -9,10 +9,21 @@ export default function LoginPage() {
         <div className="flex justify-center">
           <div className="relative">
             <svg width="52" height="52" viewBox="0 0 52 52" fill="none" aria-label="ResMod">
-              <rect width="52" height="52" rx="14" fill="var(--color-primary)" />
-              <path d="M14 14h16a8 8 0 010 16H14V14z" fill="white" opacity="0.9" />
-              <path d="M14 30h20" stroke="white" strokeWidth="3" strokeLinecap="round" />
-              <path d="M14 38h14" stroke="white" strokeWidth="3" strokeLinecap="round" />
+              <rect x="1" y="1" width="50" height="50" rx="13" fill="var(--color-primary)" />
+              {/* Document body */}
+              <rect x="13" y="10" width="22" height="30" rx="3" fill="white" opacity="0.95" />
+              {/* Folded corner */}
+              <path d="M29 10 L35 16 L29 16 Z" fill="var(--color-primary)" opacity="0.3" />
+              {/* Text lines */}
+              <rect x="17" y="19" width="14" height="2" rx="1" fill="var(--color-primary)" opacity="0.5" />
+              <rect x="17" y="24" width="11" height="2" rx="1" fill="var(--color-primary)" opacity="0.35" />
+              <rect x="17" y="29" width="14" height="2" rx="1" fill="var(--color-primary)" opacity="0.5" />
+              <rect x="17" y="34" width="8" height="2" rx="1" fill="var(--color-primary)" opacity="0.35" />
+              {/* Edit pencil accent */}
+              <g transform="translate(30, 28) rotate(-45)">
+                <rect x="0" y="0" width="4" height="14" rx="1" fill="white" />
+                <polygon points="0,14 4,14 2,18" fill="white" />
+              </g>
             </svg>
             <div className="absolute -top-1 -right-1 w-4 h-4 bg-[var(--color-success)] rounded-full border-2 border-[var(--color-bg)] anim-pulse-dot" />
           </div>
