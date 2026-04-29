@@ -50,8 +50,8 @@ export async function POST(req: NextRequest) {
       appliedCount: approved.length,
       docUrl: `https://docs.google.com/document/d/${documentId}/edit`,
     })
-  } catch (err: any) {
-    console.error('[apply]', err?.message)
-    return NextResponse.json({ error: err?.message ?? 'Unknown error' }, { status: 500 })
+  } catch (err: unknown) {
+    console.error('[apply]', err instanceof Error ? err.message : String(err))
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Unknown error' }, { status: 500 })
   }
 }

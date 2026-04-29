@@ -18,14 +18,7 @@ const INITIAL_STATE: AppState = {
   error: null,
 }
 
-function Spinner() {
-  return (
-    <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-    </svg>
-  )
-}
+
 
 function AnimatedPhaseText({ phases }: { phases: string[] }) {
   const [idx, setIdx] = useState(0)
@@ -196,8 +189,8 @@ useEffect(() => {
         parsedResume: parseData.resume,
         error: null,
       }))
-    } catch (err: any) {
-      setState((s) => ({ ...s, step: 'input', error: err.message }))
+    } catch (err: unknown) {
+      setState((s) => ({ ...s, step: 'input', error: err instanceof Error ? err.message : String(err) }))
     } finally {
       setLoading(false)
     }
@@ -222,8 +215,8 @@ useEffect(() => {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       setState((s) => ({ ...s, step: 'review', optimizationResult: data.result, error: null }))
-    } catch (err: any) {
-      setState((s) => ({ ...s, step: 'instructions', error: err.message }))
+    } catch (err: unknown) {
+      setState((s) => ({ ...s, step: 'instructions', error: err instanceof Error ? err.message : String(err) }))
     } finally {
       setLoading(false)
     }
@@ -247,8 +240,8 @@ useEffect(() => {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       setState((s) => ({ ...s, step: 'done', error: null }))
-    } catch (err: any) {
-      setState((s) => ({ ...s, step: 'review', error: err.message }))
+    } catch (err: unknown) {
+      setState((s) => ({ ...s, step: 'review', error: err instanceof Error ? err.message : String(err) }))
     } finally {
       setLoading(false)
     }
@@ -333,6 +326,7 @@ useEffect(() => {
             )}
           </button>
           {session?.user?.image ? (
+            // eslint-disable-next-line @next/next/no-img-element
             <img src={session.user.image} alt={session.user.name ?? ''} width="28" height="28" className="rounded-full" />
           ) : session?.user?.name ? (
             <div className="w-7 h-7 rounded-full bg-[var(--color-primary)] text-white text-xs font-semibold flex items-center justify-center flex-shrink-0">

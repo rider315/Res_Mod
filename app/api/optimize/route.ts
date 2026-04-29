@@ -39,8 +39,8 @@ export async function POST(req: NextRequest) {
       parsed.data.softInstructions
     )
     return NextResponse.json({ result })
-  } catch (err: any) {
-    console.error('[optimize]', err?.message)
-    return NextResponse.json({ error: err?.message ?? 'Unknown error' }, { status: 500 })
+  } catch (err: unknown) {
+    console.error('[optimize]', err instanceof Error ? err.message : String(err))
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Unknown error' }, { status: 500 })
   }
 }

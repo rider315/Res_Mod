@@ -32,8 +32,8 @@ export async function POST(req: NextRequest) {
       copiedDocUrl: copy.url,
       title: original.title,
     })
-  } catch (err: any) {
-    console.error('[copy]', err?.message)
-    return NextResponse.json({ error: err?.message ?? 'Unknown error' }, { status: 500 })
+  } catch (err: unknown) {
+    console.error('[copy]', err instanceof Error ? err.message : String(err))
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Unknown error' }, { status: 500 })
   }
 }

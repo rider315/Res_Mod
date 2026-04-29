@@ -21,8 +21,8 @@ export async function POST(req: NextRequest) {
     const doc = await getDocument(session.accessToken, parsed.data.documentId)
     const resume = parseDocument(doc)
     return NextResponse.json({ resume })
-  } catch (err: any) {
-    console.error('[parse]', err?.message)
-    return NextResponse.json({ error: err?.message ?? 'Unknown error' }, { status: 500 })
+  } catch (err: unknown) {
+    console.error('[parse]', err instanceof Error ? err.message : String(err))
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Unknown error' }, { status: 500 })
   }
 }
