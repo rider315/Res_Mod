@@ -1,6 +1,7 @@
 'use client'
 
 import { signIn } from 'next-auth/react'
+import Link from 'next/link'
 
 export default function LoginPage() {
   return (
@@ -73,6 +74,12 @@ export default function LoginPage() {
         <p className="text-xs text-[var(--color-text-faint)]">
           Requires Google Docs and Drive access to read and copy your resume.
         </p>
+        
+        <div className="flex items-center justify-center gap-4 text-xs text-[var(--color-text-muted)] pt-4">
+          <Link href="/privacy" className="hover:text-[var(--color-primary)] hover:underline">Privacy Policy</Link>
+          <span>•</span>
+          <Link href="/terms" className="hover:text-[var(--color-primary)] hover:underline">Terms of Service</Link>
+        </div>
       </div>
     </main>
   )
