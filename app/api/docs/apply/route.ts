@@ -9,6 +9,7 @@ const schema = z.object({
   changes: z.array(
     z.object({
       id: z.string(),
+      sectionTitle: z.string().optional(),
       original: z.string(),
       proposed: z.string(),
       approved: z.boolean().nullable(),
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest) {
   const { documentId, changes } = parsed.data
   const approved = changes
     .filter((c) => c.approved === true)
-    .map((c) => ({ original: c.original, proposed: c.proposed }))
+    .map((c) => ({ original: c.original, proposed: c.proposed, sectionTitle: c.sectionTitle }))
 
   if (approved.length === 0)
     return NextResponse.json({ error: 'No approved changes to apply' }, { status: 400 })
