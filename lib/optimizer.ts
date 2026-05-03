@@ -79,6 +79,15 @@ ${hardInstructions || 'None'}
 ## SOFT GUIDELINES — Apply where appropriate:
 ${softInstructions || 'Use strong action verbs. Quantify achievements where possible. Align phrasing with keywords from the job description. Improve conciseness and clarity.'}
 
+## JD REFLECTION IN EXPERIENCE & PROJECTS (IMPORTANT)
+The job description requirements should SOFTLY reflect in Work Experience and Project descriptions:
+- Reframe existing accomplishments using terminology from the JD. Do NOT invent new achievements.
+- If the JD mentions "cross-platform mobile development" and the resume says "built a mobile app", reword it to "built a cross-platform mobile application".
+- If the JD mentions "RESTful APIs" and the resume says "integrated backend services", reword to "integrated RESTful API services".
+- The goal is to make it look like the candidate's existing work naturally aligns with the JD — NOT to fabricate experience.
+- Be SUBTLE. A recruiter reading the resume should feel the candidate is a natural fit, not that keywords were force-injected.
+- Keep the candidate's authentic voice and real accomplishments intact.
+
 
 ## CRITICAL LENGTH RULE
 For every change, the "proposed" text MUST have the EXACT same character count as the "original" text (±3 chars max).
@@ -118,7 +127,31 @@ Do NOT generate any changes for sections whose title contains any of these (case
 - Suggest 8 to 15 high-impact changes only
 - "original" must EXACTLY match text that exists in the resume — no paraphrasing, no trimming
 - NEVER touch frozen fields (company names, role titles, dates, project names)
-- Maintain the same character length (±3 chars) for every proposed change`
+- Maintain the same character length (±3 chars) for every proposed change
+
+## SKILL ALIGNMENT STRATEGY (VERY IMPORTANT)
+You MUST ensure the resume includes the KEY SKILLS from the job description. Follow this strategy:
+
+### Step 1: Identify the TOP 5-8 skills from the JD that are MISSING from the resume.
+For example, if the JD asks for Flutter/Dart and the resume has no mention of Flutter — Flutter MUST be added.
+
+### Step 2: Add missing JD skills to the Skills/Technologies section.
+- SWAP OUT the least relevant existing skills to make room for JD-critical ones.
+- Prioritize removing skills that are completely unrelated to the target role.
+- The character count of the proposed line MUST stay within ±3 chars of the original.
+- Example: original "Python, Java, C++, MATLAB, Arduino" → proposed "Python, Java, Flutter, Dart, React.js" (swapped out MATLAB/Arduino for JD-relevant Flutter/Dart/React.js).
+
+### Step 3: Align experience bullet points to NATURALLY reference the added skills.
+- This is critical — skills added to the Technologies section must also appear naturally in the experience descriptions.
+- Reword existing bullet points to reference the JD technologies without making it feel forced or fake.
+- Example: "Developed a cross-platform mobile app using React Native" → "Developed a cross-platform mobile app using Flutter and Dart"
+- Only do this where it makes SENSE contextually. Don't shoehorn skills into unrelated bullets.
+- The candidate's real experience should still shine through — just reframe it using JD-aligned terminology.
+
+### Step 4: Ensure CONSISTENCY across the entire resume.
+- If you add "Flutter" to the skills section, at least 1-2 experience bullets should also mention Flutter.
+- If you add "React.js" to skills, make sure relevant web dev experience bullets mention React.js.
+- The resume should read as ONE cohesive story, not a keyword-stuffed document.`
 }
 
 
@@ -143,19 +176,31 @@ export async function optimizeResume(
   const result = await model.generateContent(prompt)
   const raw = JSON.parse(result.response.text())
 
+  const MAX_CHAR_DIFF = 5 // hard limit — reject changes that exceed this
 
-  const changes: ResumeChange[] = (raw.changes ?? []).map(
-    (c: Omit<ResumeChange, 'id' | 'approved'>, i: number) => ({
-      id: `change_${i}_${Date.now()}`,
-      sectionId: c.sectionId,
-      sectionTitle: c.sectionTitle,
-      original: c.original,
-      proposed: c.proposed,
-      reason: c.reason,
-      type: c.type ?? 'rewrite',
-      approved: null,
+  const changes: ResumeChange[] = (raw.changes ?? [])
+    .map(
+      (c: Omit<ResumeChange, 'id' | 'approved'>, i: number) => ({
+        id: `change_${i}_${Date.now()}`,
+        sectionId: c.sectionId,
+        sectionTitle: c.sectionTitle,
+        original: c.original,
+        proposed: c.proposed,
+        reason: c.reason,
+        type: c.type ?? 'rewrite',
+        approved: null,
+      })
+    )
+    .filter((c: ResumeChange) => {
+      const diff = Math.abs(c.proposed.length - c.original.length)
+      if (diff > MAX_CHAR_DIFF) {
+        console.warn(
+          `[optimizer] Rejected change (±${diff} chars): "${c.original.slice(0, 50)}..." → "${c.proposed.slice(0, 50)}..."`
+        )
+        return false
+      }
+      return true
     })
-  )
 
 
   return {

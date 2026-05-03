@@ -14,7 +14,7 @@ export const authOptions: NextAuthOptions = {
             'email',
             'profile',
             'https://www.googleapis.com/auth/documents',
-            'https://www.googleapis.com/auth/drive.file',  // ← changed from drive
+            'https://www.googleapis.com/auth/drive',  // full drive access to read + copy user's existing docs
           ].join(' '),
           access_type: 'offline',
           prompt: 'consent',

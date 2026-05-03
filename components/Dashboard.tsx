@@ -147,6 +147,11 @@ useEffect(() => {
   const theme = prefersDark ? 'dark' : 'light'
   setThemeMode(theme)
   document.documentElement.setAttribute('data-theme', theme)
+  // Load saved resume URL from localStorage
+  const savedUrl = localStorage.getItem('resmod_resume_url')
+  if (savedUrl) {
+    setState((s) => ({ ...s, resumeUrl: savedUrl }))
+  }
 }, [])
 
   function toggleTheme() {
@@ -189,6 +194,8 @@ useEffect(() => {
         parsedResume: parseData.resume,
         error: null,
       }))
+      // Save URL to localStorage for next time
+      localStorage.setItem('resmod_resume_url', state.resumeUrl)
     } catch (err: unknown) {
       setState((s) => ({ ...s, step: 'input', error: err instanceof Error ? err.message : String(err) }))
     } finally {
@@ -249,9 +256,11 @@ useEffect(() => {
 
   function handleExportPdf() {
     if (!state.copiedDocId) return
+    const companyName = state.optimizationResult?.companyName || 'Company'
+    const filename = encodeURIComponent(`Gaurav Chaudhary Resume_${companyName}`)
     const a = document.createElement('a')
-    a.href = `/api/docs/export?documentId=${state.copiedDocId}`
-    a.download = 'optimized-resume.pdf'
+    a.href = `/api/docs/export?documentId=${state.copiedDocId}&filename=${filename}`
+    a.download = `Gaurav Chaudhary Resume_${companyName}.pdf`
     a.click()
   }
 
@@ -353,7 +362,15 @@ useEffect(() => {
             </div>
             <div className="bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] p-6 space-y-4">
               <label className="block">
-                <span className="text-sm font-semibold text-[var(--color-text)] mb-2 block">Google Docs Resume URL</span>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-semibold text-[var(--color-text)]">Google Docs Resume URL</span>
+                  {state.resumeUrl && localStorage.getItem('resmod_resume_url') === state.resumeUrl && (
+                    <span className="text-xs text-[var(--color-success)] flex items-center gap-1">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>
+                      Saved
+                    </span>
+                  )}
+                </div>
                 <input type="url" placeholder="https://docs.google.com/document/d/..." value={state.resumeUrl} onChange={(e) => setState((s) => ({ ...s, resumeUrl: e.target.value }))} onKeyDown={(e) => e.key === 'Enter' && handleLoadResume()}
                   className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-sm placeholder:text-[var(--color-text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition-all" />
               </label>

@@ -10,6 +10,7 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
   const documentId = searchParams.get('documentId')
+  const filename = searchParams.get('filename') || 'optimized-resume'
   if (!documentId)
     return NextResponse.json({ error: 'Missing documentId' }, { status: 400 })
 
@@ -18,7 +19,7 @@ export async function GET(req: NextRequest) {
     return new NextResponse(new Uint8Array(pdfBuffer), {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': 'attachment; filename="optimized-resume.pdf"',
+        'Content-Disposition': `attachment; filename="${filename}.pdf"`,
       },
     })
   } catch (err: unknown) {
