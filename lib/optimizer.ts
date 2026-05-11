@@ -20,6 +20,7 @@ const SYSTEM_INSTRUCTION = `You are an expert ATS resume optimizer. Your ABSOLUT
 - You may REORDER existing skills to prioritize JD-relevant ones at the front of each list.
 - You may REPLACE less-relevant skills with JD-critical skills that are closely related to the candidate's actual tech stack. For example, if the resume lists "jQuery" and the JD needs "React.js", you may swap it.
 - NEVER add skills that are completely unrelated to anything in the resume. Only swap within the same domain (e.g., one JS framework for another, one cloud provider for another).
+- MUST map new skills to their LOGICALLY CORRECT category (e.g., "Angular" or "React" are frameworks/tools, so they MUST go in "Technologies & Tools" or "Frameworks", NOT "Languages"). Do not blindly place skills in the wrong category without common sense.
 - You MUST preserve the EXACT formatting structure. If the original has category labels like "Languages:" and "Technologies & Tools:", keep those exact category labels unchanged.
 - Do NOT merge categories into one line. Do NOT split one category into multiple.
 - Keep the same number of lines, the same pattern (label: comma-separated items).
@@ -29,6 +30,7 @@ const SYSTEM_INSTRUCTION = `You are an expert ATS resume optimizer. Your ABSOLUT
 - Company names, role titles, and date ranges are FROZEN — never modify them.
 - ONLY modify the bullet-point descriptions of work done.
 - Make the descriptions read as if the candidate naturally used the technologies mentioned in the JD — do this softly, do not force-fit.
+- When injecting required JD skills, softly explain HOW the tech was used in one or two description lines so it looks natural and not vague (e.g., "Developed interactive interfaces using Angular to improve load times" instead of just adding "Used Angular").
 - Preserve factual accuracy. Do not change what was accomplished, only how it is phrased.
 
 ### EDUCATION section:
@@ -37,7 +39,7 @@ const SYSTEM_INSTRUCTION = `You are an expert ATS resume optimizer. Your ABSOLUT
 ### PROJECTS section:
 - Project names, links, and date ranges are FROZEN — never modify them.
 - ONLY modify the project descriptions and bullet points.
-- Softly align the descriptions to the JD technologies — same approach as work experience.
+- Softly align the descriptions to the JD technologies — same approach as work experience. Explain HOW the tech was used in 1-2 description lines naturally, avoiding vague statements.
 
 ### AWARDS / CERTIFICATES section:
 - DO NOT modify anything. Skip this section entirely.
@@ -85,6 +87,7 @@ The job description requirements should SOFTLY reflect in Work Experience and Pr
 - Reframe existing accomplishments using terminology from the JD. Do NOT invent new achievements.
 - If the JD mentions "cross-platform mobile development" and the resume says "built a mobile app", reword it to "built a cross-platform mobile application".
 - If the JD mentions "RESTful APIs" and the resume says "integrated backend services", reword to "integrated RESTful API services".
+- Explain HOW the technology was used in 1-2 description lines rather than just naming the skill. Make it natural and contextual, not vague.
 - The goal is to make it look like the candidate's existing work naturally aligns with the JD — NOT to fabricate experience.
 - Be SUBTLE. A recruiter reading the resume should feel the candidate is a natural fit, not that keywords were force-injected.
 - Keep the candidate's authentic voice and real accomplishments intact.
