@@ -165,9 +165,9 @@ export async function optimizeResume(
   hardInstructions: string,
   softInstructions: string
 ): Promise<OptimizationResult> {
-  // ✅ Use gemini-3.1-pro-preview — latest flagship model for best reasoning quality
+  // ✅ Use gemini-2.5-pro — best reasoning quality for resume optimization
   const model = genAI.getGenerativeModel({
-    model: 'gemini-3.1-pro-preview',
+    model: 'gemini-2.5-pro',
     systemInstruction: SYSTEM_INSTRUCTION,
     generationConfig: {
       responseMimeType: 'application/json',
