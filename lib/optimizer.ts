@@ -20,6 +20,7 @@ const SYSTEM_INSTRUCTION = `You are an expert ATS resume optimizer. Your ABSOLUT
 - You may REORDER existing skills to prioritize JD-relevant ones at the front of each list.
 - You may REPLACE less-relevant skills with JD-critical skills that are closely related to the candidate's actual tech stack. For example, if the resume lists "jQuery" and the JD needs "React.js", you may swap it.
 - NEVER add skills that are completely unrelated to anything in the resume. Only swap within the same domain (e.g., one JS framework for another, one cloud provider for another).
+- **CRITICAL CATEGORY MATCHING**: When replacing skills, you MUST respect the sub-category! If the JD requires a "Language" (e.g. Python, Java), you MUST place it in the line labeled "Languages:". If the JD requires a "Tool" (e.g. Docker, Git), you MUST place it in the line labeled "Tools:" or "Technologies:". NEVER put a framework in the languages line, or a language in the tools line.
 - You MUST preserve the EXACT formatting structure. If the original has category labels like "Languages:" and "Technologies & Tools:", keep those exact category labels unchanged.
 - Do NOT merge categories into one line. Do NOT split one category into multiple.
 - Keep the same number of lines, the same pattern (label: comma-separated items).
@@ -145,7 +146,7 @@ Identify ALL important keywords from the JD, including:
 Compare extracted keywords against the resume. Focus on the top 8-12 most critical missing keywords.
 
 ### Step 3: Incorporate missing keywords NATURALLY across the resume:
-- **Skills section**: Swap out the least relevant skills for the most critical missing JD skills. Keep domain alignment (swap frameworks for frameworks, tools for tools).
+- **Skills section**: Swap out the least relevant skills for the most critical missing JD skills. Keep STRICT domain and category alignment (swap frameworks for frameworks, tools for tools, languages for languages). Ensure the new skill is placed in the logically correct category (e.g., don't put a language in the tools list).
 - **Work Experience**: Reword bullet points to use the JD's exact terminology where it fits. Example: resume says "built backend services" and JD says "RESTful APIs" → change to "built RESTful API services".
 - **Projects**: Same approach — subtly align project descriptions to use JD terms.
 - **Soft Skills**: Replace generic soft skills with JD-specific ones (e.g., "Team Player" → "Cross-functional Collaboration").
