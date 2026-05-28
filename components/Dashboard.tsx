@@ -93,6 +93,45 @@ function AnalyzingAnimation() {
   )
 }
 
+function RevampingAnimation() {
+  return (
+    <div className="anim-page-enter flex flex-col items-center justify-center py-20 space-y-8">
+      <div className="flex items-center gap-6">
+        <div className="relative anim-float" style={{ animationDelay: '0s' }}>
+          <svg width="56" height="70" viewBox="0 0 56 70" fill="none">
+            <rect x="2" y="2" width="52" height="66" rx="6" stroke="var(--color-error)" strokeWidth="2" fill="var(--color-surface)" />
+            <rect x="10" y="14" width="36" height="3" rx="1.5" fill="var(--color-error)" opacity="0.3" />
+            <rect x="10" y="22" width="28" height="3" rx="1.5" fill="var(--color-error)" opacity="0.3" />
+            <rect x="10" y="30" width="32" height="3" rx="1.5" fill="var(--color-error)" opacity="0.3" />
+          </svg>
+          <p className="text-xs text-center text-[var(--color-text-muted)] mt-2 font-medium">Resume</p>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          {[0, 0.15, 0.3, 0.45, 0.6].map((d) => (
+            <div key={d} className="w-2 h-2 rounded-full bg-[var(--color-error)] anim-flow-dot" style={{ animationDelay: `${d}s` }} />
+          ))}
+        </div>
+        <div className="relative anim-float" style={{ animationDelay: '0.5s' }}>
+          <svg width="56" height="70" viewBox="0 0 56 70" fill="none">
+            <rect x="2" y="2" width="52" height="66" rx="6" stroke="var(--color-gold)" strokeWidth="2" fill="var(--color-surface)" />
+            <rect x="10" y="14" width="36" height="3" rx="1.5" fill="var(--color-gold-highlight)" />
+            <rect x="10" y="22" width="30" height="3" rx="1.5" fill="var(--color-gold-highlight)" />
+            <rect x="10" y="30" width="34" height="3" rx="1.5" fill="var(--color-gold-highlight)" />
+          </svg>
+          <p className="text-xs text-center text-[var(--color-text-muted)] mt-2 font-medium">Job Description</p>
+        </div>
+      </div>
+      <div className="text-center space-y-2">
+        <h2 className="text-xl font-bold text-[var(--color-text)]">🔥 Full Revamp in Progress</h2>
+        <AnimatedPhaseText phases={['Analyzing JD requirements deeply…', 'Rewriting work experience from scratch…', 'Rebuilding KPIT bullet points…', 'Saturating with JD keywords…', 'Finalizing aggressive rewrites…']} />
+      </div>
+      <div className="w-48 h-1.5 rounded-full bg-[var(--color-border)] overflow-hidden">
+        <div className="h-full rounded-full anim-shimmer" style={{ width: '100%', background: 'linear-gradient(90deg, var(--color-error), var(--color-gold), var(--color-error))' }} />
+      </div>
+    </div>
+  )
+}
+
 function MergeAnimation({ count }: { count: number }) {
   return (
     <div className="anim-page-enter flex flex-col items-center justify-center py-20 space-y-8">
@@ -210,6 +249,32 @@ useEffect(() => {
     setState((s) => ({ ...s, step: 'optimizing' }))
     try {
       const res = await fetch('/api/optimize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          resume: state.parsedResume,
+          jobDescription: state.jobDescription,
+          hardInstructions: state.hardInstructions,
+          softInstructions: state.softInstructions,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setState((s) => ({ ...s, step: 'review', optimizationResult: data.result, error: null }))
+    } catch (err: unknown) {
+      setState((s) => ({ ...s, step: 'instructions', error: err instanceof Error ? err.message : String(err) }))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleRevamp() {
+    if (!state.parsedResume || !state.jobDescription.trim()) return
+    setLoading(true)
+    setError(null)
+    setState((s) => ({ ...s, step: 'revamping' }))
+    try {
+      const res = await fetch('/api/revamp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -387,6 +452,7 @@ useEffect(() => {
         )}
 
         {state.step === 'optimizing' && <AnalyzingAnimation />}
+        {state.step === 'revamping' && <RevampingAnimation />}
 
         {state.step === 'instructions' && state.parsedResume && (
           <div className="space-y-6 anim-page-enter">
@@ -429,10 +495,20 @@ useEffect(() => {
                 </label>
               </div>
             </div>
-            <button onClick={handleOptimize} disabled={loading || !state.jobDescription.trim()}
-              className="w-full py-3 px-6 rounded-xl bg-[var(--color-primary)] text-white font-semibold text-sm hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2">
-              Generate Optimizations →
-            </button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button onClick={handleOptimize} disabled={loading || !state.jobDescription.trim()}
+                className="w-full py-3 px-6 rounded-xl bg-[var(--color-primary)] text-white font-semibold text-sm hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2">
+                Generate Optimizations →
+              </button>
+              <button onClick={handleRevamp} disabled={loading || !state.jobDescription.trim()}
+                className="w-full py-3 px-6 rounded-xl font-semibold text-sm text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
+                style={{ background: 'linear-gradient(135deg, #e8450e 0%, #f59e0b 100%)' }}>
+                🔥 Full Revamp
+              </button>
+            </div>
+            <p className="text-xs text-[var(--color-text-faint)] text-center">
+              <strong>Optimize</strong> = subtle keyword alignment &nbsp;|&nbsp; <strong>Full Revamp</strong> = aggressive rewrite of work experience to match JD
+            </p>
           </div>
         )}
 

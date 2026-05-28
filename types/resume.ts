@@ -19,6 +19,7 @@ export interface ResumeChange {
   reason: string
   type: 'rewrite' | 'add_keywords' | 'improve_clarity' | 'action_verb'
   approved: boolean | null
+  boldKeywords?: string[]
 }
 
 export interface OptimizationResult {
@@ -34,6 +35,7 @@ export type AppStep =
   | 'parsing'
   | 'instructions'
   | 'optimizing'
+  | 'revamping'
   | 'review'
   | 'applying'
   | 'done'

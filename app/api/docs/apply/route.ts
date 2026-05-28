@@ -13,6 +13,7 @@ const schema = z.object({
       original: z.string(),
       proposed: z.string(),
       approved: z.boolean().nullable(),
+      boldKeywords: z.array(z.string()).optional(),
     })
   ),
   companyName: z.string().optional(),
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
   const { documentId, changes, companyName } = parsed.data
   const approved = changes
     .filter((c) => c.approved === true)
-    .map((c) => ({ original: c.original, proposed: c.proposed, sectionTitle: c.sectionTitle }))
+    .map((c) => ({ original: c.original, proposed: c.proposed, sectionTitle: c.sectionTitle, boldKeywords: c.boldKeywords }))
 
   if (approved.length === 0)
     return NextResponse.json({ error: 'No approved changes to apply' }, { status: 400 })

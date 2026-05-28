@@ -10,7 +10,7 @@ const STEPS: { id: AppStep; label: string }[] = [
 
 function getDisplayStep(step: AppStep): AppStep {
   if (step === 'parsing') return 'input'
-  if (step === 'optimizing') return 'instructions'
+  if (step === 'optimizing' || step === 'revamping') return 'instructions'
   if (step === 'applying') return 'review'
   return step
 }

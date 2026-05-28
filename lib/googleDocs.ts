@@ -59,7 +59,7 @@ export async function renameDocument(
 export async function applyChangesToDocument(
   accessToken: string,
   documentId: string,
-  changes: Array<{ original: string; proposed: string; sectionTitle?: string }>
+  changes: Array<{ original: string; proposed: string; sectionTitle?: string; boldKeywords?: string[] }>
 ): Promise<void> {
   if (changes.length === 0) return
   const auth = getOAuthClient(accessToken)
@@ -83,7 +83,10 @@ export async function applyChangesToDocument(
   const skillChanges = changes.filter(
     (c) => c.sectionTitle && /skill/i.test(c.sectionTitle)
   )
-  if (skillChanges.length === 0) return
+  const boldChanges = changes.filter(
+    (c) => c.boldKeywords && c.boldKeywords.length > 0
+  )
+  if (skillChanges.length === 0 && boldChanges.length === 0) return
 
   // Re-fetch document to get current text positions
   const docResponse = await docs.documents.get({ documentId })
@@ -185,6 +188,50 @@ export async function applyChangesToDocument(
           fields: 'bold',
         },
       })
+    }
+  }
+
+  // Step 3: Bold specific keywords in revamped bullet points
+  if (boldChanges.length > 0) {
+    // Re-fetch document to get up-to-date positions (after step 1 replacements)
+    const boldDocResponse = skillChanges.length > 0
+      ? await docs.documents.get({ documentId })  // re-fetch after skill formatting
+      : docResponse  // reuse if no skill formatting was applied
+    const boldBody = boldDocResponse.data.body?.content ?? []
+
+    for (const element of boldBody) {
+      const para = element.paragraph
+      if (!para?.elements) continue
+
+      const paraText = para.elements
+        .map((el) => el.textRun?.content ?? '')
+        .join('')
+      const paraTextTrimmed = paraText.trim()
+      if (!paraTextTrimmed) continue
+
+      const paraStartIndex = para.elements[0]?.startIndex
+      if (paraStartIndex == null) continue
+
+      // Check if this paragraph contains proposed text from a bold change
+      for (const change of boldChanges) {
+        const proposed = change.proposed.trim()
+        if (!paraTextTrimmed.includes(proposed) && !proposed.includes(paraTextTrimmed)) continue
+
+        // Found a matching paragraph — bold each keyword
+        for (const keyword of change.boldKeywords!) {
+          const kwIdx = paraText.indexOf(keyword)
+          if (kwIdx === -1) continue
+          const kwStart = paraStartIndex + kwIdx
+          const kwEnd = kwStart + keyword.length
+          styleRequests.push({
+            updateTextStyle: {
+              range: { startIndex: kwStart, endIndex: kwEnd },
+              textStyle: { bold: true },
+              fields: 'bold',
+            },
+          })
+        }
+      }
     }
   }
 
