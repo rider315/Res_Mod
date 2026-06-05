@@ -83,8 +83,8 @@ function AnalyzingAnimation() {
         </div>
       </div>
       <div className="text-center space-y-2">
-        <h2 className="text-xl font-bold text-[var(--color-text)]">Analyzing with Gemini Pro</h2>
-        <AnimatedPhaseText phases={['Reading job requirements…', 'Matching keywords to resume…', 'Generating section optimizations…', 'Refining suggestions…']} />
+        <h2 className="text-xl font-bold text-[var(--color-text)]">Extracting ATS Keywords</h2>
+        <AnimatedPhaseText phases={['Extracting keywords from JD…', 'Matching keywords to resume…', 'Rewriting experience bullets…', 'Injecting missing ATS keywords…', 'Refining suggestions…']} />
       </div>
       <div className="w-48 h-1.5 rounded-full bg-[var(--color-border)] overflow-hidden">
         <div className="h-full rounded-full anim-shimmer" style={{ width: '100%' }} />
@@ -122,8 +122,8 @@ function RevampingAnimation() {
         </div>
       </div>
       <div className="text-center space-y-2">
-        <h2 className="text-xl font-bold text-[var(--color-text)]">🔥 Full Revamp in Progress</h2>
-        <AnimatedPhaseText phases={['Analyzing JD requirements deeply…', 'Rewriting work experience from scratch…', 'Rebuilding KPIT bullet points…', 'Saturating with JD keywords…', 'Finalizing aggressive rewrites…']} />
+        <h2 className="text-xl font-bold text-[var(--color-text)]">🔥 Full ATS Revamp in Progress</h2>
+        <AnimatedPhaseText phases={['Extracting all JD keywords…', 'Rewriting every experience bullet…', 'Saturating with ATS keywords…', 'Swapping skills to match JD…', 'Finalizing aggressive rewrites…']} />
       </div>
       <div className="w-48 h-1.5 rounded-full bg-[var(--color-border)] overflow-hidden">
         <div className="h-full rounded-full anim-shimmer" style={{ width: '100%', background: 'linear-gradient(90deg, var(--color-error), var(--color-gold), var(--color-error))' }} />
@@ -507,7 +507,7 @@ useEffect(() => {
               </button>
             </div>
             <p className="text-xs text-[var(--color-text-faint)] text-center">
-              <strong>Optimize</strong> = subtle keyword alignment &nbsp;|&nbsp; <strong>Full Revamp</strong> = aggressive rewrite of work experience to match JD
+              <strong>ATS Optimize</strong> = keyword extraction + experience rewriting &nbsp;|&nbsp; <strong>Full ATS Revamp</strong> = aggressive rewrite of ALL bullets to match JD
             </p>
           </div>
         )}

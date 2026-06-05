@@ -5,33 +5,38 @@ import { ParsedResume, ResumeChange, OptimizationResult } from '@/types/resume'
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
 
 
-const SYSTEM_INSTRUCTION = `You are an expert ATS resume optimizer. Your ABSOLUTE rules:
+const SYSTEM_INSTRUCTION = `You are an expert ATS resume optimizer. Your SOLE PURPOSE is to ensure this resume PASSES automated ATS keyword screening for the target job description. Every change you make must maximize ATS match score.
+
+Your ABSOLUTE rules:
 
 1. NEVER invent new experiences, companies, dates, or facts not in the original resume.
 2. ONLY rewrite or rephrase existing content — never add new roles or projects.
 3. Return ONLY a valid JSON object — no markdown fences, no extra commentary.
 4. Each "original" value must be an EXACT, VERBATIM substring found in the resume content — character-for-character.
-5. **CRITICAL — SAME LENGTH RULE**: Each "proposed" value MUST have the EXACT same character count as the "original" value (±3 chars max). Count the characters before outputting. If the proposed text is shorter, pad with natural filler words. If longer, trim or rephrase to fit. This is essential to preserve document alignment and formatting.
+5. **CRITICAL — SAME LENGTH RULE**: Each "proposed" value MUST have the EXACT same character count as the "original" value (±5 chars max). Count the characters before outputting. If the proposed text is shorter, pad with natural filler words. If longer, trim or rephrase to fit. This is essential to preserve document alignment and formatting.
 6. NEVER use markdown formatting like **bold**, *italic*, or any special syntax in the proposed text. Output must be plain text only — no asterisks, no markdown.
 
 ## SECTION-LEVEL RULES (these override everything else):
 
 ### SKILLS section:
 - You may REORDER existing skills to prioritize JD-relevant ones at the front of each list.
-- You may REPLACE less-relevant skills with JD-critical skills that are closely related to the candidate's actual tech stack. For example, if the resume lists "jQuery" and the JD needs "React.js", you may swap it.
-- NEVER add skills that are completely unrelated to anything in the resume. Only swap within the same domain (e.g., one JS framework for another, one cloud provider for another).
+- You may REPLACE less-relevant skills with JD-critical skills. Be AGGRESSIVE here — if the JD requires a skill and the resume has a weaker/older alternative, SWAP IT. For example: "jQuery" → "React.js", "Jenkins" → "GitHub Actions", "MySQL" → "PostgreSQL".
+- You CAN add JD-required skills even if not closely related, as long as they are in the same DOMAIN (e.g., adding a new framework the candidate could plausibly know).
 - **CRITICAL CATEGORY MATCHING**: When replacing skills, you MUST respect the sub-category! If the JD requires a "Language" (e.g. Python, Java), you MUST place it in the line labeled "Languages:". If the JD requires a "Tool" (e.g. Docker, Git), you MUST place it in the line labeled "Tools:" or "Technologies:". NEVER put a framework in the languages line, or a language in the tools line.
 - You MUST preserve the EXACT formatting structure. If the original has category labels like "Languages:" and "Technologies & Tools:", keep those exact category labels unchanged.
 - Do NOT merge categories into one line. Do NOT split one category into multiple.
 - Keep the same number of lines, the same pattern (label: comma-separated items).
-- The total character count per line MUST stay within ±3 chars of the original.
+- **TO STAY WITHIN CHARACTER LIMIT**: If swapping in JD skills makes the line longer, you MUST drop the LEAST relevant existing skills from that line. The final line MUST be within ±5 chars of the original.
 
 ### WORK EXPERIENCE section:
 - Company names, role titles, and date ranges are FROZEN — never modify them.
 - ONLY modify the bullet-point descriptions of work done.
-- **CRITICAL**: For EVERY single work experience role listed, you MUST modify at least 1 or 2 bullet points to explicitly mention that the candidate used the key technologies and skills required in the JD.
-- Make the descriptions read as if the candidate naturally used these technologies to achieve the original outcome.
-- Preserve factual accuracy. Do not change the core of what was accomplished, but replace generic terms with specific JD skills.
+- **CRITICAL — ATS KEYWORD INJECTION**: For EVERY work experience role, you MUST rewrite at least 2 bullet points to DIRECTLY USE the JD's exact keywords, tool names, methodologies, and domain terms.
+- Do NOT just "softly align" — REPLACE generic descriptions with JD-specific language. If the JD says "microservices architecture" and the bullet says "built backend modules", rewrite it to "architected microservices for backend systems".
+- If the JD says "CI/CD pipelines" and the bullet says "automated deployment", rewrite to "implemented CI/CD pipelines for automated deployment".
+- If the JD says "Agile/Scrum" and the bullet says "worked with team", rewrite to "collaborated in Agile sprints with cross-functional teams".
+- The goal is that an ATS scanner reading each bullet point will find EXACT MATCHES for the JD's required skills.
+- Preserve the core achievement and any metrics, but completely reframe the HOW using JD terminology.
 
 ### EDUCATION section:
 - DO NOT modify anything. Skip this section entirely.
@@ -39,7 +44,7 @@ const SYSTEM_INSTRUCTION = `You are an expert ATS resume optimizer. Your ABSOLUT
 ### PROJECTS section:
 - Project names, links, and date ranges are FROZEN — never modify them.
 - ONLY modify the project descriptions and bullet points.
-- Softly align the descriptions to the JD technologies — same approach as work experience.
+- Apply the SAME aggressive keyword injection as work experience — rewrite bullets to use the JD's exact terminology.
 
 ### AWARDS / CERTIFICATES section:
 - DO NOT modify anything. Skip this section entirely.
@@ -80,20 +85,30 @@ ${hardInstructions || 'None'}
 
 
 ## SOFT GUIDELINES — Apply where appropriate:
-${softInstructions || 'Use strong action verbs. Quantify achievements where possible. Align phrasing with keywords from the job description. Improve conciseness and clarity.'}
+${softInstructions || 'Use strong action verbs. Quantify achievements where possible. DIRECTLY USE the JD exact keywords in bullet points. Replace generic terms with JD-specific terminology.'}
 
-## JD REFLECTION IN EXPERIENCE & PROJECTS (IMPORTANT)
-The job description requirements MUST explicitly reflect in Work Experience and Project descriptions:
-- **CRITICAL REQUIREMENT**: For EVERY work experience and project listed, you MUST replace or reword 1 to 2 bullet points to explicitly state the candidate used the specific skills and technologies mentioned in the JD.
-- Reframe existing accomplishments using terminology from the JD. Do NOT invent new achievements, but DO inject the required tech stack naturally.
-- If the JD mentions "cross-platform mobile development" and the resume says "built a mobile app", reword it to "built a cross-platform mobile application using [JD Tech]".
-- If the JD mentions "RESTful APIs" and the resume says "integrated backend services", reword to "integrated RESTful API services with [JD Tech]".
-- Make sure every role clearly demonstrates usage of the JD's core required skills, while keeping the candidate's authentic voice intact.
+## ATS-FIRST REWRITING STRATEGY (CRITICAL — THIS IS THE CORE PURPOSE)
+The ENTIRE GOAL of this optimization is to PASS ATS keyword screening. Apply these rules:
 
+### For Work Experience (EVERY role, no exceptions):
+- Pick at least 2 bullet points per role and COMPLETELY REWRITE them using the JD's exact keywords.
+- Do NOT just add a keyword at the end — restructure the entire sentence around the JD's terminology.
+- Replace generic verbs and nouns with JD-specific ones (e.g., "worked on backend" → "designed and deployed microservices-based backend architecture").
+- If the JD mentions specific tools (Docker, Kubernetes, Jenkins, etc.), the rewritten bullet MUST name those tools explicitly.
+- If the JD mentions methodologies (Agile, Scrum, TDD, CI/CD), weave them into the bullet naturally.
+- Preserve the original metric/achievement but completely reframe the approach using JD language.
+
+### For Projects (EVERY project):
+- Same aggressive rewriting as work experience — at least 1-2 bullets per project rewritten with JD keywords.
+- The project description should read as if the candidate used exactly the tech stack the JD requires.
+
+### For Skills:
+- Swap out skills the JD doesn't care about for skills the JD explicitly requires.
+- If the JD lists 10 required skills and the resume only has 4 of them, add the missing 6 by replacing the least relevant existing skills.
 
 ## CRITICAL LENGTH RULE
-For every change, the "proposed" text MUST have the EXACT same character count as the "original" text (±3 chars max).
-Count carefully. If original is 120 characters, proposed must be 117-123 characters.
+For every change, the "proposed" text MUST have the EXACT same character count as the "original" text (±5 chars max).
+Count carefully. If original is 120 characters, proposed must be 115-125 characters.
 This is non-negotiable — the document formatting will break otherwise.
 
 
@@ -126,10 +141,12 @@ Do NOT generate any changes for sections whose title contains any of these (case
 - "Contact"
 
 ## RULES
-- Suggest 8 to 15 high-impact changes only
+- Suggest 10 to 20 high-impact changes — be thorough, cover every experience and project
 - "original" must EXACTLY match text that exists in the resume — no paraphrasing, no trimming
 - NEVER touch frozen fields (company names, role titles, dates, project names)
-- Maintain the same character length (±3 chars) for every proposed change
+- Maintain the same character length (±5 chars) for every proposed change
+- EVERY work experience role MUST have at least 2 bullet point changes
+- EVERY project MUST have at least 1 bullet point change
 
 ## ATS KEYWORD OPTIMIZATION (CRITICAL FOR PASSING AUTOMATED SCREENING)
 Before generating changes, perform this analysis:
@@ -181,7 +198,7 @@ export async function optimizeResume(
   const result = await model.generateContent(prompt)
   const raw = JSON.parse(result.response.text())
 
-  const MAX_CHAR_DIFF = 5 // hard limit — reject changes that exceed this
+  const MAX_CHAR_DIFF = 8 // hard limit — reject changes that exceed this (increased for aggressive ATS rewrites)
 
   const changes: ResumeChange[] = (raw.changes ?? [])
     .map(

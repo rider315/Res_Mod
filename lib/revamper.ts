@@ -5,7 +5,7 @@ import { ParsedResume, ResumeChange, OptimizationResult } from '@/types/resume'
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
 
 
-const REVAMP_SYSTEM_INSTRUCTION = `You are an expert ATS resume optimizer performing a TARGETED REVAMP. You rewrite work experience and project bullet points to directly reflect a job description — more aggressively than a soft optimization, but still controlled and precise.
+const REVAMP_SYSTEM_INSTRUCTION = `You are an expert ATS resume optimizer performing a FULL ATS-TARGETED REVAMP. Your SOLE PURPOSE is to ensure this resume PASSES automated ATS keyword screening. You aggressively rewrite work experience, project descriptions, and skills to directly mirror the job description's exact terminology.
 
 Your ABSOLUTE rules:
 
@@ -13,27 +13,29 @@ Your ABSOLUTE rules:
 2. ONLY rewrite or rephrase existing content — never add new roles or projects.
 3. Return ONLY a valid JSON object — no markdown fences, no extra commentary.
 4. Each "original" value must be an EXACT, VERBATIM substring found in the resume content — character-for-character.
-5. **CRITICAL — SAME LENGTH RULE**: Each "proposed" value MUST have the EXACT same character count as the "original" value (±3 chars max). Count the characters before outputting. If the proposed text is shorter, pad with natural filler words. If longer, trim or rephrase to fit. This is essential to preserve document alignment and formatting.
+5. **CRITICAL — SAME LENGTH RULE**: Each "proposed" value MUST have the EXACT same character count as the "original" value (±5 chars max). Count the characters before outputting. If the proposed text is shorter, pad with natural filler words. If longer, trim or rephrase to fit. This is essential to preserve document alignment and formatting.
 6. NEVER use markdown formatting like **bold**, *italic*, or any special syntax in the proposed text. Output must be plain text only — no asterisks, no markdown.
 
 ## SECTION-LEVEL RULES (these override everything else):
 
 ### SKILLS section:
 - You may REORDER existing skills to prioritize JD-relevant ones at the front of each list.
-- You may REPLACE less-relevant skills with JD-critical skills that are closely related to the candidate's actual tech stack.
-- **TO STAY WITHIN CHARACTER LIMIT**: If swapping in JD skills makes the line longer, you MUST remove/drop up to 5 of the LEAST relevant existing skills from that line. Cut the least important ones to make room. The final line MUST be within ±3 chars of the original.
+- You may REPLACE less-relevant skills with JD-critical skills. Be VERY AGGRESSIVE — swap out any skill the JD doesn't mention for one it explicitly requires.
+- **TO STAY WITHIN CHARACTER LIMIT**: If swapping in JD skills makes the line longer, you MUST remove/drop up to 5 of the LEAST relevant existing skills from that line. Cut the least important ones to make room. The final line MUST be within ±5 chars of the original.
 - **CRITICAL CATEGORY MATCHING**: Respect sub-categories. Languages go in "Languages:", frameworks in "Frameworks:", tools in "Tools:".
 - Preserve the EXACT formatting structure (labels, comma-separated pattern, number of lines).
-- The total character count per line MUST stay within ±3 chars of the original. Count carefully before outputting.
+- The total character count per line MUST stay within ±5 chars of the original. Count carefully before outputting.
 
 ### WORK EXPERIENCE section:
 - Company names, role titles, and date ranges are FROZEN — never modify them.
 - ONLY modify the bullet-point descriptions of work done.
-- **KPIT TECHNOLOGIES**: This is the PRIMARY role. Pick the 2 MOST RELEVANT bullet points and rewrite them to directly reflect the JD's technologies and methodologies. Leave the other KPIT bullets untouched.
-- For other companies: You may modify 1-2 bullets max per company if relevant.
-- Rewrite the selected bullets so they directly use the JD's exact keywords, tool names, and methodology terms.
+- **CRITICAL — ATS KEYWORD SATURATION**: For EVERY work experience role listed (not just the primary one), you MUST rewrite at least 2 bullet points to DIRECTLY USE the JD's exact keywords, tool names, methodologies, and domain terms.
+- Do NOT "softly align" — COMPLETELY RESTRUCTURE bullet points around the JD's language.
+- If the JD says "microservices" and the bullet says "built backend modules", rewrite to "architected and deployed microservices for backend systems".
+- If the JD says "CI/CD with Jenkins" and the bullet says "automated deployment", rewrite to "implemented CI/CD pipelines using Jenkins for automated deployment".
+- If the JD mentions "Agile/Scrum", "cross-functional teams", or "stakeholder management", weave these phrases into bullets.
 - Keep the same achievement structure — if the original has a metric (e.g., "reduced load time by 40%"), preserve a similar metric.
-- The proposed text must match the original character count (±3 chars).
+- The proposed text must match the original character count (±5 chars).
 
 ### EDUCATION section:
 - DO NOT modify anything. Skip this section entirely.
@@ -42,8 +44,8 @@ Your ABSOLUTE rules:
 - **PROJECT TITLES, NAMES, LINKS, and HEADING LINES are FROZEN — NEVER modify them.**
 - The first line of each project (the title/heading line, often containing project name, link, tech stack summary) is COMPLETELY FROZEN. Do NOT generate a change for it.
 - ONLY modify the bullet-point descriptions UNDER each project heading.
-- Rewrite the bullet points to reflect JD technologies where naturally applicable.
-- The proposed text must match the original character count (±3 chars).
+- Apply the SAME aggressive ATS keyword injection — rewrite bullets to directly use JD terminology.
+- The proposed text must match the original character count (±5 chars).
 
 ### AWARDS / CERTIFICATES section:
 - DO NOT modify anything. Skip this section entirely.
@@ -82,23 +84,24 @@ ${hardInstructions || 'None'}
 
 
 ## ADDITIONAL GUIDELINES:
-${softInstructions || 'Use strong action verbs. Quantify achievements where possible. Directly use the JD\'s exact terminology in bullet points.'}
+${softInstructions || 'Use strong action verbs. Quantify achievements where possible. DIRECTLY USE the JD exact keywords in bullet points. Replace generic terms with JD-specific terminology.'}
 
-## REVAMP INSTRUCTIONS (CRITICAL)
-This is a TARGETED REVAMP — more aggressive than soft optimization, but still controlled:
+## FULL ATS REVAMP INSTRUCTIONS (CRITICAL — MAXIMUM AGGRESSIVENESS)
+This is a FULL ATS-TARGETED REVAMP — the goal is to maximize ATS keyword match score:
 
-1. **KPIT Technologies** (primary work experience): Pick EXACTLY 2 bullet points that are MOST relevant to rewrite. Rewrite them to directly use the JD's technologies, tools, and methodologies. Leave other KPIT bullets untouched.
-2. **Other work experience**: Modify at most 1-2 bullets per company.
-3. **Projects**: ONLY modify bullet points under project headings. NEVER touch the project title/heading line (the first line with project name, link, and tech stack). Only change the black descriptive bullet points, NOT the blue/linked heading text.
-4. **Skills section**: Swap skills to match the JD. Keep category structure intact.
-5. **Soft Skills**: Replace with JD-relevant soft skills.
+1. **ALL work experience roles**: For EVERY role, rewrite at least 2 bullet points. COMPLETELY RESTRUCTURE them around the JD's exact keywords, tools, and methodologies. Do NOT soft-align — directly inject JD terminology.
+2. **ALL projects**: Rewrite at least 1-2 bullet points per project using JD keywords. NEVER touch the project title/heading line.
+3. **Skills section**: AGGRESSIVELY swap skills to match the JD. If the JD lists a skill the resume doesn't have, replace the least relevant existing skill with it.
+4. **Soft Skills**: Replace with JD-relevant soft skill phrases.
 
-### HOW TO REWRITE BULLETS:
+### HOW TO REWRITE BULLETS FOR ATS:
 - Use the JD's EXACT keywords, tool names, and methodology terms directly in the bullet.
+- Do NOT just append a keyword — RESTRUCTURE the entire sentence around the JD's language.
 - Example: JD says "microservices" and resume says "built backend modules" → rewrite to "architected and deployed microservices for backend systems"
 - Example: JD says "CI/CD with Jenkins" and resume says "automated deployment" → rewrite to "implemented CI/CD pipelines using Jenkins for automated deployment"
+- Example: JD says "Agile methodology" and resume says "worked in team" → rewrite to "delivered features in Agile sprints with cross-functional collaboration"
 - Keep the same achievement type and any metrics from the original.
-- The proposed text MUST be within ±3 characters of the original length.
+- The proposed text MUST be within ±5 characters of the original length.
 
 ### BOLD KEYWORDS:
 For each change, also output a "boldKeywords" array containing the 2-4 most important JD-relevant keywords/phrases in the proposed text that should be visually emphasized. These should be exact substrings of the proposed text.
@@ -111,8 +114,8 @@ Example: if proposed is "architected and deployed microservices for distributed 
 - Header/Contact section entirely
 
 ## CRITICAL LENGTH RULE
-For every change, the "proposed" text MUST have the EXACT same character count as the "original" text (±3 chars max).
-Count carefully. If original is 120 characters, proposed must be 117-123 characters.
+For every change, the "proposed" text MUST have the EXACT same character count as the "original" text (±5 chars max).
+Count carefully. If original is 120 characters, proposed must be 115-125 characters.
 This is non-negotiable — the document formatting will break otherwise.
 
 
@@ -146,12 +149,13 @@ Do NOT generate any changes for sections whose title contains any of these (case
 - "Contact"
 
 ## RULES
-- Suggest 8 to 15 high-impact changes
+- Suggest 10 to 20 high-impact changes — cover EVERY work experience role and EVERY project
 - "original" must EXACTLY match text that exists in the resume — no paraphrasing, no trimming
 - NEVER touch frozen fields (company names, role titles, dates, project names/titles/links)
-- For KPIT: exactly 2 bullet point changes, no more
+- EVERY work experience role MUST have at least 2 bullet point changes
+- EVERY project MUST have at least 1 bullet point change
 - For projects: NEVER change the heading/title line — only bullet points under it
-- Maintain the same character length (±3 chars) for every proposed change
+- Maintain the same character length (±5 chars) for every proposed change
 - Each change must include a "boldKeywords" array with 2-4 important JD terms from the proposed text
 
 ## ATS KEYWORD OPTIMIZATION
@@ -197,7 +201,7 @@ export async function revampResume(
   const result = await model.generateContent(prompt)
   const raw = JSON.parse(result.response.text())
 
-  const MAX_CHAR_DIFF = 5 // same limit as optimizer — reject changes that exceed this
+  const MAX_CHAR_DIFF = 8 // hard limit — reject changes that exceed this (increased for aggressive ATS rewrites)
 
   const changes: ResumeChange[] = (raw.changes ?? [])
     .map(
