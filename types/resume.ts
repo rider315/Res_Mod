@@ -1,3 +1,5 @@
+export type AIProvider = 'gemini' | 'cerebras'
+
 export interface ResumeSection {
   id: string
   title: string
@@ -51,4 +53,7 @@ export interface AppState {
   softInstructions: string
   optimizationResult: OptimizationResult | null
   error: string | null
+  aiProvider: AIProvider
+  aiApiKey: string
+  showSettings: boolean
 }

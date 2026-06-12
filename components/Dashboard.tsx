@@ -3,11 +3,13 @@ import { useState, useCallback, useEffect } from 'react'
 import { useSession, signOut } from 'next-auth/react'
 import DiffViewer from './DiffViewer'
 import StepIndicator from './StepIndicator'
-import { AppState } from '@/types/resume'
+import { AppState, AIProvider } from '@/types/resume'
 
 const INITIAL_STATE: AppState = {
   step: 'input',
   resumeUrl: '',
+
+
   copiedDocId: null,
   copiedDocUrl: null,
   parsedResume: null,
@@ -16,6 +18,9 @@ const INITIAL_STATE: AppState = {
   softInstructions: '',
   optimizationResult: null,
   error: null,
+  aiProvider: 'gemini',
+  aiApiKey: '',
+  showSettings: false,
 }
 
 
@@ -178,8 +183,7 @@ export default function Dashboard() {
   const { data: session } = useSession()
   const [state, setState] = useState<AppState>(INITIAL_STATE)
   const [loading, setLoading] = useState(false)
-  // ✅ FIXED — always start with 'light' on server, detect on client via useEffect
-const [themeMode, setThemeMode] = useState<'light' | 'dark'>('light')
+  const [themeMode, setThemeMode] = useState<'light' | 'dark'>('light')
 
 useEffect(() => {
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -188,9 +192,15 @@ useEffect(() => {
   document.documentElement.setAttribute('data-theme', theme)
   // Load saved resume URL from localStorage
   const savedUrl = localStorage.getItem('resmod_resume_url')
-  if (savedUrl) {
-    setState((s) => ({ ...s, resumeUrl: savedUrl }))
-  }
+  const savedProvider = localStorage.getItem('resmod_ai_provider') as AIProvider | null
+  const savedApiKey = localStorage.getItem('resmod_ai_api_key')
+
+  setState((s) => ({
+    ...s,
+    resumeUrl: savedUrl || s.resumeUrl,
+    aiProvider: savedProvider || s.aiProvider,
+    aiApiKey: savedApiKey || s.aiApiKey,
+  }))
 }, [])
 
   function toggleTheme() {
@@ -256,6 +266,8 @@ useEffect(() => {
           jobDescription: state.jobDescription,
           hardInstructions: state.hardInstructions,
           softInstructions: state.softInstructions,
+          provider: state.aiProvider,
+          apiKey: state.aiApiKey,
         }),
       })
       const data = await res.json()
@@ -282,6 +294,8 @@ useEffect(() => {
           jobDescription: state.jobDescription,
           hardInstructions: state.hardInstructions,
           softInstructions: state.softInstructions,
+          provider: state.aiProvider,
+          apiKey: state.aiApiKey,
         }),
       })
       const data = await res.json()
@@ -388,6 +402,16 @@ useEffect(() => {
         </div>
         <StepIndicator currentStep={state.step} />
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setState((s) => ({ ...s, showSettings: true }))}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-offset)] transition-all"
+            aria-label="AI Settings"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+          </button>
           <button onClick={toggleTheme} className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-offset)] transition-all" aria-label="Toggle theme">
             {themeMode === 'dark' ? (
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -613,6 +637,96 @@ useEffect(() => {
             <button onClick={() => setState(INITIAL_STATE)} className="text-sm text-[var(--color-primary)] hover:text-[var(--color-primary-hover)] font-medium transition-colors">
               ← Optimize another resume
             </button>
+          </div>
+        )}
+
+        {/* Settings Modal */}
+        {state.showSettings && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm anim-fade-in">
+            <div className="bg-[var(--color-surface)] w-full max-w-md rounded-2xl border border-[var(--color-border)] shadow-2xl p-6 anim-float">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-[var(--color-text)]">AI Provider Settings</h2>
+                <button
+                  onClick={() => setState((s) => ({ ...s, showSettings: false }))}
+                  className="text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-5">
+                <div>
+                  <label className="block text-sm font-semibold text-[var(--color-text)] mb-3">Choose AI Provider</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => setState((s) => ({ ...s, aiProvider: 'gemini' }))}
+                      className={`flex items-center gap-2 p-3 rounded-xl border transition-all ${
+                        state.aiProvider === 'gemini'
+                          ? 'border-[var(--color-primary)] bg-[var(--color-primary-highlight)] ring-1 ring-[var(--color-primary)]'
+                          : 'border-[var(--color-border)] hover:border-[var(--color-text-muted)]'
+                      }`}
+                    >
+                      <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
+                        <span className="text-white text-xs font-bold">G</span>
+                      </div>
+                      <div className="text-left">
+                        <p className="text-sm font-medium text-[var(--color-text)]">Gemini</p>
+                        <p className="text-xs text-[var(--color-text-muted)]">2.5 Pro</p>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => setState((s) => ({ ...s, aiProvider: 'cerebras' }))}
+                      className={`flex items-center gap-2 p-3 rounded-xl border transition-all ${
+                        state.aiProvider === 'cerebras'
+                          ? 'border-[var(--color-primary)] bg-[var(--color-primary-highlight)] ring-1 ring-[var(--color-primary)]'
+                          : 'border-[var(--color-border)] hover:border-[var(--color-text-muted)]'
+                      }`}
+                    >
+                      <div className="w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center flex-shrink-0">
+                        <span className="text-white text-xs font-bold">C</span>
+                      </div>
+                      <div className="text-left">
+                        <p className="text-sm font-medium text-[var(--color-text)]">Cerebras</p>
+                        <p className="text-xs text-[var(--color-text-muted)]">Free & Fast</p>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block">
+                    <span className="text-sm font-semibold text-[var(--color-text)] mb-1.5 block">
+                      {state.aiProvider === 'gemini' ? 'Gemini API Key' : 'Cerebras API Key'}
+                    </span>
+                    <span className="text-xs text-[var(--color-text-muted)] block mb-2">
+                      {state.aiProvider === 'gemini'
+                        ? 'Leave blank to use the default server key.'
+                        : 'Get a free key at cloud.cerebras.ai'}
+                    </span>
+                    <input
+                      type="password"
+                      placeholder="sk-..."
+                      value={state.aiApiKey}
+                      onChange={(e) => setState((s) => ({ ...s, aiApiKey: e.target.value }))}
+                      className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-sm placeholder:text-[var(--color-text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition-all"
+                    />
+                  </label>
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    onClick={() => {
+                      localStorage.setItem('resmod_ai_provider', state.aiProvider)
+                      localStorage.setItem('resmod_ai_api_key', state.aiApiKey)
+                      setState((s) => ({ ...s, showSettings: false }))
+                    }}
+                    className="w-full py-3 px-6 rounded-xl bg-[var(--color-primary)] text-white font-semibold text-sm hover:bg-[var(--color-primary-hover)] transition-all"
+                  >
+                    Save Settings
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </main>

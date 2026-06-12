@@ -1,8 +1,5 @@
-import { GoogleGenerativeAI } from '@google/generative-ai'
-import { ParsedResume, ResumeChange, OptimizationResult } from '@/types/resume'
-
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
+import { generateAIResponse } from '@/lib/ai-provider'
+import { AIProvider, ParsedResume, ResumeChange, OptimizationResult } from '@/types/resume'
 
 
 const REVAMP_SYSTEM_INSTRUCTION = `You are an expert ATS resume optimizer performing a FULL ATS-TARGETED REVAMP. Your SOLE PURPOSE is to ensure this resume PASSES automated ATS keyword screening. You aggressively rewrite work experience, project descriptions, and skills to directly mirror the job description's exact terminology.
@@ -185,21 +182,27 @@ export async function revampResume(
   resume: ParsedResume,
   jobDescription: string,
   hardInstructions: string,
-  softInstructions: string
+  softInstructions: string,
+  provider: AIProvider = 'gemini',
+  apiKey?: string
 ): Promise<OptimizationResult> {
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-pro',
-    systemInstruction: REVAMP_SYSTEM_INSTRUCTION,
-    generationConfig: {
-      responseMimeType: 'application/json',
-      temperature: 0.3,
-    },
-  })
-
+  const resolvedKey = apiKey || process.env.GEMINI_API_KEY!
 
   const prompt = buildRevampPrompt(resume, jobDescription, hardInstructions, softInstructions)
-  const result = await model.generateContent(prompt)
-  const raw = JSON.parse(result.response.text())
+  const responseText = await generateAIResponse({
+    provider,
+    apiKey: resolvedKey,
+    systemInstruction: REVAMP_SYSTEM_INSTRUCTION,
+    prompt,
+    temperature: 0.3,
+  })
+  let raw
+  try {
+    raw = JSON.parse(responseText)
+  } catch {
+    console.error('[revamper] Failed to parse AI response. First 500 chars:', responseText.slice(0, 500))
+    throw new Error(`AI returned invalid JSON. This usually means the model's response was truncated. ${provider === 'cerebras' ? 'Cerebras free-tier models may struggle with large prompts — try Gemini instead.' : 'Please try again.'}`)
+  }
 
   const MAX_CHAR_DIFF = 8 // hard limit — reject changes that exceed this (increased for aggressive ATS rewrites)
 
