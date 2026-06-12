@@ -1,6 +1,9 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { AIProvider } from '@/types/resume'
 
+// Re-export for use by optimizer/revamper as a fallback JSON parser
+export { extractJSON }
+
 interface AIRequestOptions {
   provider: AIProvider
   apiKey: string
@@ -144,6 +147,16 @@ function estimateTokens(text: string): number {
 // Maximum input tokens to target for Cerebras models (leave room for output)
 const CEREBRAS_MAX_INPUT_TOKENS = 6000
 
+/** Helper to pause execution for a given number of milliseconds */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+// Retry config for rate-limited requests
+const MAX_RETRIES = 3
+const INITIAL_BACKOFF_MS = 15_000 // 15 seconds — Cerebras TPM limits reset per minute
+const BACKOFF_MULTIPLIER = 2
+
 async function callCerebrasAPI(
   apiKey: string,
   model: string,
@@ -151,34 +164,165 @@ async function callCerebrasAPI(
   userContent: string,
   temperature: number
 ): Promise<{ rawText: string; finishReason: string }> {
-  const response = await fetch(`${CEREBRAS_BASE_URL}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: systemContent },
-        { role: 'user', content: userContent },
-      ],
-      temperature,
-      max_completion_tokens: 16384,
-    }),
-  })
+  let lastError: Error | null = null
 
-  if (!response.ok) {
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const response = await fetch(`${CEREBRAS_BASE_URL}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: systemContent },
+          { role: 'user', content: userContent },
+        ],
+        temperature,
+        max_completion_tokens: 8192,
+      }),
+    })
+
+    if (response.ok) {
+      const data = await response.json()
+      return {
+        rawText: data.choices?.[0]?.message?.content ?? '',
+        finishReason: data.choices?.[0]?.finish_reason ?? 'unknown',
+      }
+    }
+
     const errorBody = await response.text()
+
+    // Handle rate limiting (429) with exponential backoff
+    if (response.status === 429 && attempt < MAX_RETRIES) {
+      // Try to extract retry-after header, otherwise use exponential backoff
+      const retryAfterHeader = response.headers.get('retry-after')
+      let waitMs: number
+
+      if (retryAfterHeader) {
+        // retry-after can be seconds (integer) or an HTTP date
+        const retryAfterSecs = parseInt(retryAfterHeader, 10)
+        waitMs = isNaN(retryAfterSecs) ? INITIAL_BACKOFF_MS : retryAfterSecs * 1000
+      } else {
+        waitMs = INITIAL_BACKOFF_MS * Math.pow(BACKOFF_MULTIPLIER, attempt)
+      }
+
+      console.warn(
+        `[cerebras] Rate limited (429) on attempt ${attempt + 1}/${MAX_RETRIES + 1}. ` +
+        `Waiting ${Math.round(waitMs / 1000)}s before retry… (model: ${model})`
+      )
+      await sleep(waitMs)
+      lastError = new Error(`Cerebras API rate limited (429): ${errorBody}`)
+      continue
+    }
+
+    // Non-retryable error or max retries exhausted
     console.error(`[cerebras] API error (model=${model}):`, response.status, errorBody)
     throw new Error(`Cerebras API error (${response.status}): ${errorBody}`)
   }
 
-  const data = await response.json()
-  return {
-    rawText: data.choices?.[0]?.message?.content ?? '',
-    finishReason: data.choices?.[0]?.finish_reason ?? 'unknown',
+  // Should only reach here if all retries were exhausted on 429s
+  throw lastError ?? new Error('Cerebras API: max retries exhausted')
+}
+
+/**
+ * Try to extract a valid JSON object from a string that may contain
+ * markdown fences, explanatory text, or other wrapper content.
+ */
+function extractJSON(text: string): string | null {
+  if (!text || !text.trim()) return null
+
+  let cleaned = text.trim()
+
+  // Strip markdown code fences (```json ... ``` or ``` ... ```)
+  cleaned = cleaned
+    .replace(/^```(?:json)?\s*\n?/i, '')
+    .replace(/\n?```\s*$/i, '')
+    .trim()
+
+  // Try direct parse first
+  try {
+    JSON.parse(cleaned)
+    return cleaned
+  } catch {
+    // Continue to extraction strategies
   }
+
+  // Strategy 1: Find the first { and last } to extract the JSON object
+  const firstBrace = cleaned.indexOf('{')
+  const lastBrace = cleaned.lastIndexOf('}')
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    const candidate = cleaned.slice(firstBrace, lastBrace + 1)
+    try {
+      JSON.parse(candidate)
+      return candidate
+    } catch {
+      // Continue — might be truncated
+    }
+  }
+
+  // Strategy 2: JSON was truncated (no closing }). Try to repair it.
+  if (firstBrace !== -1) {
+    const partial = cleaned.slice(firstBrace)
+    const repaired = repairTruncatedJSON(partial)
+    if (repaired) {
+      try {
+        JSON.parse(repaired)
+        return repaired
+      } catch {
+        // Give up
+      }
+    }
+  }
+
+  return null
+}
+
+/**
+ * Attempt to repair a truncated JSON string by closing open structures.
+ * This handles the common case where the model's output was cut off mid-response.
+ */
+function repairTruncatedJSON(partial: string): string | null {
+  if (!partial.startsWith('{')) return null
+
+  let repaired = partial.trim()
+
+  // Remove any trailing incomplete string (ends mid-string without closing quote)
+  // e.g., ..."reason": "this was trun
+  repaired = repaired.replace(/,\s*"[^"]*":\s*"[^"]*$/, '')
+  repaired = repaired.replace(/,\s*"[^"]*":\s*$/, '')
+  repaired = repaired.replace(/,\s*"[^"]*$/, '')
+  // Remove trailing comma
+  repaired = repaired.replace(/,\s*$/, '')
+
+  // Count open brackets/braces and close them
+  let openBraces = 0
+  let openBrackets = 0
+  let inString = false
+  let escaped = false
+
+  for (const char of repaired) {
+    if (escaped) { escaped = false; continue }
+    if (char === '\\') { escaped = true; continue }
+    if (char === '"') { inString = !inString; continue }
+    if (inString) continue
+    if (char === '{') openBraces++
+    if (char === '}') openBraces--
+    if (char === '[') openBrackets++
+    if (char === ']') openBrackets--
+  }
+
+  // If we're still inside a string, close it
+  if (inString) {
+    repaired += '"'
+  }
+
+  // Close open brackets and braces
+  while (openBrackets > 0) { repaired += ']'; openBrackets-- }
+  while (openBraces > 0) { repaired += '}'; openBraces-- }
+
+  return repaired
 }
 
 async function generateCerebras(
@@ -189,74 +333,64 @@ async function generateCerebras(
 ): Promise<string> {
   const targetModel = await fetchAvailableModel(apiKey)
 
-  const jsonSuffix = '\n\nCRITICAL: You MUST respond with ONLY a valid JSON object. No markdown fences, no explanation, no extra text — just the raw JSON.'
+  const jsonSuffix = '\n\nIMPORTANT: Respond with ONLY valid JSON. No markdown, no explanation — just the raw JSON object.'
 
-  // --- Attempt 1: Light compression ---
-  const lightSystem = compressForCerebras(systemInstruction, 'light')
-  const lightPrompt = compressForCerebras(prompt, 'light') + jsonSuffix
+  // Always use aggressive compression for Cerebras to stay within token limits
+  let compressedSystem = compressForCerebras(systemInstruction, 'aggressive')
+  let compressedPrompt = compressForCerebras(prompt, 'aggressive') + jsonSuffix
 
-  const inputTokens = estimateTokens(lightSystem) + estimateTokens(lightPrompt)
-  console.log(`[cerebras] Attempt 1 — estimated input tokens: ${inputTokens} (model: ${targetModel})`)
+  let inputTokens = estimateTokens(compressedSystem) + estimateTokens(compressedPrompt)
+  console.log(`[cerebras] Estimated input tokens: ${inputTokens} (model: ${targetModel})`)
 
-  let result = await callCerebrasAPI(apiKey, targetModel, lightSystem, lightPrompt, temperature)
+  // If still too large, truncate aggressively
+  if (inputTokens > CEREBRAS_MAX_INPUT_TOKENS) {
+    const systemBudget = Math.floor(CEREBRAS_MAX_INPUT_TOKENS * 0.20) * 4 // 20% for system
+    const promptBudget = Math.floor(CEREBRAS_MAX_INPUT_TOKENS * 0.80) * 4 // 80% for user prompt
 
-  // --- Attempt 2: If empty, try aggressive compression ---
-  if (!result.rawText.trim()) {
-    console.warn(`[cerebras] Attempt 1 returned empty (finish_reason: ${result.finishReason}). Retrying with aggressive compression…`)
-
-    const aggressiveSystem = compressForCerebras(systemInstruction, 'aggressive')
-    const aggressivePrompt = compressForCerebras(prompt, 'aggressive') + jsonSuffix
-
-    const retryTokens = estimateTokens(aggressiveSystem) + estimateTokens(aggressivePrompt)
-    console.log(`[cerebras] Attempt 2 — estimated input tokens: ${retryTokens} (reduced from ${inputTokens})`)
-
-    // If still too large even after aggressive compression, truncate the prompt
-    let finalPrompt = aggressivePrompt
-    let finalSystem = aggressiveSystem
-    if (retryTokens > CEREBRAS_MAX_INPUT_TOKENS) {
-      // Prioritize keeping the resume + JD, trim the instruction sections
-      const systemBudget = Math.floor(CEREBRAS_MAX_INPUT_TOKENS * 0.25) * 4 // 25% for system
-      const promptBudget = Math.floor(CEREBRAS_MAX_INPUT_TOKENS * 0.75) * 4 // 75% for user prompt
-      if (finalSystem.length > systemBudget) {
-        finalSystem = finalSystem.slice(0, systemBudget) + '\n\n[Instructions truncated for context limit. Follow the rules above.]'
-      }
-      if (finalPrompt.length > promptBudget) {
-        // Find the end of the JD section and truncate after it, keeping the output format
-        const outputFormatIdx = finalPrompt.indexOf('## OUTPUT FORMAT')
-        if (outputFormatIdx > 0) {
-          // Keep everything up to OUTPUT FORMAT plus the format spec, truncate the middle instructions
-          const beforeFormat = finalPrompt.slice(0, outputFormatIdx)
-          const fromFormat = finalPrompt.slice(outputFormatIdx)
-          const availableForBefore = promptBudget - fromFormat.length
-          if (availableForBefore > 0) {
-            finalPrompt = beforeFormat.slice(0, availableForBefore) + '\n\n' + fromFormat
-          } else {
-            finalPrompt = finalPrompt.slice(0, promptBudget) + jsonSuffix
-          }
+    if (compressedSystem.length > systemBudget) {
+      compressedSystem = compressedSystem.slice(0, systemBudget) + '\n[Truncated. Follow rules above.]'
+    }
+    if (compressedPrompt.length > promptBudget) {
+      // Preserve OUTPUT FORMAT section if present
+      const outputFormatIdx = compressedPrompt.indexOf('## OUTPUT FORMAT')
+      if (outputFormatIdx > 0) {
+        const beforeFormat = compressedPrompt.slice(0, outputFormatIdx)
+        const fromFormat = compressedPrompt.slice(outputFormatIdx)
+        const availableForBefore = promptBudget - fromFormat.length
+        if (availableForBefore > 0) {
+          compressedPrompt = beforeFormat.slice(0, availableForBefore) + '\n\n' + fromFormat
         } else {
-          finalPrompt = finalPrompt.slice(0, promptBudget) + jsonSuffix
+          compressedPrompt = compressedPrompt.slice(0, promptBudget) + jsonSuffix
         }
+      } else {
+        compressedPrompt = compressedPrompt.slice(0, promptBudget) + jsonSuffix
       }
-      console.log(`[cerebras] Truncated — system: ${finalSystem.length} chars, prompt: ${finalPrompt.length} chars`)
     }
 
-    result = await callCerebrasAPI(apiKey, targetModel, finalSystem, finalPrompt, temperature)
+    inputTokens = estimateTokens(compressedSystem) + estimateTokens(compressedPrompt)
+    console.log(`[cerebras] After truncation — estimated input tokens: ${inputTokens}`)
   }
 
+  const result = await callCerebrasAPI(apiKey, targetModel, compressedSystem, compressedPrompt, temperature)
+
   if (!result.rawText.trim()) {
-    console.error('[cerebras] Model returned empty response after retries. finish_reason:', result.finishReason)
+    console.error('[cerebras] Model returned empty response. finish_reason:', result.finishReason)
     throw new Error(
-      'Cerebras returned an empty response even after prompt compression. ' +
-      'This usually means the prompt (resume + job description) is too large for the model. ' +
+      'Cerebras returned an empty response. ' +
+      'This usually means the prompt is too large for the model. ' +
       'Try using Gemini instead, or shorten your job description.'
     )
   }
 
   console.log(`[cerebras] Response received (${result.rawText.length} chars, finish_reason: ${result.finishReason})`)
 
-  // Strip markdown code fences if the model wrapped its output
-  return result.rawText
-    .replace(/^```(?:json)?\s*\n?/i, '')
-    .replace(/\n?```\s*$/i, '')
-    .trim()
+  // Try to extract and optionally repair the JSON from the response
+  const extracted = extractJSON(result.rawText)
+  if (extracted) {
+    return extracted
+  }
+
+  // If extraction failed, log what we got and return the raw text for the caller to handle
+  console.warn('[cerebras] Could not extract valid JSON from response. First 500 chars:', result.rawText.slice(0, 500))
+  return result.rawText.trim()
 }

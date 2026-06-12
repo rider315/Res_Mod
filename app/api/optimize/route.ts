@@ -45,7 +45,17 @@ export async function POST(req: NextRequest) {
     )
     return NextResponse.json({ result })
   } catch (err: unknown) {
-    console.error('[optimize]', err instanceof Error ? err.message : String(err))
-    return NextResponse.json({ error: err instanceof Error ? err.message : 'Unknown error' }, { status: 500 })
+    const message = err instanceof Error ? err.message : String(err)
+    console.error('[optimize]', message)
+
+    // Surface rate-limit errors with a 429 so the client can show a retry message
+    if (message.includes('429') || message.includes('rate limit') || message.includes('too_many_tokens')) {
+      return NextResponse.json(
+        { error: 'Cerebras rate limit exceeded. The request will be retried automatically — please wait a moment and try again.' },
+        { status: 429 }
+      )
+    }
+
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

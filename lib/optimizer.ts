@@ -1,4 +1,4 @@
-import { generateAIResponse } from '@/lib/ai-provider'
+import { generateAIResponse, extractJSON } from '@/lib/ai-provider'
 import { AIProvider, ParsedResume, ResumeChange, OptimizationResult } from '@/types/resume'
 
 
@@ -196,8 +196,20 @@ export async function optimizeResume(
   try {
     raw = JSON.parse(responseText)
   } catch {
-    console.error('[optimizer] Failed to parse AI response. First 500 chars:', responseText.slice(0, 500))
-    throw new Error(`AI returned invalid JSON. This usually means the model's response was truncated. ${provider === 'cerebras' ? 'Cerebras free-tier models may struggle with large prompts — try Gemini instead.' : 'Please try again.'}`)
+    // Try to extract/repair JSON from the response (handles markdown fences, truncation, etc.)
+    const rescued = extractJSON(responseText)
+    if (rescued) {
+      try {
+        raw = JSON.parse(rescued)
+        console.log('[optimizer] Rescued JSON from malformed response')
+      } catch {
+        // Fall through to error
+      }
+    }
+    if (!raw) {
+      console.error('[optimizer] Failed to parse AI response. First 500 chars:', responseText.slice(0, 500))
+      throw new Error(`AI returned invalid JSON. This usually means the model's response was truncated. ${provider === 'cerebras' ? 'Cerebras free-tier models may struggle with large prompts — try Gemini instead.' : 'Please try again.'}`)
+    }
   }
 
   const MAX_CHAR_DIFF = 8 // hard limit — reject changes that exceed this (increased for aggressive ATS rewrites)
