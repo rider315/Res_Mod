@@ -1,5 +1,6 @@
 import { google } from 'googleapis'
 import { docs_v1 } from 'googleapis'
+import { resolveChanges } from '@/lib/text-match'
 
 function getOAuthClient(accessToken: string) {
   const auth = new google.auth.OAuth2(
@@ -60,8 +61,43 @@ export interface ApplyChangesResult {
   requested: number
   /** Changes whose text was actually found and replaced in the document. */
   applied: number
-  /** The `original` text of changes that matched nothing — usually a non-verbatim quote from the model. */
+  /** Changes whose text genuinely isn't in the document. */
   unmatched: string[]
+  /** Changes skipped because another change rewrites overlapping text. */
+  overlapping: string[]
+  /** How many needed whitespace/punctuation-tolerant matching to be found. */
+  recovered: number
+}
+
+/**
+ * The document's text stream, exactly as `replaceAllText` sees it.
+ *
+ * Text runs are concatenated with no added separators — each paragraph's final
+ * run already ends in a newline — so offsets line up with the real content.
+ */
+export function extractDocumentText(doc: docs_v1.Schema$Document): string {
+  const parts: string[] = []
+
+  const readParagraph = (para: docs_v1.Schema$Paragraph) => {
+    for (const el of para.elements ?? []) {
+      if (el.textRun?.content) parts.push(el.textRun.content)
+    }
+  }
+
+  const walk = (content: docs_v1.Schema$StructuralElement[]) => {
+    for (const element of content) {
+      if (element.paragraph) readParagraph(element.paragraph)
+      // Resumes frequently lay out contact details or skills inside a table.
+      for (const row of element.table?.tableRows ?? []) {
+        for (const cell of row.tableCells ?? []) {
+          walk(cell.content ?? [])
+        }
+      }
+    }
+  }
+
+  walk(doc.body?.content ?? [])
+  return parts.join('')
 }
 
 export async function applyChangesToDocument(
@@ -69,47 +105,64 @@ export async function applyChangesToDocument(
   documentId: string,
   changes: Array<{ original: string; proposed: string; sectionTitle?: string; boldKeywords?: string[] }>
 ): Promise<ApplyChangesResult> {
-  if (changes.length === 0) return { requested: 0, applied: 0, unmatched: [] }
+  if (changes.length === 0)
+    return { requested: 0, applied: 0, unmatched: [], overlapping: [], recovered: 0 }
+
   const auth = getOAuthClient(accessToken)
   const docs = google.docs({ version: 'v1', auth })
 
-  // Step 1: Apply all text replacements.
-  // Longest originals first: replaceAllText is a plain substring swap, so a short
-  // change that happens to be a substring of a longer one would otherwise corrupt
-  // the longer match before it gets applied.
-  const ordered = [...changes].sort((a, b) => b.original.length - a.original.length)
+  // Step 1: Resolve each change against the document's real text before touching
+  // anything. Models normalize whitespace and punctuation when they quote, so an
+  // exact `replaceAllText` match fails on text that is plainly there — those
+  // changes used to be dropped silently. resolveChanges recovers the true
+  // substring and discards changes that would overwrite each other.
+  const preDoc = await docs.documents.get({ documentId })
+  const documentText = extractDocumentText(preDoc.data)
+  const { resolved, notFound, overlapping } = resolveChanges(documentText, changes)
 
-  const requests = ordered.map((change) => ({
-    replaceAllText: {
-      containsText: { text: change.original, matchCase: true },
-      replaceText: change.proposed,
-    },
-  }))
-  const replaceResponse = await docs.documents.batchUpdate({
-    documentId,
-    requestBody: { requests },
-  })
-
-  // The API reports how many occurrences each request changed. Zero means the
-  // model's "original" wasn't verbatim, and the change silently did nothing —
-  // which previously still reported success to the user.
-  const replies = replaceResponse.data.replies ?? []
-  const unmatched: string[] = []
-  ordered.forEach((change, i) => {
-    const occurrences = replies[i]?.replaceAllText?.occurrencesChanged ?? 0
-    if (!occurrences) unmatched.push(change.original)
-  })
-  if (unmatched.length > 0) {
-    console.warn(`[googleDocs] ${unmatched.length}/${ordered.length} changes matched no text in the document`)
+  const recovered = resolved.filter((c) => c.how !== 'exact').length
+  if (recovered > 0) {
+    console.log(`[googleDocs] Recovered ${recovered} change(s) via whitespace/punctuation-tolerant matching`)
+  }
+  for (const miss of notFound) {
+    console.warn(`[googleDocs] Not found in document: "${miss.original.slice(0, 80)}"`)
+  }
+  for (const clash of overlapping) {
+    console.warn(`[googleDocs] Skipped (overlaps another change): "${clash.original.slice(0, 80)}"`)
   }
 
   const result: ApplyChangesResult = {
-    requested: ordered.length,
-    applied: ordered.length - unmatched.length,
-    unmatched,
+    requested: changes.length,
+    applied: 0,
+    unmatched: notFound.map((c) => c.original),
+    overlapping: overlapping.map((c) => c.original),
+    recovered,
   }
 
-  // Step 2: Fix formatting in Skills / Soft Skills sections
+  if (resolved.length === 0) return result
+
+  // Step 2: Apply the replacements. resolveChanges already ordered them
+  // longest-first and removed overlaps, so no request can clobber another.
+  const replaceResponse = await docs.documents.batchUpdate({
+    documentId,
+    requestBody: {
+      requests: resolved.map((change) => ({
+        replaceAllText: {
+          containsText: { text: change.resolvedOriginal, matchCase: true },
+          replaceText: change.proposed,
+        },
+      })),
+    },
+  })
+
+  const replies = replaceResponse.data.replies ?? []
+  resolved.forEach((change, i) => {
+    const occurrences = replies[i]?.replaceAllText?.occurrencesChanged ?? 0
+    if (occurrences) result.applied++
+    else result.unmatched.push(change.original)
+  })
+
+  // Step 3: Fix formatting in Skills / Soft Skills sections
   // Google Docs replaceAllText preserves original bold formatting.
   // We want: labels ("Languages:", "1.") bold, items after them NOT bold.
   const skillChanges = changes.filter(
@@ -223,7 +276,7 @@ export async function applyChangesToDocument(
     }
   }
 
-  // Step 3: Bold specific keywords in revamped bullet points
+  // Step 4: Bold specific keywords in revamped bullet points
   if (boldChanges.length > 0) {
     // Re-fetch document to get up-to-date positions (after step 1 replacements)
     const boldDocResponse = skillChanges.length > 0

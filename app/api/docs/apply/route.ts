@@ -48,6 +48,8 @@ export async function POST(req: NextRequest) {
       appliedCount: result.applied,
       requestedCount: result.requested,
       unmatched: result.unmatched,
+      overlapping: result.overlapping,
+      recovered: result.recovered,
       docUrl: `https://docs.google.com/document/d/${documentId}/edit`,
     })
   } catch (err: unknown) {

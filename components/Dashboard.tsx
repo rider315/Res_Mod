@@ -365,17 +365,30 @@ useEffect(() => {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
 
-      // A change whose "original" wasn't verbatim matches nothing in the doc and
-      // is silently dropped by the Docs API — say so instead of claiming success.
+      // Distinguish the two ways a change can fail to land: text that genuinely
+      // isn't in the document, versus a change dropped because another rewrite
+      // covers the same sentence.
       const missed = Array.isArray(data.unmatched) ? data.unmatched.length : 0
+      const overlapped = Array.isArray(data.overlapping) ? data.overlapping.length : 0
+      const notes: string[] = []
+      if (missed > 0) {
+        notes.push(
+          `${missed} change${missed === 1 ? '' : 's'} referenced text that is no longer in the document, so ${missed === 1 ? 'it was' : 'they were'} skipped.`
+        )
+      }
+      if (overlapped > 0) {
+        notes.push(
+          `${overlapped} change${overlapped === 1 ? '' : 's'} overlapped another rewrite of the same sentence and ${overlapped === 1 ? 'was' : 'were'} skipped to avoid corrupting it.`
+        )
+      }
+
       setState((s) => ({
         ...s,
         step: 'done',
         error: null,
-        applyWarning:
-          missed > 0
-            ? `${missed} of ${data.requestedCount} approved change${data.requestedCount === 1 ? '' : 's'} could not be located in the document and were skipped. This happens when the AI didn't quote the original text exactly.`
-            : null,
+        applyWarning: notes.length
+          ? `${data.appliedCount} of ${data.requestedCount} changes applied. ${notes.join(' ')}`
+          : null,
       }))
     } catch (err: unknown) {
       setState((s) => ({ ...s, step: 'review', error: err instanceof Error ? err.message : String(err) }))
