@@ -56,26 +56,58 @@ export async function renameDocument(
   })
 }
 
+export interface ApplyChangesResult {
+  requested: number
+  /** Changes whose text was actually found and replaced in the document. */
+  applied: number
+  /** The `original` text of changes that matched nothing — usually a non-verbatim quote from the model. */
+  unmatched: string[]
+}
+
 export async function applyChangesToDocument(
   accessToken: string,
   documentId: string,
   changes: Array<{ original: string; proposed: string; sectionTitle?: string; boldKeywords?: string[] }>
-): Promise<void> {
-  if (changes.length === 0) return
+): Promise<ApplyChangesResult> {
+  if (changes.length === 0) return { requested: 0, applied: 0, unmatched: [] }
   const auth = getOAuthClient(accessToken)
   const docs = google.docs({ version: 'v1', auth })
 
-  // Step 1: Apply all text replacements
-  const requests = changes.map((change) => ({
+  // Step 1: Apply all text replacements.
+  // Longest originals first: replaceAllText is a plain substring swap, so a short
+  // change that happens to be a substring of a longer one would otherwise corrupt
+  // the longer match before it gets applied.
+  const ordered = [...changes].sort((a, b) => b.original.length - a.original.length)
+
+  const requests = ordered.map((change) => ({
     replaceAllText: {
       containsText: { text: change.original, matchCase: true },
       replaceText: change.proposed,
     },
   }))
-  await docs.documents.batchUpdate({
+  const replaceResponse = await docs.documents.batchUpdate({
     documentId,
     requestBody: { requests },
   })
+
+  // The API reports how many occurrences each request changed. Zero means the
+  // model's "original" wasn't verbatim, and the change silently did nothing —
+  // which previously still reported success to the user.
+  const replies = replaceResponse.data.replies ?? []
+  const unmatched: string[] = []
+  ordered.forEach((change, i) => {
+    const occurrences = replies[i]?.replaceAllText?.occurrencesChanged ?? 0
+    if (!occurrences) unmatched.push(change.original)
+  })
+  if (unmatched.length > 0) {
+    console.warn(`[googleDocs] ${unmatched.length}/${ordered.length} changes matched no text in the document`)
+  }
+
+  const result: ApplyChangesResult = {
+    requested: ordered.length,
+    applied: ordered.length - unmatched.length,
+    unmatched,
+  }
 
   // Step 2: Fix formatting in Skills / Soft Skills sections
   // Google Docs replaceAllText preserves original bold formatting.
@@ -86,7 +118,7 @@ export async function applyChangesToDocument(
   const boldChanges = changes.filter(
     (c) => c.boldKeywords && c.boldKeywords.length > 0
   )
-  if (skillChanges.length === 0 && boldChanges.length === 0) return
+  if (skillChanges.length === 0 && boldChanges.length === 0) return result
 
   // Re-fetch document to get current text positions
   const docResponse = await docs.documents.get({ documentId })
@@ -241,6 +273,8 @@ export async function applyChangesToDocument(
       requestBody: { requests: styleRequests },
     })
   }
+
+  return result
 }
 
 export async function exportDocAsPdf(

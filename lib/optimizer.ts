@@ -1,8 +1,9 @@
-import { generateAIResponse, extractJSON, resolveApiKey } from '@/lib/ai-provider'
-import { AIProvider, ParsedResume, ResumeChange, OptimizationResult } from '@/types/resume'
+import { extractJSON, invalidJsonMessage } from '@/lib/json-repair'
+import { normalizeChanges, asStringArray } from '@/lib/normalize-changes'
+import { AIProvider, ParsedResume, OptimizationResult } from '@/types/resume'
 
 
-const SYSTEM_INSTRUCTION = `You are an expert ATS resume optimizer. Your SOLE PURPOSE is to ensure this resume PASSES automated ATS keyword screening for the target job description. Every change you make must maximize ATS match score.
+export const OPTIMIZE_SYSTEM_INSTRUCTION = `You are an expert ATS resume optimizer. Your SOLE PURPOSE is to ensure this resume PASSES automated ATS keyword screening for the target job description. Every change you make must maximize ATS match score.
 
 Your ABSOLUTE rules:
 
@@ -57,17 +58,7 @@ Your ABSOLUTE rules:
 - DO NOT modify anything. Skip this section entirely.`
 
 
-/** Provider-specific follow-up advice when the model's JSON can't be parsed. */
-function invalidJsonHint(provider: AIProvider, model?: string): string {
-  if (provider === 'cerebras')
-    return 'Cerebras free-tier models may struggle with large prompts — try OpenRouter or Gemini instead.'
-  if (provider === 'openrouter')
-    return `The model${model ? ` "${model}"` : ''} may not follow JSON instructions well — pick another model in Settings (the recommended free ones support JSON mode).`
-  return 'Please try again.'
-}
-
-
-function buildPrompt(
+export function buildOptimizePrompt(
   resume: ParsedResume,
   jobDescription: string,
   hardInstructions: string,
@@ -184,26 +175,17 @@ Report all incorporated keywords in the "keywordsAdded" field of your output.`
 }
 
 
-export async function optimizeResume(
-  resume: ParsedResume,
-  jobDescription: string,
-  hardInstructions: string,
-  softInstructions: string,
-  provider: AIProvider = 'openrouter',
-  apiKey?: string,
+/**
+ * Validate and normalize the model's raw response.
+ *
+ * Runs on the server for API-key providers and in the browser for Puter, so it
+ * must stay free of server-only imports.
+ */
+export function parseOptimizeResponse(
+  responseText: string,
+  provider: AIProvider,
   model?: string
-): Promise<OptimizationResult> {
-  const resolvedKey = resolveApiKey(provider, apiKey)
-
-  const prompt = buildPrompt(resume, jobDescription, hardInstructions, softInstructions)
-  const responseText = await generateAIResponse({
-    provider,
-    apiKey: resolvedKey,
-    systemInstruction: SYSTEM_INSTRUCTION,
-    prompt,
-    temperature: 0.2,
-    model,
-  })
+): OptimizationResult {
   let raw
   try {
     raw = JSON.parse(responseText)
@@ -220,42 +202,27 @@ export async function optimizeResume(
     }
     if (!raw) {
       console.error('[optimizer] Failed to parse AI response. First 500 chars:', responseText.slice(0, 500))
-      throw new Error(`AI returned invalid JSON. This usually means the model's response was truncated. ${invalidJsonHint(provider, model)}`)
+      throw new Error(invalidJsonMessage(provider, model))
     }
   }
 
-  const MAX_CHAR_DIFF = 8 // hard limit — reject changes that exceed this (increased for aggressive ATS rewrites)
+  const { changes, skipped } = normalizeChanges(raw.changes, {
+    idPrefix: 'change',
+    logLabel: 'optimizer',
+  })
 
-  const changes: ResumeChange[] = (raw.changes ?? [])
-    .map(
-      (c: Omit<ResumeChange, 'id' | 'approved'>, i: number) => ({
-        id: `change_${i}_${Date.now()}`,
-        sectionId: c.sectionId,
-        sectionTitle: c.sectionTitle,
-        original: c.original,
-        proposed: c.proposed,
-        reason: c.reason,
-        type: c.type ?? 'rewrite',
-        approved: null,
-      })
+  if (changes.length === 0 && skipped > 0) {
+    throw new Error(
+      `The AI returned ${skipped} suggestion${skipped === 1 ? '' : 's'}, but none were usable — ` +
+      'they were malformed or changed the text length too much. Try again, or pick a different model in Settings.'
     )
-    .filter((c: ResumeChange) => {
-      const diff = Math.abs(c.proposed.length - c.original.length)
-      if (diff > MAX_CHAR_DIFF) {
-        console.warn(
-          `[optimizer] Rejected change (±${diff} chars): "${c.original.slice(0, 50)}..." → "${c.proposed.slice(0, 50)}..."`
-        )
-        return false
-      }
-      return true
-    })
-
+  }
 
   return {
-    summary: raw.summary ?? '',
-    companyName: raw.companyName || 'Company',
-    keywordsAdded: raw.keywordsAdded ?? [],
-    sectionsModified: raw.sectionsModified ?? [],
+    summary: typeof raw.summary === 'string' ? raw.summary : '',
+    companyName: (typeof raw.companyName === 'string' && raw.companyName) || 'Company',
+    keywordsAdded: asStringArray(raw.keywordsAdded),
+    sectionsModified: asStringArray(raw.sectionsModified),
     changes,
   }
 }

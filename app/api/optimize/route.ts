@@ -3,7 +3,9 @@ import { getServerSession } from 'next-auth'
 import { z } from 'zod'
 import { authOptions } from '@/lib/auth'
 import { AIProvider } from '@/types/resume'
-import { optimizeResume } from '@/lib/optimizer'
+import { generateAIResponse, resolveApiKey, resolveModel } from '@/lib/ai-provider'
+import { buildOptimizePrompt, OPTIMIZE_SYSTEM_INSTRUCTION, parseOptimizeResponse } from '@/lib/optimizer'
+import { PROVIDER_ORDER } from '@/lib/providers'
 
 const schema = z.object({
   resume: z.object({
@@ -20,7 +22,7 @@ const schema = z.object({
   jobDescription: z.string().min(10),
   hardInstructions: z.string(),
   softInstructions: z.string(),
-  provider: z.enum(['openrouter', 'gemini', 'cerebras']).optional(),
+  provider: z.enum(PROVIDER_ORDER as [AIProvider, ...AIProvider[]]).optional(),
   apiKey: z.string().optional(),
   model: z.string().optional(),
 })
@@ -35,16 +37,20 @@ export async function POST(req: NextRequest) {
   if (!parsed.success)
     return NextResponse.json({ error: 'Invalid request', details: parsed.error.flatten() }, { status: 400 })
 
+  const { resume, jobDescription, hardInstructions, softInstructions, apiKey, model } = parsed.data
+  const provider = (parsed.data.provider ?? 'openrouter') as AIProvider
+
   try {
-    const result = await optimizeResume(
-      parsed.data.resume,
-      parsed.data.jobDescription,
-      parsed.data.hardInstructions,
-      parsed.data.softInstructions,
-      parsed.data.provider as AIProvider,
-      parsed.data.apiKey,
-      parsed.data.model
-    )
+    const responseText = await generateAIResponse({
+      provider,
+      apiKey: resolveApiKey(provider, apiKey),
+      systemInstruction: OPTIMIZE_SYSTEM_INSTRUCTION,
+      prompt: buildOptimizePrompt(resume, jobDescription, hardInstructions, softInstructions),
+      temperature: 0.2,
+      model,
+    })
+
+    const result = parseOptimizeResponse(responseText, provider, resolveModel(provider, model))
     return NextResponse.json({ result })
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err)

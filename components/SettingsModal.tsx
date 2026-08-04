@@ -2,7 +2,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AIProvider } from '@/types/resume'
 import { AISettings } from '@/lib/settings-storage'
-import { RECOMMENDED_OPENROUTER_MODELS } from '@/lib/openrouter-models'
+import { getProvider, PROVIDER_ORDER } from '@/lib/providers'
+import { ensurePuterSignedIn } from '@/lib/puter'
 
 interface CatalogModel {
   id: string
@@ -10,48 +11,20 @@ interface CatalogModel {
   contextLength: number
   free: boolean
   promptPricePerM: number
+  maxCompletionTokens: number
 }
+
+/**
+ * The optimizer's JSON response runs to a couple of thousand tokens, so anything
+ * below this is at real risk of being cut off mid-object.
+ */
+const TRUNCATION_RISK_TOKENS = 4096
 
 interface SettingsModalProps {
   settings: AISettings
   onSave: (next: AISettings) => void
   onClose: () => void
 }
-
-const PROVIDER_META: Record<
-  AIProvider,
-  { label: string; sub: string; badge: string; badgeClass: string; keyHint: string; keyUrl: string; placeholder: string }
-> = {
-  openrouter: {
-    label: 'OpenRouter',
-    sub: '400+ models, one key',
-    badge: 'OR',
-    badgeClass: 'bg-[var(--color-purple)]',
-    keyHint: 'Create a key at openrouter.ai/keys — free models need no credits.',
-    keyUrl: 'https://openrouter.ai/keys',
-    placeholder: 'sk-or-v1-...',
-  },
-  gemini: {
-    label: 'Gemini',
-    sub: '2.5 Pro',
-    badge: 'G',
-    badgeClass: 'bg-[var(--color-blue)]',
-    keyHint: 'Get a key at aistudio.google.com/apikey. Leave blank to use the server key.',
-    keyUrl: 'https://aistudio.google.com/apikey',
-    placeholder: 'AIza...',
-  },
-  cerebras: {
-    label: 'Cerebras',
-    sub: 'Free & fast',
-    badge: 'C',
-    badgeClass: 'bg-[var(--color-warning)]',
-    keyHint: 'Get a free key at cloud.cerebras.ai.',
-    keyUrl: 'https://cloud.cerebras.ai',
-    placeholder: 'csk-...',
-  },
-}
-
-const PROVIDER_ORDER: AIProvider[] = ['openrouter', 'gemini', 'cerebras']
 
 function formatContext(tokens: number): string {
   if (!tokens) return ''
@@ -61,64 +34,86 @@ function formatContext(tokens: number): string {
 
 function formatPrice(model: CatalogModel): string {
   if (model.free) return 'Free'
-  // The offline shortlist carries no pricing data.
   if (!model.promptPricePerM) return 'Paid'
   const price = model.promptPricePerM
   return `$${price < 1 ? price.toFixed(2) : price.toFixed(1)}/M in`
 }
 
-/** The curated shortlist, shaped like catalogue entries so one renderer covers both. */
-const FALLBACK_MODELS: CatalogModel[] = RECOMMENDED_OPENROUTER_MODELS.map((m) => ({
-  id: m.id,
-  name: m.name,
-  contextLength: 0,
-  free: m.free,
-  promptPricePerM: 0,
-}))
-
 export default function SettingsModal({ settings, onSave, onClose }: SettingsModalProps) {
   const [provider, setProvider] = useState<AIProvider>(settings.provider)
   const [apiKeys, setApiKeys] = useState<Record<AIProvider, string>>({ ...settings.apiKeys })
-  const [model, setModel] = useState(settings.openRouterModel)
+  const [models, setModels] = useState<Record<AIProvider, string>>({ ...settings.models })
   const [showKey, setShowKey] = useState(false)
 
-  const [catalog, setCatalog] = useState<CatalogModel[] | null>(null)
-  const [catalogError, setCatalogError] = useState<string | null>(null)
+  // Catalogues are cached per provider so switching tabs doesn't refetch.
+  const [catalogs, setCatalogs] = useState<Partial<Record<AIProvider, CatalogModel[]>>>({})
+  const [catalogError, setCatalogError] = useState<Partial<Record<AIProvider, string>>>({})
+  const [loadingCatalog, setLoadingCatalog] = useState(false)
   const [search, setSearch] = useState('')
   const [freeOnly, setFreeOnly] = useState(false)
 
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null)
+  const [puterStatus, setPuterStatus] = useState<string | null>(null)
 
-  const meta = PROVIDER_META[provider]
+  const config = getProvider(provider)
+  const model = models[provider] ?? ''
+  const savedKey = settings.apiKeys[provider] ?? ''
 
-  // Load the live OpenRouter catalogue the first time the OpenRouter tab is shown.
-  useEffect(() => {
-    if (provider !== 'openrouter' || catalog) return
-    let cancelled = false
-    ;(async () => {
+  const fallbackModels: CatalogModel[] = useMemo(
+    () =>
+      config.fallbackModels.map((m) => ({
+        id: m.id,
+        name: m.name,
+        contextLength: 0,
+        free: m.free,
+        promptPricePerM: 0,
+        maxCompletionTokens: 0,
+      })),
+    [config]
+  )
+
+  const loadCatalog = useCallback(
+    async (force = false) => {
+      if (!config.hasModelCatalog) return
+      if (!force && catalogs[provider]) return
+      // Providers whose catalogue needs a key can't be listed until there is one.
+      if (config.catalogNeedsKey && !apiKeys[provider]?.trim() && !force) return
+
+      setLoadingCatalog(true)
       try {
-        const res = await fetch('/api/ai/models')
+        const res = await fetch('/api/ai/models', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider, apiKey: apiKeys[provider] }),
+        })
         const data = await res.json()
-        if (cancelled) return
         if (!res.ok) throw new Error(data.error ?? 'Failed to load models')
-        setCatalog(data.models)
+        setCatalogs((c) => ({ ...c, [provider]: data.models }))
+        setCatalogError((e) => ({ ...e, [provider]: undefined }))
       } catch (err: unknown) {
-        if (cancelled) return
-        setCatalogError(err instanceof Error ? err.message : String(err))
-        setCatalog(FALLBACK_MODELS)
+        setCatalogError((e) => ({
+          ...e,
+          [provider]: err instanceof Error ? err.message : String(err),
+        }))
+      } finally {
+        setLoadingCatalog(false)
       }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [provider, catalog])
+    },
+    [config, provider, apiKeys, catalogs]
+  )
+
+  useEffect(() => {
+    setSearch('')
+    loadCatalog()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [provider])
 
   // Any config change invalidates the previous test result.
   useEffect(() => setTestResult(null), [provider, model, apiKeys])
 
   const visibleModels = useMemo(() => {
-    const source = catalog ?? FALLBACK_MODELS
+    const source = catalogs[provider]?.length ? catalogs[provider]! : fallbackModels
     const query = search.trim().toLowerCase()
 
     const filtered = source.filter((m) => {
@@ -129,16 +124,17 @@ export default function SettingsModal({ settings, onSave, onClose }: SettingsMod
 
     // With no search, lead with the curated picks so the list opens on good defaults.
     if (!query) {
-      const recommendedIds = new Set(RECOMMENDED_OPENROUTER_MODELS.map((m) => m.id))
-      const recommended = filtered.filter((m) => recommendedIds.has(m.id))
-      const rest = filtered.filter((m) => !recommendedIds.has(m.id))
-      return [...recommended, ...rest].slice(0, 60)
+      const recommended = new Set(config.fallbackModels.map((m) => m.id))
+      return [
+        ...filtered.filter((m) => recommended.has(m.id)),
+        ...filtered.filter((m) => !recommended.has(m.id)),
+      ].slice(0, 60)
     }
     return filtered.slice(0, 60)
-  }, [catalog, search, freeOnly])
+  }, [catalogs, provider, fallbackModels, search, freeOnly, config])
 
   const searchIsUnlistedId =
-    search.trim().includes('/') && !visibleModels.some((m) => m.id === search.trim())
+    search.trim().length > 2 && !visibleModels.some((m) => m.id === search.trim())
 
   const handleTest = useCallback(async () => {
     setTesting(true)
@@ -161,6 +157,16 @@ export default function SettingsModal({ settings, onSave, onClose }: SettingsMod
       setTesting(false)
     }
   }, [provider, apiKeys, model])
+
+  const handlePuterSignIn = useCallback(async () => {
+    setPuterStatus('Opening Puter sign-in…')
+    try {
+      await ensurePuterSignedIn()
+      setPuterStatus('✓ Signed in to Puter — you can run optimizations now.')
+    } catch (err: unknown) {
+      setPuterStatus(`✕ ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }, [])
 
   return (
     <div
@@ -185,163 +191,229 @@ export default function SettingsModal({ settings, onSave, onClose }: SettingsMod
         <div className="space-y-5">
           {/* Provider picker */}
           <div>
-            <label className="block text-sm font-semibold text-[var(--color-text)] mb-3">Provider</label>
-            <div className="grid grid-cols-3 gap-2">
-              {PROVIDER_ORDER.map((p) => {
-                const m = PROVIDER_META[p]
-                const selected = provider === p
+            <label className="block text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wide mb-2.5">
+              Active Provider
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {PROVIDER_ORDER.map((id) => {
+                const p = getProvider(id)
+                const selected = provider === id
+                const hasKey = Boolean(apiKeys[id]?.trim()) || !p.needsKey
                 return (
                   <button
-                    key={p}
-                    onClick={() => setProvider(p)}
-                    className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition-all ${
+                    key={id}
+                    onClick={() => setProvider(id)}
+                    className={`flex items-center gap-2 p-2.5 rounded-xl border text-left transition-all ${
                       selected
                         ? 'border-[var(--color-primary)] bg-[var(--color-primary-highlight)] ring-1 ring-[var(--color-primary)]'
                         : 'border-[var(--color-border)] hover:border-[var(--color-text-muted)]'
                     }`}
                   >
-                    <div className={`w-6 h-6 rounded-full ${m.badgeClass} flex items-center justify-center flex-shrink-0`}>
-                      <span className="text-white text-[10px] font-bold">{m.badge}</span>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-sm font-medium text-[var(--color-text)] leading-tight">{m.label}</p>
-                      <p className="text-[10px] text-[var(--color-text-muted)] leading-tight">{m.sub}</p>
-                    </div>
+                    <span className="text-base leading-none flex-shrink-0">{p.emoji}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-semibold text-[var(--color-text)] leading-tight truncate">
+                        {p.label}
+                      </span>
+                      <span className="block text-[10px] text-[var(--color-text-muted)] leading-tight truncate">
+                        {p.tagline}
+                      </span>
+                    </span>
+                    {hasKey && (
+                      <span
+                        className="w-1.5 h-1.5 rounded-full bg-[var(--color-success)] flex-shrink-0"
+                        title={p.needsKey ? 'Key set' : 'No key needed'}
+                      />
+                    )}
                   </button>
                 )
               })}
             </div>
-          </div>
-
-          {/* API key */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-sm font-semibold text-[var(--color-text)]">{meta.label} API Key</span>
-              <button
-                type="button"
-                onClick={() => setShowKey((v) => !v)}
-                className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
-              >
-                {showKey ? 'Hide' : 'Show'}
-              </button>
-            </div>
-            <p className="text-xs text-[var(--color-text-muted)] mb-2">
-              {meta.keyHint}{' '}
-              <a
-                href={meta.keyUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[var(--color-primary)] hover:underline"
-              >
-                Open ↗
-              </a>
-            </p>
-            <input
-              type={showKey ? 'text' : 'password'}
-              autoComplete="off"
-              spellCheck={false}
-              placeholder={meta.placeholder}
-              value={apiKeys[provider]}
-              onChange={(e) => setApiKeys((k) => ({ ...k, [provider]: e.target.value }))}
-              className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-sm placeholder:text-[var(--color-text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition-all font-mono"
-            />
-            <p className="text-[11px] text-[var(--color-text-faint)] mt-1.5">
-              Stored in this browser only. Leave blank to use the server key from .env.local.
+            <p className="text-[11px] text-[var(--color-text-muted)] mt-2">
+              {config.emoji} <strong className="text-[var(--color-text)]">{config.label}</strong> — {config.freeNote}
             </p>
           </div>
 
-          {/* OpenRouter model picker */}
-          {provider === 'openrouter' && (
+          {/* API key — hidden for providers that don't use one */}
+          {config.needsKey ? (
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-sm font-semibold text-[var(--color-text)]">Model</span>
-                <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={freeOnly}
-                    onChange={(e) => setFreeOnly(e.target.checked)}
-                    className="accent-[var(--color-primary)]"
-                  />
-                  Free only
-                </label>
+                <span className="text-sm font-semibold text-[var(--color-text)]">{config.label} API Key</span>
+                <button
+                  type="button"
+                  onClick={() => setShowKey((v) => !v)}
+                  className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+                >
+                  {showKey ? 'Hide' : 'Show'}
+                </button>
               </div>
-
-              <div className="mb-2 px-3 py-2 rounded-lg bg-[var(--color-primary-highlight)] text-xs text-[var(--color-text)] font-mono break-all">
-                {model}
-              </div>
-
+              <p className="text-xs text-[var(--color-text-muted)] mb-2">
+                {config.keyHint}{' '}
+                {config.keyUrl && (
+                  <a
+                    href={config.keyUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[var(--color-primary)] hover:underline"
+                  >
+                    Open ↗
+                  </a>
+                )}
+              </p>
               <input
-                type="text"
-                placeholder="Search models, or paste a model id…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full px-3 py-2 mb-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-sm placeholder:text-[var(--color-text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition-all"
+                type={showKey ? 'text' : 'password'}
+                autoComplete="off"
+                spellCheck={false}
+                placeholder={config.keyPlaceholder}
+                value={apiKeys[provider]}
+                onChange={(e) => setApiKeys((k) => ({ ...k, [provider]: e.target.value }))}
+                onBlur={() => config.catalogNeedsKey && apiKeys[provider]?.trim() !== savedKey && loadCatalog(true)}
+                className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-sm placeholder:text-[var(--color-text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition-all font-mono"
               />
+              <p className="text-[11px] text-[var(--color-text-faint)] mt-1.5">
+                Stored in this browser only. Leave blank to use {config.envVar} from .env.local.
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-offset)] p-3">
+              <p className="text-xs text-[var(--color-text-muted)]">{config.keyHint}</p>
+              {config.transport === 'puter' && (
+                <>
+                  <button
+                    onClick={handlePuterSignIn}
+                    className="mt-2.5 px-3 py-1.5 rounded-lg bg-[var(--color-primary)] text-white text-xs font-semibold hover:bg-[var(--color-primary-hover)] transition-all"
+                  >
+                    Sign in to Puter
+                  </button>
+                  {puterStatus && (
+                    <p className="text-[11px] text-[var(--color-text-muted)] mt-2">{puterStatus}</p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
 
-              {catalogError && (
-                <p className="text-[11px] text-[var(--color-warning)] mb-2">
-                  Live model list unavailable ({catalogError}) — showing the built-in shortlist.
+          {/* Model picker */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-sm font-semibold text-[var(--color-text)]">Model</span>
+              <div className="flex items-center gap-3">
+                {config.hasModelCatalog && (
+                  <button
+                    type="button"
+                    onClick={() => loadCatalog(true)}
+                    disabled={loadingCatalog}
+                    className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors disabled:opacity-50"
+                  >
+                    {loadingCatalog ? 'Loading…' : 'Refresh'}
+                  </button>
+                )}
+                {/* Only OpenRouter mixes free and paid models, so elsewhere this filters nothing. */}
+                {config.pricingIsPerModel && (
+                  <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={freeOnly}
+                      onChange={(e) => setFreeOnly(e.target.checked)}
+                      className="accent-[var(--color-primary)]"
+                    />
+                    Free only
+                  </label>
+                )}
+              </div>
+            </div>
+
+            <div className="mb-2 px-3 py-2 rounded-lg bg-[var(--color-primary-highlight)] text-xs text-[var(--color-text)] font-mono break-all">
+              {model || <span className="text-[var(--color-text-muted)]">Auto-select</span>}
+            </div>
+
+            <input
+              type="text"
+              placeholder="Search models, or paste a model id…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full px-3 py-2 mb-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-sm placeholder:text-[var(--color-text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition-all"
+            />
+
+            {catalogError[provider] && (
+              <p className="text-[11px] text-[var(--color-warning)] mb-2">
+                Live list unavailable ({catalogError[provider]}) — showing the built-in shortlist.
+              </p>
+            )}
+            {!config.hasModelCatalog && (
+              <p className="text-[11px] text-[var(--color-text-muted)] mb-2">
+                {config.label} has no public model list — these are the models known to work.
+              </p>
+            )}
+            {config.hasModelCatalog &&
+              config.catalogNeedsKey &&
+              !apiKeys[provider]?.trim() &&
+              !catalogs[provider] &&
+              !catalogError[provider] && (
+                <p className="text-[11px] text-[var(--color-text-muted)] mb-2">
+                  Add your API key above to load {config.label}&apos;s live model list.
                 </p>
               )}
 
-              <div className="max-h-56 overflow-y-auto rounded-xl border border-[var(--color-border)] divide-y divide-[var(--color-divider)]">
-                {!catalog && !catalogError && (
-                  <p className="p-4 text-sm text-[var(--color-text-muted)]">Loading models…</p>
-                )}
+            <div className="max-h-56 overflow-y-auto rounded-xl border border-[var(--color-border)] divide-y divide-[var(--color-divider)]">
+              {searchIsUnlistedId && (
+                <button
+                  onClick={() => {
+                    setModels((m) => ({ ...m, [provider]: search.trim() }))
+                    setSearch('')
+                  }}
+                  className="w-full text-left px-3 py-2.5 hover:bg-[var(--color-surface-offset)] transition-colors"
+                >
+                  <p className="text-sm text-[var(--color-primary)] font-medium">
+                    Use custom id &ldquo;{search.trim()}&rdquo;
+                  </p>
+                </button>
+              )}
 
-                {searchIsUnlistedId && (
+              {visibleModels.map((m) => {
+                const selected = m.id === model
+                return (
                   <button
-                    onClick={() => {
-                      setModel(search.trim())
-                      setSearch('')
-                    }}
-                    className="w-full text-left px-3 py-2.5 hover:bg-[var(--color-surface-offset)] transition-colors"
+                    key={m.id}
+                    onClick={() => setModels((prev) => ({ ...prev, [provider]: m.id }))}
+                    className={`w-full text-left px-3 py-2.5 transition-colors ${
+                      selected ? 'bg-[var(--color-primary-highlight)]' : 'hover:bg-[var(--color-surface-offset)]'
+                    }`}
                   >
-                    <p className="text-sm text-[var(--color-primary)] font-medium">
-                      Use custom id &ldquo;{search.trim()}&rdquo;
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-medium text-[var(--color-text)] truncate">{m.name}</p>
+                      <span
+                        className={`text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0 font-medium ${
+                          m.free
+                            ? 'bg-[var(--color-success-highlight)] text-[var(--color-success)]'
+                            : 'bg-[var(--color-surface-offset)] text-[var(--color-text-muted)]'
+                        }`}
+                      >
+                        {formatPrice(m)}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-[var(--color-text-muted)] font-mono truncate">
+                      {m.id}
+                      {m.contextLength ? ` · ${formatContext(m.contextLength)}` : ''}
                     </p>
-                  </button>
-                )}
-
-                {visibleModels.map((m) => {
-                  const selected = m.id === model
-                  return (
-                    <button
-                      key={m.id}
-                      onClick={() => setModel(m.id)}
-                      className={`w-full text-left px-3 py-2.5 transition-colors ${
-                        selected ? 'bg-[var(--color-primary-highlight)]' : 'hover:bg-[var(--color-surface-offset)]'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-medium text-[var(--color-text)] truncate">{m.name}</p>
-                        <span
-                          className={`text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0 font-medium ${
-                            m.free
-                              ? 'bg-[var(--color-success-highlight)] text-[var(--color-success)]'
-                              : 'bg-[var(--color-surface-offset)] text-[var(--color-text-muted)]'
-                          }`}
-                        >
-                          {formatPrice(m)}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-[var(--color-text-muted)] font-mono truncate">
-                        {m.id}
-                        {m.contextLength ? ` · ${formatContext(m.contextLength)}` : ''}
+                    {m.maxCompletionTokens > 0 && m.maxCompletionTokens < TRUNCATION_RISK_TOKENS && (
+                      <p className="text-[10px] text-[var(--color-warning)]">
+                        Caps output at {m.maxCompletionTokens} tokens — long resumes may get truncated
                       </p>
-                    </button>
-                  )
-                })}
+                    )}
+                  </button>
+                )
+              })}
 
-                {catalog && visibleModels.length === 0 && !searchIsUnlistedId && (
-                  <p className="p-4 text-sm text-[var(--color-text-muted)]">No models match that search.</p>
-                )}
-              </div>
-              <p className="text-[11px] text-[var(--color-text-faint)] mt-1.5">
-                Resume prompts are large — prefer models with 32K+ context that follow JSON instructions well.
-              </p>
+              {visibleModels.length === 0 && !searchIsUnlistedId && (
+                <p className="p-4 text-sm text-[var(--color-text-muted)]">
+                  {loadingCatalog ? 'Loading models…' : 'No models match that search.'}
+                </p>
+              )}
             </div>
-          )}
+            <p className="text-[11px] text-[var(--color-text-faint)] mt-1.5">
+              Resume prompts are large — prefer models with 32K+ context that follow JSON instructions well.
+            </p>
+          </div>
 
           {/* Test result */}
           {testResult && (
@@ -366,7 +438,7 @@ export default function SettingsModal({ settings, onSave, onClose }: SettingsMod
               {testing ? 'Testing…' : 'Test connection'}
             </button>
             <button
-              onClick={() => onSave({ provider, apiKeys, openRouterModel: model })}
+              onClick={() => onSave({ provider, apiKeys, models })}
               className="flex-1 py-3 px-4 rounded-xl bg-[var(--color-primary)] text-white font-semibold text-sm hover:bg-[var(--color-primary-hover)] transition-all"
             >
               Save Settings

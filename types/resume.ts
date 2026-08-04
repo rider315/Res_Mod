@@ -1,4 +1,12 @@
-export type AIProvider = 'openrouter' | 'gemini' | 'cerebras'
+export type AIProvider =
+  | 'openrouter'
+  | 'gemini'
+  | 'sambanova'
+  | 'puter'
+  | 'cerebras'
+  | 'groq'
+  | 'mistral'
+  | 'ollama'
 
 export interface ResumeSection {
   id: string
@@ -53,10 +61,12 @@ export interface AppState {
   softInstructions: string
   optimizationResult: OptimizationResult | null
   error: string | null
+  /** Non-fatal notice shown on the done screen (e.g. changes that matched no text). */
+  applyWarning: string | null
   aiProvider: AIProvider
-  /** API keys kept per provider so switching providers doesn't clobber the other key. */
+  /** API keys kept per provider so switching providers doesn't clobber another key. */
   aiApiKeys: Record<AIProvider, string>
-  /** OpenRouter model id, e.g. "deepseek/deepseek-chat-v3-0324:free". */
-  openRouterModel: string
+  /** Selected model id per provider. */
+  aiModels: Record<AIProvider, string>
   showSettings: boolean
 }

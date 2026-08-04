@@ -1,21 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { exportDocAsPdf } from '@/lib/googleDocs'
+import { requireGoogleAuth, sanitizeFileName, buildResumeFileName } from '@/lib/require-auth'
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session?.accessToken)
-    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+  const auth = await requireGoogleAuth()
+  if (!auth.ok) return auth.response
 
   const { searchParams } = new URL(req.url)
   const documentId = searchParams.get('documentId')
-  const filename = searchParams.get('filename') || 'optimized-resume'
   if (!documentId)
     return NextResponse.json({ error: 'Missing documentId' }, { status: 400 })
 
+  // The client may pass a name, but it is untrusted input that lands in a
+  // Content-Disposition header — sanitize it and fall back to the session name.
+  const requested = sanitizeFileName(searchParams.get('filename') ?? '')
+  const filename = requested || buildResumeFileName(auth.userName, 'Company')
+
   try {
-    const pdfBuffer = await exportDocAsPdf(session.accessToken, documentId)
+    const pdfBuffer = await exportDocAsPdf(auth.accessToken, documentId)
     return new NextResponse(new Uint8Array(pdfBuffer), {
       headers: {
         'Content-Type': 'application/pdf',

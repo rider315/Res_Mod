@@ -4,8 +4,9 @@ import { useSession, signOut } from 'next-auth/react'
 import DiffViewer from './DiffViewer'
 import StepIndicator from './StepIndicator'
 import SettingsModal from './SettingsModal'
-import { AppState } from '@/types/resume'
+import { AppState, OptimizationResult } from '@/types/resume'
 import { AISettings, DEFAULT_AI_SETTINGS, loadAISettings, saveAISettings } from '@/lib/settings-storage'
+import { getProvider } from '@/lib/providers'
 
 const INITIAL_STATE: AppState = {
   step: 'input',
@@ -20,9 +21,10 @@ const INITIAL_STATE: AppState = {
   softInstructions: '',
   optimizationResult: null,
   error: null,
+  applyWarning: null,
   aiProvider: DEFAULT_AI_SETTINGS.provider,
   aiApiKeys: { ...DEFAULT_AI_SETTINGS.apiKeys },
-  openRouterModel: DEFAULT_AI_SETTINGS.openRouterModel,
+  aiModels: { ...DEFAULT_AI_SETTINGS.models },
   showSettings: false,
 }
 
@@ -202,7 +204,7 @@ useEffect(() => {
     resumeUrl: savedUrl || s.resumeUrl,
     aiProvider: ai.provider,
     aiApiKeys: ai.apiKeys,
-    openRouterModel: ai.openRouterModel,
+    aiModels: ai.models,
   }))
 }, [])
 
@@ -222,22 +224,64 @@ useEffect(() => {
       ...s,
       aiProvider: next.provider,
       aiApiKeys: next.apiKeys,
-      openRouterModel: next.openRouterModel,
+      aiModels: next.models,
       showSettings: false,
     }))
   }
 
-  /** Shared body for /api/optimize and /api/revamp. */
-  function buildAIRequestBody() {
-    return {
-      resume: state.parsedResume,
-      jobDescription: state.jobDescription,
-      hardInstructions: state.hardInstructions,
-      softInstructions: state.softInstructions,
-      provider: state.aiProvider,
-      apiKey: state.aiApiKeys[state.aiProvider],
-      model: state.aiProvider === 'openrouter' ? state.openRouterModel : undefined,
+  /**
+   * Run one AI pass.
+   *
+   * Every provider except Puter goes through our API route. Puter has no API key
+   * and only works from the browser, so for that one we build the prompt, call
+   * puter.ai.chat, and parse the result entirely client-side.
+   */
+  async function runAIPass(mode: 'optimize' | 'revamp'): Promise<OptimizationResult> {
+    const provider = state.aiProvider
+    const model = state.aiModels[provider]
+
+    if (getProvider(provider).clientSide) {
+      const { generatePuterResponse } = await import('@/lib/puter')
+
+      if (mode === 'optimize') {
+        const { OPTIMIZE_SYSTEM_INSTRUCTION, buildOptimizePrompt, parseOptimizeResponse } =
+          await import('@/lib/optimizer')
+        const raw = await generatePuterResponse({
+          systemInstruction: OPTIMIZE_SYSTEM_INSTRUCTION,
+          prompt: buildOptimizePrompt(state.parsedResume!, state.jobDescription, state.hardInstructions, state.softInstructions),
+          temperature: 0.2,
+          model,
+        })
+        return parseOptimizeResponse(raw, provider, model)
+      }
+
+      const { REVAMP_SYSTEM_INSTRUCTION, buildRevampPrompt, parseRevampResponse } =
+        await import('@/lib/revamper')
+      const raw = await generatePuterResponse({
+        systemInstruction: REVAMP_SYSTEM_INSTRUCTION,
+        prompt: buildRevampPrompt(state.parsedResume!, state.jobDescription, state.hardInstructions, state.softInstructions),
+        temperature: 0.3,
+        model,
+      })
+      return parseRevampResponse(raw, provider, model)
     }
+
+    const res = await fetch(mode === 'optimize' ? '/api/optimize' : '/api/revamp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        resume: state.parsedResume,
+        jobDescription: state.jobDescription,
+        hardInstructions: state.hardInstructions,
+        softInstructions: state.softInstructions,
+        provider,
+        apiKey: state.aiApiKeys[provider],
+        model,
+      }),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error)
+    return data.result
   }
 
   async function handleLoadResume() {
@@ -285,14 +329,8 @@ useEffect(() => {
     setError(null)
     setState((s) => ({ ...s, step: 'optimizing' }))
     try {
-      const res = await fetch('/api/optimize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildAIRequestBody()),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      setState((s) => ({ ...s, step: 'review', optimizationResult: data.result, error: null }))
+      const result = await runAIPass('optimize')
+      setState((s) => ({ ...s, step: 'review', optimizationResult: result, error: null }))
     } catch (err: unknown) {
       setState((s) => ({ ...s, step: 'instructions', error: err instanceof Error ? err.message : String(err) }))
     } finally {
@@ -306,14 +344,8 @@ useEffect(() => {
     setError(null)
     setState((s) => ({ ...s, step: 'revamping' }))
     try {
-      const res = await fetch('/api/revamp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildAIRequestBody()),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      setState((s) => ({ ...s, step: 'review', optimizationResult: data.result, error: null }))
+      const result = await runAIPass('revamp')
+      setState((s) => ({ ...s, step: 'review', optimizationResult: result, error: null }))
     } catch (err: unknown) {
       setState((s) => ({ ...s, step: 'instructions', error: err instanceof Error ? err.message : String(err) }))
     } finally {
@@ -338,7 +370,19 @@ useEffect(() => {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      setState((s) => ({ ...s, step: 'done', error: null }))
+
+      // A change whose "original" wasn't verbatim matches nothing in the doc and
+      // is silently dropped by the Docs API — say so instead of claiming success.
+      const missed = Array.isArray(data.unmatched) ? data.unmatched.length : 0
+      setState((s) => ({
+        ...s,
+        step: 'done',
+        error: null,
+        applyWarning:
+          missed > 0
+            ? `${missed} of ${data.requestedCount} approved change${data.requestedCount === 1 ? '' : 's'} could not be located in the document and were skipped. This happens when the AI didn't quote the original text exactly.`
+            : null,
+      }))
     } catch (err: unknown) {
       setState((s) => ({ ...s, step: 'review', error: err instanceof Error ? err.message : String(err) }))
     } finally {
@@ -349,10 +393,12 @@ useEffect(() => {
   function handleExportPdf() {
     if (!state.copiedDocId) return
     const companyName = state.optimizationResult?.companyName || 'Company'
-    const filename = encodeURIComponent(`Gaurav Chaudhary Resume_${companyName}`)
+    // Name the file after whoever is signed in, not a hard-coded person.
+    const who = (session?.user?.name ?? '').replace(/[\\/:*?"<>|]/g, '').trim()
+    const baseName = who ? `${who} Resume_${companyName}` : `Resume_${companyName}`
     const a = document.createElement('a')
-    a.href = `/api/docs/export?documentId=${state.copiedDocId}&filename=${filename}`
-    a.download = `Gaurav Chaudhary Resume_${companyName}.pdf`
+    a.href = `/api/docs/export?documentId=${state.copiedDocId}&filename=${encodeURIComponent(baseName)}`
+    a.download = `${baseName}.pdf`
     a.click()
   }
 
@@ -394,13 +440,12 @@ useEffect(() => {
 
   const approvedCount = state.optimizationResult?.changes.filter((c) => c.approved === true).length ?? 0
 
-  // Header label so the active model is visible without opening Settings.
-  const activeModelLabel =
-    state.aiProvider === 'openrouter'
-      ? state.openRouterModel.split('/').pop()?.replace(':free', '') ?? state.openRouterModel
-      : state.aiProvider === 'gemini'
-        ? 'Gemini 2.5 Pro'
-        : 'Cerebras'
+  // Header label so the active provider/model is visible without opening Settings.
+  const activeProvider = getProvider(state.aiProvider)
+  const activeModel = state.aiModels[state.aiProvider]
+  const activeModelLabel = activeModel
+    ? `${activeProvider.emoji} ${activeModel.split('/').pop()?.replace(':free', '') ?? activeModel}`
+    : `${activeProvider.emoji} ${activeProvider.label}`
 
   return (
     <div className="min-h-screen bg-[var(--color-bg)]">
@@ -623,6 +668,16 @@ useEffect(() => {
               <p className="text-sm text-[var(--color-text-muted)]">Your changes have been merged into the copied document.</p>
             </div>
 
+            {state.applyWarning && (
+              <div className="max-w-xl mx-auto flex items-start gap-3 rounded-xl border border-[var(--color-warning)] bg-[var(--color-warning-highlight)] p-4 text-left text-sm text-[var(--color-warning)]">
+                <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                  <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+                <span>{state.applyWarning}</span>
+              </div>
+            )}
+
             {/* Stats */}
             {state.optimizationResult && (
               <div className="flex justify-center gap-6">
@@ -669,7 +724,7 @@ useEffect(() => {
             settings={{
               provider: state.aiProvider,
               apiKeys: state.aiApiKeys,
-              openRouterModel: state.openRouterModel,
+              models: state.aiModels,
             }}
             onSave={handleSaveSettings}
             onClose={() => setState((s) => ({ ...s, showSettings: false }))}

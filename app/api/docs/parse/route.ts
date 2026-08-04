@@ -1,16 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
 import { z } from 'zod'
-import { authOptions } from '@/lib/auth'
 import { getDocument } from '@/lib/googleDocs'
 import { parseDocument } from '@/lib/parser'
+import { requireGoogleAuth } from '@/lib/require-auth'
 
 const schema = z.object({ documentId: z.string().min(1) })
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session?.accessToken)
-    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+  const auth = await requireGoogleAuth()
+  if (!auth.ok) return auth.response
 
   const body = await req.json()
   const parsed = schema.safeParse(body)
@@ -18,8 +16,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing documentId' }, { status: 400 })
 
   try {
-    const doc = await getDocument(session.accessToken, parsed.data.documentId)
+    const doc = await getDocument(auth.accessToken, parsed.data.documentId)
     const resume = parseDocument(doc)
+
+    if (resume.sections.length === 0) {
+      return NextResponse.json(
+        { error: 'No content found in that document. Make sure it is a text resume, not an image or PDF.' },
+        { status: 400 }
+      )
+    }
+
     return NextResponse.json({ resume })
   } catch (err: unknown) {
     console.error('[parse]', err instanceof Error ? err.message : String(err))
