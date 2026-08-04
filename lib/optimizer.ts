@@ -11,7 +11,7 @@ Your ABSOLUTE rules:
 2. ONLY rewrite or rephrase existing content — never add new roles or projects.
 3. Return ONLY a valid JSON object — no markdown fences, no extra commentary.
 4. Each "original" value must be an EXACT, VERBATIM substring found in the resume content — character-for-character.
-5. **CRITICAL — SAME LENGTH RULE**: Each "proposed" value MUST have the EXACT same character count as the "original" value (±5 chars max). Count the characters before outputting. If the proposed text is shorter, pad with natural filler words. If longer, trim or rephrase to fit. This is essential to preserve document alignment and formatting.
+5. **LENGTH RULE**: Keep each "proposed" value close to the "original" length so the document layout holds. Growing a bullet to fit in JD keywords is EXPECTED and ENCOURAGED — aim to stay within about 30% of the original length, and never more than about 50% longer. Do NOT sacrifice keyword coverage to hit an exact character count, and NEVER shorten a bullet by more than a third — that deletes real content.
 6. NEVER use markdown formatting like **bold**, *italic*, or any special syntax in the proposed text. Output must be plain text only — no asterisks, no markdown.
 
 ## SECTION-LEVEL RULES (these override everything else):
@@ -24,7 +24,7 @@ Your ABSOLUTE rules:
 - You MUST preserve the EXACT formatting structure. If the original has category labels like "Languages:" and "Technologies & Tools:", keep those exact category labels unchanged.
 - Do NOT merge categories into one line. Do NOT split one category into multiple.
 - Keep the same number of lines, the same pattern (label: comma-separated items).
-- **TO STAY WITHIN CHARACTER LIMIT**: If swapping in JD skills makes the line longer, you MUST drop the LEAST relevant existing skills from that line. The final line MUST be within ±5 chars of the original.
+- **KEEP THE LINE A SIMILAR LENGTH**: If swapping in JD skills makes the line noticeably longer, drop the LEAST relevant existing skills to make room. Aim to stay within about 20% of the original line length.
 
 ### WORK EXPERIENCE section:
 - Company names, role titles, and date ranges are FROZEN — never modify them.
@@ -52,7 +52,7 @@ Your ABSOLUTE rules:
 - In your "original" and "proposed" fields, include ONLY the skill text (e.g. "Communication Skills"), NEVER include the number prefix like "1." or "2.".
 - You may replace soft skill names to better align with the JD, but keep the EXACT same count.
 - Do NOT add bold, italic, or any formatting markers.
-- Each replacement skill name must be similar in character length to the original it replaces.
+- Each replacement skill name should be similar in length to the original it replaces.
 
 ### HEADER / CONTACT section:
 - DO NOT modify anything. Skip this section entirely.`
@@ -104,10 +104,11 @@ The ENTIRE GOAL of this optimization is to PASS ATS keyword screening. Apply the
 - Swap out skills the JD doesn't care about for skills the JD explicitly requires.
 - If the JD lists 10 required skills and the resume only has 4 of them, add the missing 6 by replacing the least relevant existing skills.
 
-## CRITICAL LENGTH RULE
-For every change, the "proposed" text MUST have the EXACT same character count as the "original" text (±5 chars max).
-Count carefully. If original is 120 characters, proposed must be 115-125 characters.
-This is non-negotiable — the document formatting will break otherwise.
+## LENGTH GUIDANCE
+Keep "proposed" close to the original length so the document layout holds, but do NOT let this block
+keyword injection. A bullet growing from 120 to 150 characters to fit the JD's exact terminology is GOOD
+and expected. Stay within roughly 30% of the original length, never exceed about 50% longer, and never
+cut a bullet down by more than a third.
 
 
 ## OUTPUT FORMAT
@@ -122,7 +123,7 @@ Return this exact JSON structure:
       "sectionId": "exact section id from the resume (e.g. section_0, section_1)",
       "sectionTitle": "Section Title",
       "original": "exact verbatim text from resume — must be findable via string search, character-for-character",
-      "proposed": "improved plain-text replacement (MUST be within ±3 chars of original length, NO markdown, NO asterisks)",
+      "proposed": "improved plain-text replacement, similar length to the original (NO markdown, NO asterisks)",
       "reason": "why this change improves the resume for this specific role",
       "type": "rewrite|add_keywords|improve_clarity|action_verb"
     }
@@ -142,7 +143,7 @@ Do NOT generate any changes for sections whose title contains any of these (case
 - Suggest 10 to 20 high-impact changes — be thorough, cover every experience and project
 - "original" must EXACTLY match text that exists in the resume — no paraphrasing, no trimming
 - NEVER touch frozen fields (company names, role titles, dates, project names)
-- Maintain the same character length (±5 chars) for every proposed change
+- Keep each proposed change within roughly 30% of the original length
 - EVERY work experience role MUST have at least 2 bullet point changes
 - EVERY project MUST have at least 1 bullet point change
 

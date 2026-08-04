@@ -241,29 +241,23 @@ useEffect(() => {
     const model = state.aiModels[provider]
 
     if (getProvider(provider).clientSide) {
-      const { generatePuterResponse } = await import('@/lib/puter')
+      // Puter has no server side — same orchestration, browser-side model call.
+      const [{ generatePuterResponse }, { runOptimization }] = await Promise.all([
+        import('@/lib/puter'),
+        import('@/lib/run-optimization'),
+      ])
 
-      if (mode === 'optimize') {
-        const { OPTIMIZE_SYSTEM_INSTRUCTION, buildOptimizePrompt, parseOptimizeResponse } =
-          await import('@/lib/optimizer')
-        const raw = await generatePuterResponse({
-          systemInstruction: OPTIMIZE_SYSTEM_INSTRUCTION,
-          prompt: buildOptimizePrompt(state.parsedResume!, state.jobDescription, state.hardInstructions, state.softInstructions),
-          temperature: 0.2,
-          model,
-        })
-        return parseOptimizeResponse(raw, provider, model)
-      }
-
-      const { REVAMP_SYSTEM_INSTRUCTION, buildRevampPrompt, parseRevampResponse } =
-        await import('@/lib/revamper')
-      const raw = await generatePuterResponse({
-        systemInstruction: REVAMP_SYSTEM_INSTRUCTION,
-        prompt: buildRevampPrompt(state.parsedResume!, state.jobDescription, state.hardInstructions, state.softInstructions),
-        temperature: 0.3,
+      return runOptimization({
+        mode,
+        resume: state.parsedResume!,
+        jobDescription: state.jobDescription,
+        hardInstructions: state.hardInstructions,
+        softInstructions: state.softInstructions,
+        provider,
         model,
+        generate: ({ systemInstruction, prompt, temperature }) =>
+          generatePuterResponse({ systemInstruction, prompt, temperature, model }),
       })
-      return parseRevampResponse(raw, provider, model)
     }
 
     const res = await fetch(mode === 'optimize' ? '/api/optimize' : '/api/revamp', {

@@ -40,6 +40,30 @@ function InlineDiff({ original, proposed }: { original: string; proposed: string
   )
 }
 
+/**
+ * Rewrites are allowed to grow so JD keywords fit, which can push a bullet onto
+ * an extra line. Surface the delta so layout risk is visible before approving.
+ */
+function LengthDelta({ original, proposed }: { original: string; proposed: string }) {
+  const delta = proposed.length - original.length
+  if (Math.abs(delta) < 10) return null
+
+  const grew = delta > 0
+  const notable = Math.abs(delta) >= 30
+  return (
+    <span
+      title={`${original.length} → ${proposed.length} characters`}
+      className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
+        notable
+          ? 'bg-[var(--color-warning-highlight)] text-[var(--color-warning)]'
+          : 'bg-[var(--color-surface-offset)] text-[var(--color-text-muted)]'
+      }`}
+    >
+      {grew ? '+' : ''}{delta} chars
+    </span>
+  )
+}
+
 function DiffCard({
   change,
   onApprove,
@@ -67,6 +91,7 @@ function DiffCard({
           <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${TYPE_COLORS[change.type]}`}>
             {TYPE_LABELS[change.type]}
           </span>
+          <LengthDelta original={change.original} proposed={change.proposed} />
         </div>
         <div className="flex items-center gap-2">
           <button

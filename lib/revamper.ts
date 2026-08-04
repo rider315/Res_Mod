@@ -11,7 +11,7 @@ Your ABSOLUTE rules:
 2. ONLY rewrite or rephrase existing content — never add new roles or projects.
 3. Return ONLY a valid JSON object — no markdown fences, no extra commentary.
 4. Each "original" value must be an EXACT, VERBATIM substring found in the resume content — character-for-character.
-5. **CRITICAL — SAME LENGTH RULE**: Each "proposed" value MUST have the EXACT same character count as the "original" value (±5 chars max). Count the characters before outputting. If the proposed text is shorter, pad with natural filler words. If longer, trim or rephrase to fit. This is essential to preserve document alignment and formatting.
+5. **LENGTH RULE**: Keep each "proposed" value close to the "original" length so the document layout holds. Growing a bullet to fit in JD keywords is EXPECTED and ENCOURAGED — aim to stay within about 30% of the original length, and never more than about 50% longer. Do NOT sacrifice keyword coverage to hit an exact character count, and NEVER shorten a bullet by more than a third — that deletes real content.
 6. NEVER use markdown formatting like **bold**, *italic*, or any special syntax in the proposed text. Output must be plain text only — no asterisks, no markdown.
 
 ## SECTION-LEVEL RULES (these override everything else):
@@ -19,10 +19,10 @@ Your ABSOLUTE rules:
 ### SKILLS section:
 - You may REORDER existing skills to prioritize JD-relevant ones at the front of each list.
 - You may REPLACE less-relevant skills with JD-critical skills. Be VERY AGGRESSIVE — swap out any skill the JD doesn't mention for one it explicitly requires.
-- **TO STAY WITHIN CHARACTER LIMIT**: If swapping in JD skills makes the line longer, you MUST remove/drop up to 5 of the LEAST relevant existing skills from that line. Cut the least important ones to make room. The final line MUST be within ±5 chars of the original.
+- **KEEP THE LINE A SIMILAR LENGTH**: If swapping in JD skills makes the line longer, remove up to 5 of the LEAST relevant existing skills to make room. Aim to stay within about 20% of the original line length.
 - **CRITICAL CATEGORY MATCHING**: Respect sub-categories. Languages go in "Languages:", frameworks in "Frameworks:", tools in "Tools:".
 - Preserve the EXACT formatting structure (labels, comma-separated pattern, number of lines).
-- The total character count per line MUST stay within ±5 chars of the original. Count carefully before outputting.
+- Keep the total line length within about 20% of the original.
 
 ### WORK EXPERIENCE section:
 - Company names, role titles, and date ranges are FROZEN — never modify them.
@@ -33,7 +33,7 @@ Your ABSOLUTE rules:
 - If the JD says "CI/CD with Jenkins" and the bullet says "automated deployment", rewrite to "implemented CI/CD pipelines using Jenkins for automated deployment".
 - If the JD mentions "Agile/Scrum", "cross-functional teams", or "stakeholder management", weave these phrases into bullets.
 - Keep the same achievement structure — if the original has a metric (e.g., "reduced load time by 40%"), preserve a similar metric.
-- The proposed text must match the original character count (±5 chars).
+- Keep the proposed text within about 30% of the original length.
 
 ### EDUCATION section:
 - DO NOT modify anything. Skip this section entirely.
@@ -43,7 +43,7 @@ Your ABSOLUTE rules:
 - The first line of each project (the title/heading line, often containing project name, link, tech stack summary) is COMPLETELY FROZEN. Do NOT generate a change for it.
 - ONLY modify the bullet-point descriptions UNDER each project heading.
 - Apply the SAME aggressive ATS keyword injection — rewrite bullets to directly use JD terminology.
-- The proposed text must match the original character count (±5 chars).
+- Keep the proposed text within about 30% of the original length.
 
 ### AWARDS / CERTIFICATES section:
 - DO NOT modify anything. Skip this section entirely.
@@ -99,7 +99,7 @@ This is a FULL ATS-TARGETED REVAMP — the goal is to maximize ATS keyword match
 - Example: JD says "CI/CD with Jenkins" and resume says "automated deployment" → rewrite to "implemented CI/CD pipelines using Jenkins for automated deployment"
 - Example: JD says "Agile methodology" and resume says "worked in team" → rewrite to "delivered features in Agile sprints with cross-functional collaboration"
 - Keep the same achievement type and any metrics from the original.
-- The proposed text MUST be within ±5 characters of the original length.
+- Keep the proposed text within roughly 30% of the original length — growing a bullet to fit JD keywords is expected.
 
 ### BOLD KEYWORDS:
 For each change, also output a "boldKeywords" array containing the 2-4 most important JD-relevant keywords/phrases in the proposed text that should be visually emphasized. These should be exact substrings of the proposed text.
@@ -111,10 +111,11 @@ Example: if proposed is "architected and deployed microservices for distributed 
 - Education and Certificates sections entirely
 - Header/Contact section entirely
 
-## CRITICAL LENGTH RULE
-For every change, the "proposed" text MUST have the EXACT same character count as the "original" text (±5 chars max).
-Count carefully. If original is 120 characters, proposed must be 115-125 characters.
-This is non-negotiable — the document formatting will break otherwise.
+## LENGTH GUIDANCE
+Keep "proposed" close to the original length so the document layout holds, but do NOT let this
+block keyword injection. A bullet growing from 120 to 150 characters to fit in the JD's exact terminology is
+GOOD and expected. Stay within roughly 30% of the original length; never exceed about 50% longer, and never
+cut a bullet down by more than a third.
 
 
 ## OUTPUT FORMAT
@@ -129,7 +130,7 @@ Return this exact JSON structure:
       "sectionId": "exact section id from the resume (e.g. section_0, section_1)",
       "sectionTitle": "Section Title",
       "original": "exact verbatim text from resume — must be findable via string search, character-for-character",
-      "proposed": "rewritten plain text that directly reflects the JD (MUST be within ±3 chars of original length, NO markdown, NO asterisks)",
+      "proposed": "rewritten plain text that directly reflects the JD, similar length to the original (NO markdown, NO asterisks)",
       "reason": "why this rewrite improves the resume for this specific role",
       "type": "rewrite|add_keywords|improve_clarity|action_verb",
       "boldKeywords": ["keyword1", "keyword2"]
@@ -153,7 +154,7 @@ Do NOT generate any changes for sections whose title contains any of these (case
 - EVERY work experience role MUST have at least 2 bullet point changes
 - EVERY project MUST have at least 1 bullet point change
 - For projects: NEVER change the heading/title line — only bullet points under it
-- Maintain the same character length (±5 chars) for every proposed change
+- Keep each proposed change within roughly 30% of the original length
 - Each change must include a "boldKeywords" array with 2-4 important JD terms from the proposed text
 
 ## ATS KEYWORD OPTIMIZATION

@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { authOptions } from '@/lib/auth'
 import { AIProvider } from '@/types/resume'
 import { generateAIResponse, resolveApiKey, resolveModel } from '@/lib/ai-provider'
-import { buildOptimizePrompt, OPTIMIZE_SYSTEM_INSTRUCTION, parseOptimizeResponse } from '@/lib/optimizer'
+import { runOptimization } from '@/lib/run-optimization'
 import { PROVIDER_ORDER } from '@/lib/providers'
 
 const schema = z.object({
@@ -41,16 +41,20 @@ export async function POST(req: NextRequest) {
   const provider = (parsed.data.provider ?? 'openrouter') as AIProvider
 
   try {
-    const responseText = await generateAIResponse({
+    const key = resolveApiKey(provider, apiKey)
+
+    const result = await runOptimization({
+      mode: 'optimize',
+      resume,
+      jobDescription,
+      hardInstructions,
+      softInstructions,
       provider,
-      apiKey: resolveApiKey(provider, apiKey),
-      systemInstruction: OPTIMIZE_SYSTEM_INSTRUCTION,
-      prompt: buildOptimizePrompt(resume, jobDescription, hardInstructions, softInstructions),
-      temperature: 0.2,
-      model,
+      model: resolveModel(provider, model),
+      generate: ({ systemInstruction, prompt, temperature }) =>
+        generateAIResponse({ provider, apiKey: key, systemInstruction, prompt, temperature, model }),
     })
 
-    const result = parseOptimizeResponse(responseText, provider, resolveModel(provider, model))
     return NextResponse.json({ result })
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err)

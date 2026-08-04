@@ -1,6 +1,5 @@
 {
   "permissions": {
-    "defaultMode": "acceptEdits",
     "allow": [
       "Read",
       "Glob",
@@ -52,7 +51,11 @@
       "WebFetch(domain:aistudio.google.com)",
       "WebFetch(domain:nextjs.org)",
       "WebFetch(domain:developers.google.com)",
-      "WebFetch(domain:next-auth.js.org)"
+      "WebFetch(domain:next-auth.js.org)",
+      "Bash(git check-ignore *)",
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('.claude/settings.local.json','utf8'\\)\\); console.log\\('settings.local.json is valid JSON'\\)\")",
+      "Bash(git checkout *)",
+      "Bash(git add *)"
     ],
     "deny": [
       "Bash(rm -rf *)",
@@ -60,6 +63,7 @@
       "Bash(git push -f*)",
       "Bash(git reset --hard*)",
       "Bash(git clean -fd*)"
-    ]
+    ],
+    "defaultMode": "acceptEdits"
   }
 }

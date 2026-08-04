@@ -15,8 +15,27 @@ const CHANGE_TYPES: ResumeChange['type'][] = [
   'action_verb',
 ]
 
-/** Reject rewrites that drift too far from the original length — see the prompts' length rule. */
-const MAX_CHAR_DIFF = 8
+/**
+ * Length limits for a rewrite.
+ *
+ * These used to be a flat ±8 characters, which silently rejected ~90% of real
+ * JD-keyword rewrites: "built backend modules" → "architected microservices for
+ * backend systems" is a 24-char swing, and that is exactly the edit the prompts
+ * ask for. Injecting keywords inherently makes a bullet longer, so growth gets a
+ * generous allowance while the layout stays roughly intact.
+ *
+ * Shrinking is treated separately and much more strictly — a "rewrite" that
+ * drops half the text is losing content, not optimizing it.
+ */
+export function maxGrowthChars(originalLength: number): number {
+  return Math.max(50, Math.round(originalLength * 0.6))
+}
+
+export function minProposedLength(originalLength: number): number {
+  // Short fragments (skill names, soft skills) can legitimately shrink a lot.
+  if (originalLength <= 25) return 1
+  return Math.ceil(originalLength * 0.6)
+}
 
 export interface NormalizeResult {
   changes: ResumeChange[]
@@ -61,10 +80,17 @@ export function normalizeChanges(
       return
     }
 
-    const diff = Math.abs(proposed.length - original.length)
-    if (diff > MAX_CHAR_DIFF) {
+    const growth = proposed.length - original.length
+    if (growth > maxGrowthChars(original.length)) {
       console.warn(
-        `[${opts.logLabel}] Rejected change (±${diff} chars): "${original.slice(0, 50)}..." → "${proposed.slice(0, 50)}..."`
+        `[${opts.logLabel}] Rejected change (+${growth} chars, too long): "${original.slice(0, 50)}..." → "${proposed.slice(0, 50)}..."`
+      )
+      skipped++
+      return
+    }
+    if (proposed.length < minProposedLength(original.length)) {
+      console.warn(
+        `[${opts.logLabel}] Rejected change (${proposed.length} vs ${original.length} chars, content lost): "${original.slice(0, 50)}..."`
       )
       skipped++
       return
