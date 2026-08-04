@@ -52,7 +52,10 @@ export type AppStep =
 
 export interface AppState {
   step: AppStep
-  resumeUrl: string
+  /** Which resume layout is being optimized. */
+  profileId: 'gaurav' | 'himanshu'
+  /** Document URL per profile, so each resume keeps its own link. */
+  resumeUrls: Record<'gaurav' | 'himanshu', string>
   copiedDocId: string | null
   copiedDocUrl: string | null
   parsedResume: ParsedResume | null

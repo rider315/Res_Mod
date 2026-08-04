@@ -1,27 +1,19 @@
 import { ParsedResume, ResumeChange, ResumeSection } from '@/types/resume'
+import { CoverageRules } from '@/lib/profiles/types'
 
 /**
- * Per-section coverage rules.
+ * Per-section coverage checking.
  *
- * The prompts ask for "at least 2 bullet changes per role and per project", but
- * nothing used to check that the model complied — a run that touched one role and
+ * The prompts ask for at least two bullet rewrites per role and per project, but
+ * nothing used to verify the model complied — a run that touched one role and
  * skipped the rest was accepted silently. This module measures what actually came
  * back so the caller can request the missing edits in a focused second pass.
+ *
+ * All the layout-dependent judgements (which sections are editable, which lines
+ * are frozen headings, how many rewrites a section owes) come from the active
+ * resume profile, so two resumes with different structures can be checked
+ * correctly without either one's rules leaking into the other.
  */
-
-/** Sections that must never be edited — mirrors the SECTION SKIP LIST in the prompts. */
-const FROZEN_SECTION = /education|award|certificat|header|contact/i
-const EXPERIENCE_SECTION = /experience|employment|work history|professional background/i
-const PROJECT_SECTION = /project/i
-
-/** Minimum rewrites the user expects in each experience/project section. */
-export const REQUIRED_CHANGES_PER_SECTION = 2
-
-/**
- * Lines shorter than this are almost always role headers, company names, dates,
- * or project titles — all frozen — rather than editable bullet text.
- */
-const MIN_BULLET_LENGTH = 40
 
 export interface CoverageGap {
   sectionId: string
@@ -34,32 +26,43 @@ export interface CoverageGap {
   candidateLines: string[]
 }
 
-export function isEditableSection(section: ResumeSection): boolean {
-  if (FROZEN_SECTION.test(section.title)) return false
-  return EXPERIENCE_SECTION.test(section.title) || PROJECT_SECTION.test(section.title)
+export function isEditableSection(section: ResumeSection, rules: CoverageRules): boolean {
+  if (rules.frozenSection.test(section.title)) return false
+  return rules.experienceSection.test(section.title) || rules.projectSection.test(section.title)
 }
 
-/** Content lines long enough to be real bullet text rather than a heading or date. */
-export function bulletLines(section: ResumeSection): string[] {
-  return section.content.filter((line) => line.trim().length >= MIN_BULLET_LENGTH)
+/**
+ * Content lines long enough to be real bullet text, excluding any line the
+ * profile marks as a structural heading.
+ */
+export function bulletLines(section: ResumeSection, rules: CoverageRules): string[] {
+  return section.content.filter((line) => {
+    if (line.trim().length < rules.minBulletLength) return false
+    return !rules.frozenLinePatterns.some((pattern) => pattern.test(line))
+  })
 }
 
 /**
  * Sections that came back with fewer changes than required, along with the lines
  * still available to rewrite.
  */
-export function findCoverageGaps(resume: ParsedResume, changes: ResumeChange[]): CoverageGap[] {
+export function findCoverageGaps(
+  resume: ParsedResume,
+  changes: ResumeChange[],
+  rules: CoverageRules
+): CoverageGap[] {
   const gaps: CoverageGap[] = []
   const usedOriginals = new Set(changes.map((c) => c.original))
 
   for (const section of resume.sections) {
-    if (!isEditableSection(section)) continue
+    if (!isEditableSection(section, rules)) continue
 
-    const lines = bulletLines(section)
+    const lines = bulletLines(section, rules)
     if (lines.length === 0) continue
 
     // Can't ask for more rewrites than there are bullets to rewrite.
-    const required = Math.min(REQUIRED_CHANGES_PER_SECTION, lines.length)
+    const required = Math.min(rules.requiredChanges(section, lines.length), lines.length)
+    if (required <= 0) continue
 
     const have = changes.filter(
       (c) => c.sectionId === section.id || c.sectionTitle === section.title
@@ -90,7 +93,8 @@ export function buildGapFillPrompt(
   jobDescription: string,
   hardInstructions: string,
   gaps: CoverageGap[],
-  withBoldKeywords: boolean
+  withBoldKeywords: boolean,
+  profileNotes = ''
 ): string {
   const sectionBlocks = gaps
     .map((gap) => {
@@ -121,6 +125,7 @@ Rewrite the bullet points listed under each section so they DIRECTLY USE the job
 exact keywords, tool names, and methodologies.
 
 ${sectionBlocks}
+${profileNotes ? '\n\n' + profileNotes : ''}
 
 
 ## RULES
@@ -165,4 +170,28 @@ export function mergeChanges(primary: ResumeChange[], extra: ResumeChange[]): Re
     merged.push(change)
   }
   return merged
+}
+
+/**
+ * Drop changes that target a line the profile has frozen. The model is told not
+ * to touch these, but instructions are not a guarantee — and for a layout like
+ * Himanshu's, rewriting a "Project : <client>" heading would invent an
+ * engagement that never happened.
+ */
+export function stripFrozenLineChanges(
+  changes: ResumeChange[],
+  rules: CoverageRules
+): { kept: ResumeChange[]; dropped: ResumeChange[] } {
+  if (rules.frozenLinePatterns.length === 0) return { kept: changes, dropped: [] }
+
+  const kept: ResumeChange[] = []
+  const dropped: ResumeChange[] = []
+  for (const change of changes) {
+    if (rules.frozenLinePatterns.some((pattern) => pattern.test(change.original))) {
+      dropped.push(change)
+    } else {
+      kept.push(change)
+    }
+  }
+  return { kept, dropped }
 }

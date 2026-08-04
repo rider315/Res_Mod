@@ -7,10 +7,16 @@ import SettingsModal from './SettingsModal'
 import { AppState, OptimizationResult } from '@/types/resume'
 import { AISettings, DEFAULT_AI_SETTINGS, loadAISettings, saveAISettings } from '@/lib/settings-storage'
 import { getProvider } from '@/lib/providers'
+import { DEFAULT_PROFILE_ID, getProfile, PROFILES, PROFILE_ORDER } from '@/lib/profiles'
+import { ResumeProfileId } from '@/lib/profiles/types'
 
 const INITIAL_STATE: AppState = {
   step: 'input',
-  resumeUrl: '',
+  profileId: DEFAULT_PROFILE_ID,
+  resumeUrls: {
+    gaurav: PROFILES.gaurav.defaultDocUrl,
+    himanshu: PROFILES.himanshu.defaultDocUrl,
+  },
 
 
   copiedDocId: null,
@@ -172,6 +178,26 @@ function MergeAnimation({ count }: { count: number }) {
   )
 }
 
+/**
+ * Shows whether the URL in the box matches what's saved for this person.
+ * Reads localStorage in an effect rather than during render, which would break
+ * server rendering.
+ */
+function SavedBadge({ profileKey, url }: { profileKey: string; url: string }) {
+  const [saved, setSaved] = useState<string | null>(null)
+  useEffect(() => setSaved(localStorage.getItem(profileKey)), [profileKey, url])
+
+  if (!url || saved !== url) return null
+  return (
+    <span className="text-xs text-[var(--color-success)] flex items-center gap-1">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+        <polyline points="20 6 9 17 4 12" />
+      </svg>
+      Saved
+    </span>
+  )
+}
+
 function ErrorBanner({ message, onDismiss }: { message: string; onDismiss: () => void }) {
   return (
     <div className="flex items-start gap-3 bg-[var(--color-error-highlight)] border border-[var(--color-error)] rounded-xl p-4 text-sm text-[var(--color-error)]">
@@ -195,18 +221,46 @@ useEffect(() => {
   const theme = prefersDark ? 'dark' : 'light'
   setThemeMode(theme)
   document.documentElement.setAttribute('data-theme', theme)
-  // Load saved resume URL + AI settings from localStorage
-  const savedUrl = localStorage.getItem('resmod_resume_url')
+  // Load saved AI settings plus each profile's own saved document URL.
   const ai = loadAISettings()
+  const savedProfile = localStorage.getItem('resmod_profile') as ResumeProfileId | null
+  const savedUrls = { ...INITIAL_STATE.resumeUrls }
+  for (const id of PROFILE_ORDER) {
+    savedUrls[id] = localStorage.getItem(PROFILES[id].urlStorageKey) || PROFILES[id].defaultDocUrl
+  }
 
   setState((s) => ({
     ...s,
-    resumeUrl: savedUrl || s.resumeUrl,
+    profileId: savedProfile && PROFILE_ORDER.includes(savedProfile) ? savedProfile : s.profileId,
+    resumeUrls: savedUrls,
     aiProvider: ai.provider,
     aiApiKeys: ai.apiKeys,
     aiModels: ai.models,
   }))
 }, [])
+
+  const activeProfile = getProfile(state.profileId)
+  const activeResumeUrl = state.resumeUrls[state.profileId]
+
+  function setActiveProfile(id: ResumeProfileId) {
+    localStorage.setItem('resmod_profile', id)
+    // Switching resumes invalidates anything parsed from the previous one.
+    setState((s) => ({
+      ...s,
+      profileId: id,
+      step: 'input',
+      copiedDocId: null,
+      copiedDocUrl: null,
+      parsedResume: null,
+      optimizationResult: null,
+      error: null,
+      applyWarning: null,
+    }))
+  }
+
+  function setActiveResumeUrl(url: string) {
+    setState((s) => ({ ...s, resumeUrls: { ...s.resumeUrls, [s.profileId]: url } }))
+  }
 
   function toggleTheme() {
     const next = themeMode === 'dark' ? 'light' : 'dark'
@@ -249,6 +303,7 @@ useEffect(() => {
 
       return runOptimization({
         mode,
+        profile: activeProfile,
         resume: state.parsedResume!,
         jobDescription: state.jobDescription,
         hardInstructions: state.hardInstructions,
@@ -271,6 +326,7 @@ useEffect(() => {
         provider,
         apiKey: state.aiApiKeys[provider],
         model,
+        profileId: state.profileId,
       }),
     })
     const data = await res.json()
@@ -279,7 +335,7 @@ useEffect(() => {
   }
 
   async function handleLoadResume() {
-    if (!state.resumeUrl.trim()) return
+    if (!activeResumeUrl.trim()) return
     setLoading(true)
     setError(null)
     setState((s) => ({ ...s, step: 'parsing' }))
@@ -287,7 +343,7 @@ useEffect(() => {
       const copyRes = await fetch('/api/docs/copy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: state.resumeUrl }),
+        body: JSON.stringify({ url: activeResumeUrl }),
       })
       const copyData = await copyRes.json()
       if (!copyRes.ok) throw new Error(copyData.error)
@@ -309,7 +365,7 @@ useEffect(() => {
         error: null,
       }))
       // Save URL to localStorage for next time
-      localStorage.setItem('resmod_resume_url', state.resumeUrl)
+      localStorage.setItem(activeProfile.urlStorageKey, activeResumeUrl)
     } catch (err: unknown) {
       setState((s) => ({ ...s, step: 'input', error: err instanceof Error ? err.message : String(err) }))
     } finally {
@@ -522,23 +578,48 @@ useEffect(() => {
           <div className="space-y-6">
             <div>
               <h1 className="text-2xl font-bold text-[var(--color-text)] mb-1">Optimize your resume</h1>
-              <p className="text-sm text-[var(--color-text-muted)]">Paste your Google Docs resume link. A copy is created — your original is never modified.</p>
+              <p className="text-sm text-[var(--color-text-muted)]">Pick whose resume to optimize, then paste its Google Docs link. A copy is created — the original is never modified.</p>
+            </div>
+
+            {/* Whose resume — each has its own layout rules and its own saved link */}
+            <div className="bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] p-6 space-y-3">
+              <span className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">Whose resume</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {PROFILE_ORDER.map((id) => {
+                  const p = PROFILES[id]
+                  const selected = state.profileId === id
+                  return (
+                    <button
+                      key={id}
+                      onClick={() => setActiveProfile(id)}
+                      className={`text-left p-3 rounded-xl border transition-all ${
+                        selected
+                          ? 'border-[var(--color-primary)] bg-[var(--color-primary-highlight)] ring-1 ring-[var(--color-primary)]'
+                          : 'border-[var(--color-border)] hover:border-[var(--color-text-muted)]'
+                      }`}
+                    >
+                      <p className="text-sm font-semibold text-[var(--color-text)]">{p.label}</p>
+                      <p className="text-[11px] text-[var(--color-text-muted)] leading-snug mt-0.5">{p.description}</p>
+                    </button>
+                  )
+                })}
+              </div>
             </div>
             <div className="bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] p-6 space-y-4">
               <label className="block">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-semibold text-[var(--color-text)]">Google Docs Resume URL</span>
-                  {state.resumeUrl && localStorage.getItem('resmod_resume_url') === state.resumeUrl && (
-                    <span className="text-xs text-[var(--color-success)] flex items-center gap-1">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>
-                      Saved
-                    </span>
-                  )}
+                  <span className="text-sm font-semibold text-[var(--color-text)]">
+                    {activeProfile.label}&apos;s Google Docs Resume URL
+                  </span>
+                  <SavedBadge profileKey={activeProfile.urlStorageKey} url={activeResumeUrl} />
                 </div>
-                <input type="url" placeholder="https://docs.google.com/document/d/..." value={state.resumeUrl} onChange={(e) => setState((s) => ({ ...s, resumeUrl: e.target.value }))} onKeyDown={(e) => e.key === 'Enter' && handleLoadResume()}
+                <input type="url" placeholder="https://docs.google.com/document/d/..." value={activeResumeUrl} onChange={(e) => setActiveResumeUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleLoadResume()}
                   className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-sm placeholder:text-[var(--color-text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition-all" />
+                <p className="text-[11px] text-[var(--color-text-faint)] mt-1.5">
+                  Saved separately per person — switching resumes keeps each link.
+                </p>
               </label>
-              <button onClick={handleLoadResume} disabled={loading || !state.resumeUrl.trim()}
+              <button onClick={handleLoadResume} disabled={loading || !activeResumeUrl.trim()}
                 className="w-full py-3 px-6 rounded-xl bg-[var(--color-primary)] text-white font-semibold text-sm hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2">
                 Load Resume →
               </button>

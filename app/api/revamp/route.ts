@@ -6,6 +6,7 @@ import { AIProvider } from '@/types/resume'
 import { generateAIResponse, resolveApiKey, resolveModel } from '@/lib/ai-provider'
 import { runOptimization } from '@/lib/run-optimization'
 import { PROVIDER_ORDER } from '@/lib/providers'
+import { getProfile, PROFILE_ORDER } from '@/lib/profiles'
 
 const schema = z.object({
   resume: z.object({
@@ -25,6 +26,7 @@ const schema = z.object({
   provider: z.enum(PROVIDER_ORDER as [AIProvider, ...AIProvider[]]).optional(),
   apiKey: z.string().optional(),
   model: z.string().optional(),
+  profileId: z.enum(PROFILE_ORDER as [string, ...string[]]).optional(),
 })
 
 export async function POST(req: NextRequest) {
@@ -45,6 +47,7 @@ export async function POST(req: NextRequest) {
 
     const result = await runOptimization({
       mode: 'revamp',
+      profile: getProfile(parsed.data.profileId),
       resume,
       jobDescription,
       hardInstructions,

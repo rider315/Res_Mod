@@ -54,10 +54,28 @@ function asChangeType(value: unknown): ResumeChange['type'] {
     : 'rewrite'
 }
 
+export interface LengthLimits {
+  maxGrowth(originalLength: number): number
+  minLength(originalLength: number): number
+}
+
+/** Defaults, used when no profile-specific limits are supplied. */
+export const DEFAULT_LENGTH_LIMITS: LengthLimits = {
+  maxGrowth: maxGrowthChars,
+  minLength: minProposedLength,
+}
+
 export function normalizeChanges(
   rawChanges: unknown,
-  opts: { idPrefix: string; logLabel: string; withBoldKeywords?: boolean }
+  opts: {
+    idPrefix: string
+    logLabel: string
+    withBoldKeywords?: boolean
+    /** Per-resume length rules; falls back to the shared defaults. */
+    length?: LengthLimits
+  }
 ): NormalizeResult {
+  const limits = opts.length ?? DEFAULT_LENGTH_LIMITS
   if (!Array.isArray(rawChanges)) return { changes: [], skipped: 0 }
 
   const changes: ResumeChange[] = []
@@ -81,14 +99,14 @@ export function normalizeChanges(
     }
 
     const growth = proposed.length - original.length
-    if (growth > maxGrowthChars(original.length)) {
+    if (growth > limits.maxGrowth(original.length)) {
       console.warn(
         `[${opts.logLabel}] Rejected change (+${growth} chars, too long): "${original.slice(0, 50)}..." → "${proposed.slice(0, 50)}..."`
       )
       skipped++
       return
     }
-    if (proposed.length < minProposedLength(original.length)) {
+    if (proposed.length < limits.minLength(original.length)) {
       console.warn(
         `[${opts.logLabel}] Rejected change (${proposed.length} vs ${original.length} chars, content lost): "${original.slice(0, 50)}..."`
       )

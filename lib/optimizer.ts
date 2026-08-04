@@ -1,9 +1,16 @@
 import { extractJSON, invalidJsonMessage } from '@/lib/json-repair'
-import { normalizeChanges, asStringArray } from '@/lib/normalize-changes'
+import { normalizeChanges, asStringArray, LengthLimits } from '@/lib/normalize-changes'
 import { AIProvider, ParsedResume, OptimizationResult } from '@/types/resume'
+import { ResumeProfile } from '@/lib/profiles/types'
 
 
-export const OPTIMIZE_SYSTEM_INSTRUCTION = `You are an expert ATS resume optimizer. Your SOLE PURPOSE is to ensure this resume PASSES automated ATS keyword screening for the target job description. Every change you make must maximize ATS match score.
+/**
+ * Shared ATS core for the optimize pass — the objective, the absolute rules and the
+ * length guidance. Identical for every resume: the goal is always to rewrite the
+ * resume around the job description's keywords. Layout-specific rules come from
+ * the active profile and are appended below.
+ */
+export const OPTIMIZE_CORE_INSTRUCTION = `You are an expert ATS resume optimizer. Your SOLE PURPOSE is to ensure this resume PASSES automated ATS keyword screening for the target job description. Every change you make must maximize ATS match score.
 
 Your ABSOLUTE rules:
 
@@ -14,55 +21,21 @@ Your ABSOLUTE rules:
 5. **LENGTH RULE**: Keep each "proposed" value close to the "original" length so the document layout holds. Growing a bullet to fit in JD keywords is EXPECTED and ENCOURAGED — aim to stay within about 30% of the original length, and never more than about 50% longer. Do NOT sacrifice keyword coverage to hit an exact character count, and NEVER shorten a bullet by more than a third — that deletes real content.
 6. NEVER use markdown formatting like **bold**, *italic*, or any special syntax in the proposed text. Output must be plain text only — no asterisks, no markdown.
 
-## SECTION-LEVEL RULES (these override everything else):
+`
 
-### SKILLS section:
-- You may REORDER existing skills to prioritize JD-relevant ones at the front of each list.
-- You may REPLACE less-relevant skills with JD-critical skills. Be AGGRESSIVE here — if the JD requires a skill and the resume has a weaker/older alternative, SWAP IT. For example: "jQuery" → "React.js", "Jenkins" → "GitHub Actions", "MySQL" → "PostgreSQL".
-- You CAN add JD-required skills even if not closely related, as long as they are in the same DOMAIN (e.g., adding a new framework the candidate could plausibly know).
-- **CRITICAL CATEGORY MATCHING**: When replacing skills, you MUST respect the sub-category! If the JD requires a "Language" (e.g. Python, Java), you MUST place it in the line labeled "Languages:". If the JD requires a "Tool" (e.g. Docker, Git), you MUST place it in the line labeled "Tools:" or "Technologies:". NEVER put a framework in the languages line, or a language in the tools line.
-- You MUST preserve the EXACT formatting structure. If the original has category labels like "Languages:" and "Technologies & Tools:", keep those exact category labels unchanged.
-- Do NOT merge categories into one line. Do NOT split one category into multiple.
-- Keep the same number of lines, the same pattern (label: comma-separated items).
-- **KEEP THE LINE A SIMILAR LENGTH**: If swapping in JD skills makes the line noticeably longer, drop the LEAST relevant existing skills to make room. Aim to stay within about 20% of the original line length.
-
-### WORK EXPERIENCE section:
-- Company names, role titles, and date ranges are FROZEN — never modify them.
-- ONLY modify the bullet-point descriptions of work done.
-- **CRITICAL — ATS KEYWORD INJECTION**: For EVERY work experience role, you MUST rewrite at least 2 bullet points to DIRECTLY USE the JD's exact keywords, tool names, methodologies, and domain terms.
-- Do NOT just "softly align" — REPLACE generic descriptions with JD-specific language. If the JD says "microservices architecture" and the bullet says "built backend modules", rewrite it to "architected microservices for backend systems".
-- If the JD says "CI/CD pipelines" and the bullet says "automated deployment", rewrite to "implemented CI/CD pipelines for automated deployment".
-- If the JD says "Agile/Scrum" and the bullet says "worked with team", rewrite to "collaborated in Agile sprints with cross-functional teams".
-- The goal is that an ATS scanner reading each bullet point will find EXACT MATCHES for the JD's required skills.
-- Preserve the core achievement and any metrics, but completely reframe the HOW using JD terminology.
-
-### EDUCATION section:
-- DO NOT modify anything. Skip this section entirely.
-
-### PROJECTS section:
-- Project names, links, and date ranges are FROZEN — never modify them.
-- ONLY modify the project descriptions and bullet points.
-- Apply the SAME aggressive keyword injection as work experience — rewrite bullets to use the JD's exact terminology.
-
-### AWARDS / CERTIFICATES section:
-- DO NOT modify anything. Skip this section entirely.
-
-### SOFT SKILLS section:
-- The soft skills use a Google Docs numbered list. The numbers (1. 2. 3.) are AUTO-GENERATED by the document — they are NOT part of the text content.
-- In your "original" and "proposed" fields, include ONLY the skill text (e.g. "Communication Skills"), NEVER include the number prefix like "1." or "2.".
-- You may replace soft skill names to better align with the JD, but keep the EXACT same count.
-- Do NOT add bold, italic, or any formatting markers.
-- Each replacement skill name should be similar in length to the original it replaces.
-
-### HEADER / CONTACT section:
-- DO NOT modify anything. Skip this section entirely.`
+/** Core objective plus the active resume's layout rules. */
+export function buildOptimizeSystemInstruction(profile: ResumeProfile): string {
+  return OPTIMIZE_CORE_INSTRUCTION + profile.sectionRules
+}
 
 
 export function buildOptimizePrompt(
   resume: ParsedResume,
   jobDescription: string,
   hardInstructions: string,
-  softInstructions: string
+  softInstructions: string,
+  /** Layout reminders for the active resume; empty for layouts that need none. */
+  profileNotes = ''
 ): string {
   // Build resume text with section IDs so Gemini can reference them accurately
   const resumeText = resume.sections
@@ -131,7 +104,7 @@ Return this exact JSON structure:
 }
 
 
-## SECTION SKIP LIST
+${profileNotes ? profileNotes + '\n\n' : ''}## SECTION SKIP LIST
 Do NOT generate any changes for sections whose title contains any of these (case-insensitive):
 - "Education"
 - "Award"
@@ -185,7 +158,8 @@ Report all incorporated keywords in the "keywordsAdded" field of your output.`
 export function parseOptimizeResponse(
   responseText: string,
   provider: AIProvider,
-  model?: string
+  model?: string,
+  length?: LengthLimits
 ): OptimizationResult {
   let raw
   try {
@@ -210,6 +184,7 @@ export function parseOptimizeResponse(
   const { changes, skipped } = normalizeChanges(raw.changes, {
     idPrefix: 'change',
     logLabel: 'optimizer',
+    length,
   })
 
   if (changes.length === 0 && skipped > 0) {
