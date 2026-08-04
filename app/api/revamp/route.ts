@@ -20,8 +20,9 @@ const schema = z.object({
   jobDescription: z.string().min(10),
   hardInstructions: z.string(),
   softInstructions: z.string(),
-  provider: z.enum(['gemini', 'cerebras']).optional(),
+  provider: z.enum(['openrouter', 'gemini', 'cerebras']).optional(),
   apiKey: z.string().optional(),
+  model: z.string().optional(),
 })
 
 export async function POST(req: NextRequest) {
@@ -41,7 +42,8 @@ export async function POST(req: NextRequest) {
       parsed.data.hardInstructions,
       parsed.data.softInstructions,
       parsed.data.provider as AIProvider,
-      parsed.data.apiKey
+      parsed.data.apiKey,
+      parsed.data.model
     )
     return NextResponse.json({ result })
   } catch (err: unknown) {
@@ -50,10 +52,7 @@ export async function POST(req: NextRequest) {
 
     // Surface rate-limit errors with a 429 so the client can show a retry message
     if (message.includes('429') || message.includes('rate limit') || message.includes('too_many_tokens')) {
-      return NextResponse.json(
-        { error: 'Cerebras rate limit exceeded. The request will be retried automatically — please wait a moment and try again.' },
-        { status: 429 }
-      )
+      return NextResponse.json({ error: message }, { status: 429 })
     }
 
     return NextResponse.json({ error: message }, { status: 500 })

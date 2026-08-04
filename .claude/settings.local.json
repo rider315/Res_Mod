@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node \"C:/Users/jaats/AppData/Local/Temp/claude/C--Users-jaats-Desktop-res-resume-optimizer/e0800379-b7b0-463c-b40f-6033e3a74142/scratchpad/swap-modal.js\")",
+      "Bash(npx tsc *)",
+      "Bash(npx next *)",
+      "Bash(node -e ' *)"
+    ]
+  }
+}

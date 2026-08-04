@@ -1,4 +1,4 @@
-export type AIProvider = 'gemini' | 'cerebras'
+export type AIProvider = 'openrouter' | 'gemini' | 'cerebras'
 
 export interface ResumeSection {
   id: string
@@ -54,6 +54,9 @@ export interface AppState {
   optimizationResult: OptimizationResult | null
   error: string | null
   aiProvider: AIProvider
-  aiApiKey: string
+  /** API keys kept per provider so switching providers doesn't clobber the other key. */
+  aiApiKeys: Record<AIProvider, string>
+  /** OpenRouter model id, e.g. "deepseek/deepseek-chat-v3-0324:free". */
+  openRouterModel: string
   showSettings: boolean
 }

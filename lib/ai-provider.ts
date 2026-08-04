@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { AIProvider } from '@/types/resume'
+import { DEFAULT_OPENROUTER_MODEL, OPENROUTER_BASE_URL } from '@/lib/openrouter-models'
 
 // Re-export for use by optimizer/revamper as a fallback JSON parser
 export { extractJSON }
@@ -10,6 +11,42 @@ interface AIRequestOptions {
   systemInstruction: string
   prompt: string
   temperature: number
+  /** OpenRouter model id. Ignored by the other providers. */
+  model?: string
+}
+
+const PROVIDER_LABELS: Record<AIProvider, string> = {
+  openrouter: 'OpenRouter',
+  gemini: 'Gemini',
+  cerebras: 'Cerebras',
+}
+
+const PROVIDER_ENV_VARS: Record<AIProvider, string> = {
+  openrouter: 'OPENROUTER_API_KEY',
+  gemini: 'GEMINI_API_KEY',
+  cerebras: 'CEREBRAS_API_KEY',
+}
+
+/**
+ * Pick the API key to use: the one the user typed in Settings wins, otherwise
+ * fall back to the provider's server-side env var.
+ */
+export function resolveApiKey(provider: AIProvider, clientKey?: string): string {
+  const userKey = clientKey?.trim()
+  if (userKey) return userKey
+
+  const envKey = process.env[PROVIDER_ENV_VARS[provider]]?.trim()
+  if (envKey) return envKey
+
+  throw new Error(
+    `No ${PROVIDER_LABELS[provider]} API key configured. ` +
+    `Add one in Settings (gear icon), or set ${PROVIDER_ENV_VARS[provider]} in .env.local.`
+  )
+}
+
+/** Settings value wins, then OPENROUTER_MODEL from env, then the built-in default. */
+export function resolveOpenRouterModel(model?: string): string {
+  return model?.trim() || process.env.OPENROUTER_MODEL?.trim() || DEFAULT_OPENROUTER_MODEL
 }
 
 /**
@@ -17,7 +54,11 @@ interface AIRequestOptions {
  * Returns the raw text response (expected to be valid JSON).
  */
 export async function generateAIResponse(options: AIRequestOptions): Promise<string> {
-  const { provider, apiKey, systemInstruction, prompt, temperature } = options
+  const { provider, apiKey, systemInstruction, prompt, temperature, model } = options
+
+  if (provider === 'openrouter') {
+    return generateOpenRouter(apiKey, systemInstruction, prompt, temperature, model)
+  }
 
   if (provider === 'cerebras') {
     return generateCerebras(apiKey, systemInstruction, prompt, temperature)
@@ -47,6 +88,205 @@ async function generateGemini(
 
   const result = await model.generateContent(prompt)
   return result.response.text()
+}
+
+// ─── OpenRouter (OpenAI-compatible) ──────────────────────────────────────────
+
+const OPENROUTER_MAX_RETRIES = 3
+const OPENROUTER_INITIAL_BACKOFF_MS = 5_000
+const OPENROUTER_MAX_OUTPUT_TOKENS = 8192
+
+/**
+ * OpenRouter asks for two optional attribution headers. They are what makes the
+ * app show up on the openrouter.ai activity/leaderboard pages — harmless if unset.
+ */
+function openRouterHeaders(apiKey: string): Record<string, string> {
+  const referer =
+    process.env.OPENROUTER_SITE_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000'
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${apiKey}`,
+    'HTTP-Referer': referer,
+    'X-Title': process.env.OPENROUTER_SITE_NAME || 'ResMod Resume Optimizer',
+  }
+}
+
+/** Turn an OpenRouter error payload into something worth showing the user. */
+export function openRouterErrorMessage(status: number, body: string, model: string): string {
+  let detail = body
+  try {
+    const parsed = JSON.parse(body)
+    detail = parsed?.error?.message || parsed?.message || body
+  } catch {
+    // Not JSON — use the raw body
+  }
+  const short = detail.slice(0, 400)
+
+  switch (status) {
+    case 401:
+      return 'OpenRouter rejected the API key (401). Check the key in Settings — it should start with "sk-or-v1-".'
+    case 402:
+      return `OpenRouter says this request needs credits (402). Either add credits at openrouter.ai/credits or pick a ":free" model. Model: ${model}.`
+    case 403:
+      return `OpenRouter blocked the request (403) — the model may need extra privacy settings enabled at openrouter.ai/settings/privacy. Model: ${model}. ${short}`
+    case 404:
+      return `Model "${model}" was not found on OpenRouter (404). Pick a different model in Settings.`
+    case 429:
+      return `OpenRouter rate limit hit (429) for "${model}". Free models are limited per minute/day — wait a moment or switch models. ${short}`
+    default:
+      return `OpenRouter API error (${status}) for model "${model}": ${short}`
+  }
+}
+
+/** Message content can come back as a plain string or as OpenAI-style content parts. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function readMessageContent(message: any): string {
+  if (!message) return ''
+  const { content, reasoning } = message
+  if (typeof content === 'string' && content.trim()) return content
+  if (Array.isArray(content)) {
+    const joined = content
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((part: any) => (typeof part === 'string' ? part : part?.text ?? ''))
+      .join('')
+    if (joined.trim()) return joined
+  }
+  // Reasoning models occasionally put the whole answer in `reasoning` when they
+  // run out of tokens before emitting content.
+  if (typeof reasoning === 'string' && reasoning.trim()) return reasoning
+  return ''
+}
+
+async function callOpenRouterAPI(
+  apiKey: string,
+  model: string,
+  systemContent: string,
+  userContent: string,
+  temperature: number,
+  useJsonMode: boolean
+): Promise<{ rawText: string; finishReason: string }> {
+  let lastError: Error | null = null
+
+  for (let attempt = 0; attempt <= OPENROUTER_MAX_RETRIES; attempt++) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const body: Record<string, any> = {
+      model,
+      messages: [
+        { role: 'system', content: systemContent },
+        { role: 'user', content: userContent },
+      ],
+      temperature,
+      max_tokens: OPENROUTER_MAX_OUTPUT_TOKENS,
+    }
+    if (useJsonMode) body.response_format = { type: 'json_object' }
+
+    const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
+      method: 'POST',
+      headers: openRouterHeaders(apiKey),
+      body: JSON.stringify(body),
+    })
+
+    if (response.ok) {
+      const data = await response.json()
+
+      // OpenRouter can return HTTP 200 with an error payload when the upstream
+      // provider fails mid-stream.
+      if (data?.error) {
+        const upstreamStatus = Number(data.error.code) || 502
+        if (upstreamStatus === 429 && attempt < OPENROUTER_MAX_RETRIES) {
+          const waitMs = OPENROUTER_INITIAL_BACKOFF_MS * Math.pow(2, attempt)
+          console.warn(`[openrouter] Upstream 429 in 200 body. Waiting ${waitMs / 1000}s…`)
+          await sleep(waitMs)
+          lastError = new Error(openRouterErrorMessage(429, JSON.stringify(data.error), model))
+          continue
+        }
+        throw new Error(openRouterErrorMessage(upstreamStatus, JSON.stringify(data.error), model))
+      }
+
+      return {
+        rawText: readMessageContent(data.choices?.[0]?.message),
+        finishReason: data.choices?.[0]?.finish_reason ?? 'unknown',
+      }
+    }
+
+    const errorBody = await response.text()
+
+    // Some models (mostly the free/community ones) don't implement JSON mode.
+    // Retry once without it rather than failing the whole optimization.
+    if (useJsonMode && (response.status === 400 || response.status === 404) && /response_format|json/i.test(errorBody)) {
+      console.warn(`[openrouter] ${model} rejected response_format — retrying without JSON mode`)
+      return callOpenRouterAPI(apiKey, model, systemContent, userContent, temperature, false)
+    }
+
+    // Rate limits and transient upstream failures are worth retrying.
+    const retryable = response.status === 429 || response.status >= 500
+    if (retryable && attempt < OPENROUTER_MAX_RETRIES) {
+      const retryAfterHeader = response.headers.get('retry-after')
+      const retryAfterSecs = retryAfterHeader ? parseInt(retryAfterHeader, 10) : NaN
+      const waitMs = Number.isNaN(retryAfterSecs)
+        ? OPENROUTER_INITIAL_BACKOFF_MS * Math.pow(2, attempt)
+        : retryAfterSecs * 1000
+
+      console.warn(
+        `[openrouter] ${response.status} on attempt ${attempt + 1}/${OPENROUTER_MAX_RETRIES + 1}. ` +
+        `Waiting ${Math.round(waitMs / 1000)}s before retry… (model: ${model})`
+      )
+      await sleep(waitMs)
+      lastError = new Error(openRouterErrorMessage(response.status, errorBody, model))
+      continue
+    }
+
+    console.error(`[openrouter] API error (model=${model}):`, response.status, errorBody.slice(0, 500))
+    throw new Error(openRouterErrorMessage(response.status, errorBody, model))
+  }
+
+  throw lastError ?? new Error('OpenRouter: max retries exhausted')
+}
+
+async function generateOpenRouter(
+  apiKey: string,
+  systemInstruction: string,
+  prompt: string,
+  temperature: number,
+  model?: string
+): Promise<string> {
+  const targetModel = resolveOpenRouterModel(model)
+
+  const jsonSuffix =
+    '\n\nIMPORTANT: Respond with ONLY valid JSON. No markdown fences, no explanation — just the raw JSON object.'
+  const userContent = prompt + jsonSuffix
+
+  console.log(
+    `[openrouter] Requesting ${targetModel} ` +
+    `(~${estimateTokens(systemInstruction) + estimateTokens(userContent)} input tokens)`
+  )
+
+  const result = await callOpenRouterAPI(
+    apiKey,
+    targetModel,
+    systemInstruction,
+    userContent,
+    temperature,
+    true
+  )
+
+  if (!result.rawText.trim()) {
+    console.error('[openrouter] Empty response. finish_reason:', result.finishReason)
+    throw new Error(
+      `OpenRouter model "${targetModel}" returned an empty response (finish_reason: ${result.finishReason}). ` +
+      'Try a different model in Settings — reasoning models and very small models often struggle with this prompt.'
+    )
+  }
+
+  console.log(
+    `[openrouter] Response received (${result.rawText.length} chars, finish_reason: ${result.finishReason})`
+  )
+
+  const extracted = extractJSON(result.rawText)
+  if (extracted) return extracted
+
+  console.warn('[openrouter] Could not extract valid JSON. First 500 chars:', result.rawText.slice(0, 500))
+  return result.rawText.trim()
 }
 
 // ─── Cerebras (OpenAI-compatible) ────────────────────────────────────────────

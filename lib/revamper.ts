@@ -1,4 +1,4 @@
-import { generateAIResponse, extractJSON } from '@/lib/ai-provider'
+import { generateAIResponse, extractJSON, resolveApiKey } from '@/lib/ai-provider'
 import { AIProvider, ParsedResume, ResumeChange, OptimizationResult } from '@/types/resume'
 
 
@@ -55,6 +55,16 @@ Your ABSOLUTE rules:
 
 ### HEADER / CONTACT section:
 - DO NOT modify anything. Skip this section entirely.`
+
+
+/** Provider-specific follow-up advice when the model's JSON can't be parsed. */
+function invalidJsonHint(provider: AIProvider, model?: string): string {
+  if (provider === 'cerebras')
+    return 'Cerebras free-tier models may struggle with large prompts — try OpenRouter or Gemini instead.'
+  if (provider === 'openrouter')
+    return `The model${model ? ` "${model}"` : ''} may not follow JSON instructions well — pick another model in Settings (the recommended free ones support JSON mode).`
+  return 'Please try again.'
+}
 
 
 function buildRevampPrompt(
@@ -183,10 +193,11 @@ export async function revampResume(
   jobDescription: string,
   hardInstructions: string,
   softInstructions: string,
-  provider: AIProvider = 'gemini',
-  apiKey?: string
+  provider: AIProvider = 'openrouter',
+  apiKey?: string,
+  model?: string
 ): Promise<OptimizationResult> {
-  const resolvedKey = apiKey || process.env.GEMINI_API_KEY!
+  const resolvedKey = resolveApiKey(provider, apiKey)
 
   const prompt = buildRevampPrompt(resume, jobDescription, hardInstructions, softInstructions)
   const responseText = await generateAIResponse({
@@ -195,6 +206,7 @@ export async function revampResume(
     systemInstruction: REVAMP_SYSTEM_INSTRUCTION,
     prompt,
     temperature: 0.3,
+    model,
   })
   let raw
   try {
@@ -212,7 +224,7 @@ export async function revampResume(
     }
     if (!raw) {
       console.error('[revamper] Failed to parse AI response. First 500 chars:', responseText.slice(0, 500))
-      throw new Error(`AI returned invalid JSON. This usually means the model's response was truncated. ${provider === 'cerebras' ? 'Cerebras free-tier models may struggle with large prompts — try Gemini instead.' : 'Please try again.'}`)
+      throw new Error(`AI returned invalid JSON. This usually means the model's response was truncated. ${invalidJsonHint(provider, model)}`)
     }
   }
 
