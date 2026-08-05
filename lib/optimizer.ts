@@ -20,6 +20,7 @@ Your ABSOLUTE rules:
 4. Each "original" value must be an EXACT, VERBATIM substring found in the resume content — character-for-character.
 5. **LENGTH RULE**: Keep each "proposed" value close to the "original" length so the document layout holds. Growing a bullet to fit in JD keywords is EXPECTED and ENCOURAGED — aim to stay within about 30% of the original length, and never more than about 50% longer. Do NOT sacrifice keyword coverage to hit an exact character count, and NEVER shorten a bullet by more than a third — that deletes real content.
 6. NEVER use markdown formatting like **bold**, *italic*, or any special syntax in the proposed text. Output must be plain text only — no asterisks, no markdown.
+7. **EVIDENCE RULE**: Any skill you add to the Skills section MUST also appear in at least one Work Experience or Project bullet that you rewrite. A skill listed with no supporting bullet makes the whole resume look padded. If you cannot honestly tie a JD skill to work the candidate actually did, DO NOT add it to Skills at all — an unmatched keyword costs far less than a claim they cannot defend in an interview.
 
 `
 

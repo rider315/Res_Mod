@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { applyChangesToDocument, renameDocument } from '@/lib/googleDocs'
 import { requireGoogleAuth, buildResumeFileName } from '@/lib/require-auth'
+import { getProfile, PROFILE_ORDER } from '@/lib/profiles'
 
 const schema = z.object({
   documentId: z.string().min(1),
@@ -16,6 +17,7 @@ const schema = z.object({
     })
   ),
   companyName: z.string().optional(),
+  profileId: z.enum(PROFILE_ORDER as [string, ...string[]]).optional(),
 })
 
 export async function POST(req: NextRequest) {
@@ -40,7 +42,9 @@ export async function POST(req: NextRequest) {
 
     // Rename document if companyName is provided
     if (companyName && companyName !== 'Company') {
-      await renameDocument(auth.accessToken, documentId, buildResumeFileName(auth.userName, companyName))
+      // Name the copy after the resume's owner, not the signed-in account.
+      const profile = getProfile(parsed.data.profileId)
+      await renameDocument(auth.accessToken, documentId, buildResumeFileName(profile.personName, companyName))
     }
 
     return NextResponse.json({

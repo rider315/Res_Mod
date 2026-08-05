@@ -38,6 +38,11 @@ export interface OptimizationResult {
   keywordsAdded: string[]
   sectionsModified: string[]
   changes: ResumeChange[]
+  /**
+   * Skills added to the skills line that no experience or project bullet backs
+   * up — reported rather than silently fabricated into a bullet.
+   */
+  unevidencedSkills?: string[]
 }
 
 export type AppStep =

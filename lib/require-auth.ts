@@ -48,25 +48,6 @@ export async function requireGoogleAuth(): Promise<AuthSuccess | AuthFailure> {
   }
 }
 
-/**
- * Drive names and download filenames choke on these. Control characters matter
- * most: this value ends up in a Content-Disposition header, where a stray CRLF
- * would let a caller inject headers.
- */
-export function sanitizeFileName(name: string): string {
-  return (
-    name
-      .replace(/[\\/:*?"<>|]/g, '')
-      // eslint-disable-next-line no-control-regex
-      .replace(/[\u0000-\u001F\u007F]/g, '')
-      .trim()
-      .slice(0, 150)
-  )
-}
-
-/** "<User> Resume_<Company>", falling back gracefully when the name is unavailable. */
-export function buildResumeFileName(userName: string, companyName: string): string {
-  const who = sanitizeFileName(userName)
-  const company = sanitizeFileName(companyName) || 'Company'
-  return who ? `${who} Resume_${company}` : `Resume_${company}`
-}
+// The filename helpers live in their own module so the browser and the pure
+// tests can use them without pulling in next-auth.
+export { sanitizeFileName, buildResumeFileName } from '@/lib/resume-filename'

@@ -109,6 +109,7 @@ const NUMBERED_PROJECT_TITLE = /^\s*\d+\s*\.\s+\S/
 export const himanshuProfile: ResumeProfile = {
   id: 'himanshu',
   label: 'Himanshu',
+  personName: 'Himanshu Kumar',
   description: 'Work grouped under frozen "Project :" client sub-headings; "Project Work" section',
   defaultDocUrl: 'https://docs.google.com/document/d/1XqtDp4AFp7BQHHDO2XE9f4rgOi2aJ-pg6GaxmereYNA/edit',
   urlStorageKey: 'resmod_resume_url_himanshu',

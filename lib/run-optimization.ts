@@ -16,6 +16,11 @@ import {
   stripFrozenLineChanges,
 } from '@/lib/coverage'
 import { ResumeProfile } from '@/lib/profiles/types'
+import {
+  buildEvidencePrompt,
+  findUnevidencedSkills,
+  remainingUnevidenced,
+} from '@/lib/keyword-evidence'
 
 /**
  * Orchestrates a full optimization run, including the coverage top-up pass.
@@ -90,7 +95,9 @@ export async function runOptimization(opts: RunOptions): Promise<OptimizationRes
 
   // Did every experience/project section actually get its rewrites?
   const gaps = findCoverageGaps(resume, baseline.changes, profile.coverage)
-  if (gaps.length === 0) return baseline
+  if (gaps.length === 0) {
+    return evidencePass(baseline, opts, label, isRevamp, parse)
+  }
 
   console.log(
     `[${label}] Coverage gaps in ${gaps.length} section(s): ` +
@@ -118,20 +125,91 @@ export async function runOptimization(opts: RunOptions): Promise<OptimizationRes
     const added = changes.length - baseline.changes.length
     console.log(`[${label}] Top-up pass added ${added} change(s)`)
 
-    if (added === 0) return baseline
+    const merged: OptimizationResult =
+      added === 0
+        ? baseline
+        : {
+            ...baseline,
+            changes,
+            // Keep both passes' keyword lists so the review screen reflects everything.
+            keywordsAdded: Array.from(
+              new Set([...baseline.keywordsAdded, ...secondPass.keywordsAdded])
+            ),
+            sectionsModified: Array.from(
+              new Set([...baseline.sectionsModified, ...secondPass.sectionsModified])
+            ),
+          }
 
-    return {
-      ...baseline,
-      changes,
-      // Keep both passes' keyword lists so the review screen reflects everything.
-      keywordsAdded: Array.from(new Set([...baseline.keywordsAdded, ...secondPass.keywordsAdded])),
-      sectionsModified: Array.from(
-        new Set([...baseline.sectionsModified, ...secondPass.sectionsModified])
-      ),
-    }
+    return evidencePass(merged, opts, label, isRevamp, parse)
   } catch (err) {
     // A failed top-up must never lose the first pass's work.
     console.warn(`[${label}] Top-up pass failed, keeping first-pass results:`, err)
-    return baseline
+    return evidencePass(baseline, opts, label, isRevamp, parse)
+  }
+}
+
+type ParseFn = (
+  text: string,
+  provider: AIProvider,
+  model?: string,
+  length?: ResumeProfile['length']
+) => OptimizationResult
+
+/**
+ * Back up newly-claimed skills with real bullets.
+ *
+ * Adding "RAG" or "Cloud Deployment" to the skills line while no experience or
+ * project bullet mentions them produces a resume a recruiter stops trusting. This
+ * pass asks the model to evidence each added skill in a bullet where the work
+ * honestly supports it — and to declare the rest unsupported rather than invent
+ * anything. Whatever is still unevidenced is reported to the user.
+ */
+async function evidencePass(
+  result: OptimizationResult,
+  opts: RunOptions,
+  label: string,
+  isRevamp: boolean,
+  parse: ParseFn
+): Promise<OptimizationResult> {
+  const { profile, resume, jobDescription, provider, model, generate } = opts
+
+  const gaps = findUnevidencedSkills(resume, result.changes, profile.coverage)
+  if (gaps.length === 0) return result
+
+  console.log(
+    `[${label}] ${gaps.length} claimed skill(s) with no supporting bullet: ` +
+    gaps.map((g) => g.term).join(', ') +
+    ' — running an evidence pass'
+  )
+
+  try {
+    const systemInstruction = isRevamp
+      ? buildRevampSystemInstruction(profile)
+      : buildOptimizeSystemInstruction(profile)
+    const raw = await generate({
+      systemInstruction,
+      prompt: buildEvidencePrompt(jobDescription, gaps, isRevamp, profile.promptNotes),
+      temperature: 0.2,
+    })
+
+    const evidence = parse(raw, provider, model, profile.length)
+    const extra = stripFrozenLineChanges(evidence.changes, profile.coverage).kept
+    const changes = mergeChanges(result.changes, extra)
+    console.log(`[${label}] Evidence pass added ${changes.length - result.changes.length} change(s)`)
+
+    const withEvidence: OptimizationResult = {
+      ...result,
+      changes,
+      keywordsAdded: Array.from(new Set([...result.keywordsAdded, ...evidence.keywordsAdded])),
+    }
+
+    const stillUnevidenced = remainingUnevidenced(withEvidence, resume, profile.coverage)
+    if (stillUnevidenced.length > 0) {
+      console.warn(`[${label}] Still unevidenced: ${stillUnevidenced.join(', ')}`)
+    }
+    return { ...withEvidence, unevidencedSkills: stillUnevidenced }
+  } catch (err) {
+    console.warn(`[${label}] Evidence pass failed, keeping existing results:`, err)
+    return { ...result, unevidencedSkills: gaps.map((g) => g.term) }
   }
 }

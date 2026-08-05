@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { exportDocAsPdf } from '@/lib/googleDocs'
 import { requireGoogleAuth, sanitizeFileName, buildResumeFileName } from '@/lib/require-auth'
+import { getProfile } from '@/lib/profiles'
 
 export async function GET(req: NextRequest) {
   const auth = await requireGoogleAuth()
@@ -12,9 +13,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Missing documentId' }, { status: 400 })
 
   // The client may pass a name, but it is untrusted input that lands in a
-  // Content-Disposition header — sanitize it and fall back to the session name.
+  // Content-Disposition header — sanitize it. The fallback is named after the
+  // resume's owner (from the profile), not whoever is signed in.
   const requested = sanitizeFileName(searchParams.get('filename') ?? '')
-  const filename = requested || buildResumeFileName(auth.userName, 'Company')
+  const profile = getProfile(searchParams.get('profileId') ?? undefined)
+  const filename = requested || buildResumeFileName(profile.personName, 'Company')
 
   try {
     const pdfBuffer = await exportDocAsPdf(auth.accessToken, documentId)

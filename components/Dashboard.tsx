@@ -416,6 +416,7 @@ useEffect(() => {
           documentId: state.copiedDocId,
           changes: state.optimizationResult.changes,
           companyName: state.optimizationResult.companyName,
+          profileId: state.profileId,
         }),
       })
       const data = await res.json()
@@ -456,11 +457,12 @@ useEffect(() => {
   function handleExportPdf() {
     if (!state.copiedDocId) return
     const companyName = state.optimizationResult?.companyName || 'Company'
-    // Name the file after whoever is signed in, not a hard-coded person.
-    const who = (session?.user?.name ?? '').replace(/[\\/:*?"<>|]/g, '').trim()
+    // Name the file after the resume's OWNER, not the signed-in Google account —
+    // otherwise Himanshu's export comes out named after whoever is logged in.
+    const who = activeProfile.personName.replace(/[\\/:*?"<>|]/g, '').trim()
     const baseName = who ? `${who} Resume_${companyName}` : `Resume_${companyName}`
     const a = document.createElement('a')
-    a.href = `/api/docs/export?documentId=${state.copiedDocId}&filename=${encodeURIComponent(baseName)}`
+    a.href = `/api/docs/export?documentId=${state.copiedDocId}&filename=${encodeURIComponent(baseName)}&profileId=${state.profileId}`
     a.download = `${baseName}.pdf`
     a.click()
   }
@@ -702,6 +704,25 @@ useEffect(() => {
             </div>
             <div className="bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] p-4 space-y-3">
               <p className="text-sm text-[var(--color-text)]">{state.optimizationResult.summary}</p>
+              {(state.optimizationResult.unevidencedSkills?.length ?? 0) > 0 && (
+                <div className="rounded-xl border border-[var(--color-warning)] bg-[var(--color-warning-highlight)] p-3">
+                  <p className="text-xs font-semibold text-[var(--color-warning)] mb-1.5">
+                    Claimed in Skills, but no bullet backs them up
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {state.optimizationResult.unevidencedSkills!.map((kw) => (
+                      <span key={kw} className="text-xs px-2 py-0.5 rounded-full bg-[var(--color-surface)] text-[var(--color-warning)] font-medium">
+                        {kw}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-[var(--color-text-muted)] leading-snug">
+                    The job asks for these, but nothing in this resume demonstrates them, so they were not written
+                    into any experience or project bullet. Listing them in Skills alone may not survive a recruiter
+                    read — consider rejecting the Skills change, or adding real work that shows them.
+                  </p>
+                </div>
+              )}
               {state.optimizationResult.keywordsAdded.length > 0 && (
                 <div>
                   <p className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wide mb-1.5">Keywords aligned</p>

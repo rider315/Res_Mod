@@ -100,6 +100,7 @@ const REVAMP_SECTION_RULES = `## SECTION-LEVEL RULES (these override everything 
 export const gauravProfile: ResumeProfile = {
   id: 'gaurav',
   label: 'Gaurav',
+  personName: 'Gaurav Chaudhary',
   description: 'Flat bullets under each role; Projects section with numbered titles',
   defaultDocUrl: 'https://docs.google.com/document/d/1stlPithiuAkje-JK59M52ZOBQaPT2H5CiyeKZk_6-Ns/edit',
   urlStorageKey: 'resmod_resume_url',

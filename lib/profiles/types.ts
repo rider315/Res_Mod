@@ -46,6 +46,12 @@ export interface ResumeProfile {
   id: ResumeProfileId
   /** Shown in the resume picker. */
   label: string
+  /**
+   * Whose resume this is. Used for the exported file name and the Drive rename —
+   * it must come from the profile, not the signed-in Google account, or every
+   * export is named after whoever happens to be logged in.
+   */
+  personName: string
   /** One-line description of the layout this profile targets. */
   description: string
   /** Pre-filled document URL, so the common case needs no typing. */
