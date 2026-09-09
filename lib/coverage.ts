@@ -93,7 +93,6 @@ export function buildGapFillPrompt(
   jobDescription: string,
   hardInstructions: string,
   gaps: CoverageGap[],
-  withBoldKeywords: boolean,
   profileNotes = ''
 ): string {
   const sectionBlocks = gaps
@@ -106,10 +105,6 @@ Available bullet lines (pick from these, copy them VERBATIM into "original"):
 ${lines}`
     })
     .join('\n\n')
-
-  const boldField = withBoldKeywords
-    ? ',\n      "boldKeywords": ["keyword1", "keyword2"]'
-    : ''
 
   return `## TARGET JOB DESCRIPTION
 ${jobDescription}
@@ -136,7 +131,7 @@ ${profileNotes ? '\n\n' + profileNotes : ''}
 - Preserve any metric or achievement from the original.
 - Keep "proposed" within roughly 30% of the original length. Growing a bullet to fit keywords is expected;
   never shorten it by more than a third.
-- Plain text only — no markdown, no asterisks.
+- LaTeX only, not markdown: bold injected keywords with \\textbf{...} and escape % & _ # as \\% \\& \\_ \\#.
 
 
 ## OUTPUT FORMAT
@@ -153,7 +148,7 @@ Return this exact JSON structure and nothing else:
       "original": "verbatim line copied from the list above",
       "proposed": "rewritten line using the JD's exact keywords",
       "reason": "why this improves the ATS match",
-      "type": "rewrite"${boldField}
+      "type": "rewrite"
     }
   ]
 }`

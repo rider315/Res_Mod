@@ -1,9 +1,56 @@
 # ResMod — ATS Resume Optimizer
 
-Paste a Google Docs resume link and a job description. The app copies the doc
-(your original is never touched), parses it into sections, asks an LLM for
-ATS-targeted rewrites, lets you approve each change in a diff view, then writes
-the approved changes back into the copy and can export it as a PDF.
+Your resume is a LaTeX file in [resumes/](resumes/). Paste a job description and
+the app parses that `.tex` into sections, asks an LLM for ATS-targeted rewrites,
+lets you approve each change in a diff view, then splices the approved changes
+into a **copy** of the LaTeX — the source file is never written to. Download the
+`.tex`, open it in Overleaf, or compile it to PDF in one click.
+
+## The resume is the source of truth
+
+Each profile owns one file under `resumes/`. To change the base resume, edit that
+file and reload the app.
+
+The parser only offers the model text that lives inside one of three macros, so
+anything you add must use them:
+
+| Macro | Holds | Editable? |
+| --- | --- | --- |
+| `esumeSummary{...}` | the summary paragraph | yes |
+| `\skillLine{...}` | one skills line | yes |
+| `esumeItem{...}` | one bullet point | yes |
+| `esumeSubheading{}{}{}{}` | employer, dates, role, location | **frozen** |
+| `esumeProjectHeading{}{}` | project title, link, stack | **frozen** |
+| `esumeGroupHeading{...}` | a client engagement inside one employer | **frozen** |
+
+Frozen lines are still shown to the model — tagged `[Role]`, `[Project]`,
+`[Group]` — so it knows which job a bullet belongs to, but any change targeting
+one is discarded. Rewriting them would invent an employer or client.
+
+Two safety layers sit between the model and the file. Rewrites are spliced into
+the exact byte range of a macro argument rather than search-and-replaced, so a
+sentence that appears twice cannot be edited in the wrong place. And every
+fragment goes through an allow-list sanitizer that escapes `% & _ # < >`,
+converts stray markdown to `	extbf{}`, and rejects anything containing a macro
+outside a small formatting set — a job description is untrusted input, and
+`\input` or `\write18` in a rewritten bullet would mean file or shell access at
+compile time.
+
+Run `npm run test:latex` after editing a template. It parses both resumes,
+exercises the matcher, sanitizer and splicer, and writes a fuzz corpus to
+`.pipeline-test/fuzz.tex` you can compile to confirm nothing breaks typesetting.
+
+## Getting the PDF
+
+No LaTeX install is assumed, so there are three routes:
+
+- **Download .tex** — nothing leaves your machine. Compile it however you like.
+- **Open in Overleaf** — posts the document to overleaf.com as a new project.
+- **Compile PDF** — posts it to a LaTeX service (default `texlive.net`) and
+  returns the PDF. Set `LATEX_COMPILE_URL` to point at your own texlive CGI.
+
+The last two send your resume to a third party, so neither happens
+automatically — only on an explicit click.
 
 ## Getting Started
 
@@ -77,8 +124,10 @@ fallbacks. The live picker is always the source of truth.
 ## Environment variables
 
 See `.env.example` for the full list. Beyond the AI keys you need Google OAuth
-credentials (`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`) with the Docs and Drive
-scopes enabled, plus `NEXTAUTH_SECRET` and `NEXTAUTH_URL`.
+credentials (`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`), plus `NEXTAUTH_SECRET`
+and `NEXTAUTH_URL`. Google is used for **sign-in only** — the app requests just
+the `openid`, `email` and `profile` scopes and never touches Docs or Drive.
+`LATEX_COMPILE_URL` is optional and only affects the Compile PDF button.
 
 ## Project layout
 
@@ -87,7 +136,15 @@ app/api/optimize      ATS keyword optimization run
 app/api/revamp        aggressive full-resume rewrite
 app/api/ai/models     proxies each provider's model catalogue for the picker
 app/api/ai/test       validates a key/model without spending tokens
-app/api/docs/*        Google Docs copy / parse / apply / export
+app/api/resume/load   read a profile's .tex and parse it into sections
+app/api/resume/apply  splice approved changes into a copy of the .tex
+app/api/resume/compile  optional PDF build via an external LaTeX service
+resumes/*.tex         the resumes themselves — the source of truth
+lib/latex/parse.ts    .tex -> sections + the byte ranges that may be edited
+lib/latex/match.ts    resolves a model's quote back to one editable span
+lib/latex/sanitize.ts escaping + the macro allow-list
+lib/latex/apply.ts    the splice, plus whole-document validation
+lib/profiles/*.ts     per-resume layout rules (which sections are frozen, quotas)
 lib/providers.ts      the provider registry — add new providers here
 lib/ai-provider.ts    server dispatch: one OpenAI-compatible adapter + Gemini
 lib/puter.ts          browser-side Puter client (no API key)
@@ -95,4 +152,5 @@ lib/json-repair.ts    tolerant JSON extraction, shared by server and browser
 lib/optimizer.ts      optimize prompt + response validation (client-safe)
 lib/revamper.ts       revamp prompt + response validation (client-safe)
 lib/settings-storage.ts  per-provider keys and models in localStorage
+scripts/latex-pipeline-test.js  npm run test:latex
 ```

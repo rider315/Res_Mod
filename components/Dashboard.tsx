@@ -4,23 +4,19 @@ import { useSession, signOut } from 'next-auth/react'
 import DiffViewer from './DiffViewer'
 import StepIndicator from './StepIndicator'
 import SettingsModal from './SettingsModal'
+import LatexPreview from './LatexPreview'
 import { AppState, OptimizationResult } from '@/types/resume'
 import { AISettings, DEFAULT_AI_SETTINGS, loadAISettings, saveAISettings } from '@/lib/settings-storage'
 import { getProvider } from '@/lib/providers'
 import { DEFAULT_PROFILE_ID, getProfile, PROFILES, PROFILE_ORDER } from '@/lib/profiles'
 import { ResumeProfileId } from '@/lib/profiles/types'
+import { buildResumeFileName } from '@/lib/resume-filename'
 
 const INITIAL_STATE: AppState = {
   step: 'input',
   profileId: DEFAULT_PROFILE_ID,
-  resumeUrls: {
-    gaurav: PROFILES.gaurav.defaultDocUrl,
-    himanshu: PROFILES.himanshu.defaultDocUrl,
-  },
-
-
-  copiedDocId: null,
-  copiedDocUrl: null,
+  latexSource: null,
+  optimizedLatex: null,
   parsedResume: null,
   jobDescription: '',
   hardInstructions: '',
@@ -33,8 +29,6 @@ const INITIAL_STATE: AppState = {
   aiModels: { ...DEFAULT_AI_SETTINGS.models },
   showSettings: false,
 }
-
-
 
 function AnimatedPhaseText({ phases }: { phases: string[] }) {
   const [idx, setIdx] = useState(0)
@@ -60,8 +54,8 @@ function ParsingAnimation() {
         <div className="anim-scan-line" />
       </div>
       <div className="text-center space-y-2">
-        <h2 className="text-xl font-bold text-[var(--color-text)]">Preparing your resume</h2>
-        <AnimatedPhaseText phases={['Copying document to workspace…', 'Scanning resume structure…', 'Extracting sections & content…', 'Almost ready…']} />
+        <h2 className="text-xl font-bold text-[var(--color-text)]">Reading your LaTeX resume</h2>
+        <AnimatedPhaseText phases={['Loading the .tex source…', 'Walking the document tree…', 'Mapping editable bullets…', 'Almost ready…']} />
       </div>
       <div className="w-48 h-1.5 rounded-full bg-[var(--color-border)] overflow-hidden">
         <div className="h-full rounded-full anim-shimmer" style={{ width: '100%' }} />
@@ -168,33 +162,13 @@ function MergeAnimation({ count }: { count: number }) {
         </div>
       </div>
       <div className="text-center space-y-2">
-        <h2 className="text-xl font-bold text-[var(--color-text)]">Merging changes</h2>
-        <p className="text-sm text-[var(--color-text-muted)]">Applying {count} approved change{count !== 1 ? 's' : ''} to your document…</p>
+        <h2 className="text-xl font-bold text-[var(--color-text)]">Splicing changes into LaTeX</h2>
+        <p className="text-sm text-[var(--color-text-muted)]">Writing {count} approved change{count !== 1 ? 's' : ''} into a copy of your .tex…</p>
       </div>
       <div className="w-48 h-1.5 rounded-full bg-[var(--color-border)] overflow-hidden">
         <div className="h-full rounded-full anim-shimmer" style={{ width: '100%' }} />
       </div>
     </div>
-  )
-}
-
-/**
- * Shows whether the URL in the box matches what's saved for this person.
- * Reads localStorage in an effect rather than during render, which would break
- * server rendering.
- */
-function SavedBadge({ profileKey, url }: { profileKey: string; url: string }) {
-  const [saved, setSaved] = useState<string | null>(null)
-  useEffect(() => setSaved(localStorage.getItem(profileKey)), [profileKey, url])
-
-  if (!url || saved !== url) return null
-  return (
-    <span className="text-xs text-[var(--color-success)] flex items-center gap-1">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-        <polyline points="20 6 9 17 4 12" />
-      </svg>
-      Saved
-    </span>
   )
 }
 
@@ -204,43 +178,80 @@ function ErrorBanner({ message, onDismiss }: { message: string; onDismiss: () =>
       <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
         <circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" />
       </svg>
-      <span className="flex-1">{message}</span>
+      <span className="flex-1 whitespace-pre-wrap">{message}</span>
       <button onClick={onDismiss} className="opacity-60 hover:opacity-100">✕</button>
     </div>
   )
+}
+
+/** Save a string to the user's machine as a file. */
+function downloadText(text: string, fileName: string, mime: string) {
+  const url = URL.createObjectURL(new Blob([text], { type: mime }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = fileName
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+/**
+ * Hand the .tex to Overleaf, which compiles it into a new project.
+ *
+ * Overleaf takes the document as a POST field rather than a query parameter,
+ * so this builds a real form instead of a link — a resume is far too long to
+ * survive a URL.
+ */
+function openInOverleaf(latex: string) {
+  const form = document.createElement('form')
+  form.method = 'POST'
+  form.action = 'https://www.overleaf.com/docs'
+  form.target = '_blank'
+  form.rel = 'noopener noreferrer'
+
+  for (const [name, value] of [['snip', latex], ['engine', 'pdflatex']]) {
+    const input = document.createElement('input')
+    input.type = 'hidden'
+    input.name = name
+    input.value = value
+    form.appendChild(input)
+  }
+
+  document.body.appendChild(form)
+  form.submit()
+  document.body.removeChild(form)
 }
 
 export default function Dashboard() {
   const { data: session } = useSession()
   const [state, setState] = useState<AppState>(INITIAL_STATE)
   const [loading, setLoading] = useState(false)
+  const [compiling, setCompiling] = useState(false)
+  const [compileHost, setCompileHost] = useState('texlive.net')
   const [themeMode, setThemeMode] = useState<'light' | 'dark'>('light')
 
-useEffect(() => {
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-  const theme = prefersDark ? 'dark' : 'light'
-  setThemeMode(theme)
-  document.documentElement.setAttribute('data-theme', theme)
-  // Load saved AI settings plus each profile's own saved document URL.
-  const ai = loadAISettings()
-  const savedProfile = localStorage.getItem('resmod_profile') as ResumeProfileId | null
-  const savedUrls = { ...INITIAL_STATE.resumeUrls }
-  for (const id of PROFILE_ORDER) {
-    savedUrls[id] = localStorage.getItem(PROFILES[id].urlStorageKey) || PROFILES[id].defaultDocUrl
-  }
+  useEffect(() => {
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+    const theme = prefersDark ? 'dark' : 'light'
+    setThemeMode(theme)
+    document.documentElement.setAttribute('data-theme', theme)
 
-  setState((s) => ({
-    ...s,
-    profileId: savedProfile && PROFILE_ORDER.includes(savedProfile) ? savedProfile : s.profileId,
-    resumeUrls: savedUrls,
-    aiProvider: ai.provider,
-    aiApiKeys: ai.apiKeys,
-    aiModels: ai.models,
-  }))
-}, [])
+    const ai = loadAISettings()
+    const savedProfile = localStorage.getItem('resmod_profile') as ResumeProfileId | null
+
+    setState((s) => ({
+      ...s,
+      profileId: savedProfile && PROFILE_ORDER.includes(savedProfile) ? savedProfile : s.profileId,
+      aiProvider: ai.provider,
+      aiApiKeys: ai.apiKeys,
+      aiModels: ai.models,
+    }))
+  }, [])
 
   const activeProfile = getProfile(state.profileId)
-  const activeResumeUrl = state.resumeUrls[state.profileId]
+  const companyName = state.optimizationResult?.companyName || 'Company'
+  const baseFileName = buildResumeFileName(activeProfile.personName, companyName)
 
   function setActiveProfile(id: ResumeProfileId) {
     localStorage.setItem('resmod_profile', id)
@@ -249,17 +260,13 @@ useEffect(() => {
       ...s,
       profileId: id,
       step: 'input',
-      copiedDocId: null,
-      copiedDocUrl: null,
+      latexSource: null,
+      optimizedLatex: null,
       parsedResume: null,
       optimizationResult: null,
       error: null,
       applyWarning: null,
     }))
-  }
-
-  function setActiveResumeUrl(url: string) {
-    setState((s) => ({ ...s, resumeUrls: { ...s.resumeUrls, [s.profileId]: url } }))
   }
 
   function toggleTheme() {
@@ -295,7 +302,6 @@ useEffect(() => {
     const model = state.aiModels[provider]
 
     if (getProvider(provider).clientSide) {
-      // Puter has no server side — same orchestration, browser-side model call.
       const [{ generatePuterResponse }, { runOptimization }] = await Promise.all([
         import('@/lib/puter'),
         import('@/lib/run-optimization'),
@@ -335,37 +341,26 @@ useEffect(() => {
   }
 
   async function handleLoadResume() {
-    if (!activeResumeUrl.trim()) return
     setLoading(true)
     setError(null)
     setState((s) => ({ ...s, step: 'parsing' }))
     try {
-      const copyRes = await fetch('/api/docs/copy', {
+      const res = await fetch('/api/resume/load', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: activeResumeUrl }),
+        body: JSON.stringify({ profileId: state.profileId }),
       })
-      const copyData = await copyRes.json()
-      if (!copyRes.ok) throw new Error(copyData.error)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
 
-      const parseRes = await fetch('/api/docs/parse', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ documentId: copyData.copiedId }),
-      })
-      const parseData = await parseRes.json()
-      if (!parseRes.ok) throw new Error(parseData.error)
-
+      if (data.compileHost) setCompileHost(data.compileHost)
       setState((s) => ({
         ...s,
         step: 'instructions',
-        copiedDocId: copyData.copiedId,
-        copiedDocUrl: copyData.copiedDocUrl,
-        parsedResume: parseData.resume,
+        latexSource: data.latex,
+        parsedResume: data.resume,
         error: null,
       }))
-      // Save URL to localStorage for next time
-      localStorage.setItem(activeProfile.urlStorageKey, activeResumeUrl)
     } catch (err: unknown) {
       setState((s) => ({ ...s, step: 'input', error: err instanceof Error ? err.message : String(err) }))
     } finally {
@@ -373,28 +368,13 @@ useEffect(() => {
     }
   }
 
-  async function handleOptimize() {
+  async function runPass(mode: 'optimize' | 'revamp') {
     if (!state.parsedResume || !state.jobDescription.trim()) return
     setLoading(true)
     setError(null)
-    setState((s) => ({ ...s, step: 'optimizing' }))
+    setState((s) => ({ ...s, step: mode === 'optimize' ? 'optimizing' : 'revamping' }))
     try {
-      const result = await runAIPass('optimize')
-      setState((s) => ({ ...s, step: 'review', optimizationResult: result, error: null }))
-    } catch (err: unknown) {
-      setState((s) => ({ ...s, step: 'instructions', error: err instanceof Error ? err.message : String(err) }))
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function handleRevamp() {
-    if (!state.parsedResume || !state.jobDescription.trim()) return
-    setLoading(true)
-    setError(null)
-    setState((s) => ({ ...s, step: 'revamping' }))
-    try {
-      const result = await runAIPass('revamp')
+      const result = await runAIPass(mode)
       setState((s) => ({ ...s, step: 'review', optimizationResult: result, error: null }))
     } catch (err: unknown) {
       setState((s) => ({ ...s, step: 'instructions', error: err instanceof Error ? err.message : String(err) }))
@@ -404,44 +384,46 @@ useEffect(() => {
   }
 
   async function handleApplyChanges() {
-    if (!state.copiedDocId || !state.optimizationResult) return
+    if (!state.optimizationResult) return
     setLoading(true)
     setError(null)
     setState((s) => ({ ...s, step: 'applying' }))
     try {
-      const res = await fetch('/api/docs/apply', {
+      const res = await fetch('/api/resume/apply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          documentId: state.copiedDocId,
+          profileId: state.profileId,
           changes: state.optimizationResult.changes,
           companyName: state.optimizationResult.companyName,
-          profileId: state.profileId,
         }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
 
-      // Distinguish the two ways a change can fail to land: text that genuinely
-      // isn't in the document, versus a change dropped because another rewrite
-      // covers the same sentence.
+      // Three distinct ways a change can fail to land, each worth naming: text
+      // that no longer matches a bullet, a change overlapping another rewrite,
+      // and LaTeX the sanitizer refused to write.
+      const notes: string[] = []
       const missed = Array.isArray(data.unmatched) ? data.unmatched.length : 0
       const overlapped = Array.isArray(data.overlapping) ? data.overlapping.length : 0
-      const notes: string[] = []
+      const rejected = Array.isArray(data.rejected) ? data.rejected.length : 0
+
       if (missed > 0) {
-        notes.push(
-          `${missed} change${missed === 1 ? '' : 's'} referenced text that is no longer in the document, so ${missed === 1 ? 'it was' : 'they were'} skipped.`
-        )
+        notes.push(`${missed} change${missed === 1 ? '' : 's'} no longer matched any bullet in the .tex, so ${missed === 1 ? 'it was' : 'they were'} skipped.`)
       }
       if (overlapped > 0) {
-        notes.push(
-          `${overlapped} change${overlapped === 1 ? '' : 's'} overlapped another rewrite of the same sentence and ${overlapped === 1 ? 'was' : 'were'} skipped to avoid corrupting it.`
-        )
+        notes.push(`${overlapped} change${overlapped === 1 ? '' : 's'} targeted a bullet another rewrite already covered.`)
+      }
+      if (rejected > 0) {
+        const reasons = data.rejected.map((r: { reason: string }) => r.reason).join('; ')
+        notes.push(`${rejected} change${rejected === 1 ? '' : 's'} produced invalid LaTeX and ${rejected === 1 ? 'was' : 'were'} refused (${reasons}).`)
       }
 
       setState((s) => ({
         ...s,
         step: 'done',
+        optimizedLatex: data.latex,
         error: null,
         applyWarning: notes.length
           ? `${data.appliedCount} of ${data.requestedCount} changes applied. ${notes.join(' ')}`
@@ -454,17 +436,43 @@ useEffect(() => {
     }
   }
 
-  function handleExportPdf() {
-    if (!state.copiedDocId) return
-    const companyName = state.optimizationResult?.companyName || 'Company'
-    // Name the file after the resume's OWNER, not the signed-in Google account —
-    // otherwise Himanshu's export comes out named after whoever is logged in.
-    const who = activeProfile.personName.replace(/[\\/:*?"<>|]/g, '').trim()
-    const baseName = who ? `${who} Resume_${companyName}` : `Resume_${companyName}`
-    const a = document.createElement('a')
-    a.href = `/api/docs/export?documentId=${state.copiedDocId}&filename=${encodeURIComponent(baseName)}&profileId=${state.profileId}`
-    a.download = `${baseName}.pdf`
-    a.click()
+  function handleDownloadTex() {
+    const latex = state.optimizedLatex ?? state.latexSource
+    if (!latex) return
+    downloadText(latex, `${baseFileName}.tex`, 'application/x-tex')
+  }
+
+  async function handleCompilePdf() {
+    const latex = state.optimizedLatex ?? state.latexSource
+    if (!latex) return
+    setCompiling(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/resume/compile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ latex, fileName: baseFileName }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.log ? `${data.error}\n\n${data.log}` : data.error)
+      }
+
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${baseFileName}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setCompiling(false)
+    }
   }
 
   const handleApprove = useCallback((id: string) => {
@@ -580,10 +588,13 @@ useEffect(() => {
           <div className="space-y-6">
             <div>
               <h1 className="text-2xl font-bold text-[var(--color-text)] mb-1">Optimize your resume</h1>
-              <p className="text-sm text-[var(--color-text-muted)]">Pick whose resume to optimize, then paste its Google Docs link. A copy is created — the original is never modified.</p>
+              <p className="text-sm text-[var(--color-text-muted)]">
+                Pick whose resume to tailor. The LaTeX source lives in this project — the optimizer reads it and
+                writes a tailored copy, never touching the original.
+              </p>
             </div>
 
-            {/* Whose resume — each has its own layout rules and its own saved link */}
+            {/* Whose resume — each has its own layout rules and its own .tex */}
             <div className="bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] p-6 space-y-3">
               <span className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">Whose resume</span>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -600,35 +611,29 @@ useEffect(() => {
                           : 'border-[var(--color-border)] hover:border-[var(--color-text-muted)]'
                       }`}
                     >
-                      <p className="text-sm font-semibold text-[var(--color-text)]">{p.label}</p>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-[var(--color-text)]">{p.label}</p>
+                        <code className="text-[10px] text-[var(--color-text-faint)] font-mono">resumes/{p.texFile}</code>
+                      </div>
                       <p className="text-[11px] text-[var(--color-text-muted)] leading-snug mt-0.5">{p.description}</p>
                     </button>
                   )
                 })}
               </div>
-            </div>
-            <div className="bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] p-6 space-y-4">
-              <label className="block">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-semibold text-[var(--color-text)]">
-                    {activeProfile.label}&apos;s Google Docs Resume URL
-                  </span>
-                  <SavedBadge profileKey={activeProfile.urlStorageKey} url={activeResumeUrl} />
-                </div>
-                <input type="url" placeholder="https://docs.google.com/document/d/..." value={activeResumeUrl} onChange={(e) => setActiveResumeUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleLoadResume()}
-                  className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-sm placeholder:text-[var(--color-text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition-all" />
-                <p className="text-[11px] text-[var(--color-text-faint)] mt-1.5">
-                  Saved separately per person — switching resumes keeps each link.
-                </p>
-              </label>
-              <button onClick={handleLoadResume} disabled={loading || !activeResumeUrl.trim()}
+              <button onClick={handleLoadResume} disabled={loading}
                 className="w-full py-3 px-6 rounded-xl bg-[var(--color-primary)] text-white font-semibold text-sm hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2">
-                Load Resume →
+                Load {activeProfile.label}&apos;s Resume →
               </button>
             </div>
+
             <div className="rounded-xl bg-[var(--color-primary-highlight)] border border-[var(--color-border)] p-4 text-sm text-[var(--color-text-muted)] flex gap-3">
               <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-[var(--color-primary)]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
-              All edits go to the copy only. Make sure your document is accessible by your Google account.
+              <span>
+                To change the base resume itself, edit <code className="font-mono text-xs">resumes/{activeProfile.texFile}</code> and
+                reload. Keep prose inside <code className="font-mono text-xs">\resumeItem&#123;&#125;</code>,{' '}
+                <code className="font-mono text-xs">\skillLine&#123;&#125;</code> and{' '}
+                <code className="font-mono text-xs">\resumeSummary&#123;&#125;</code> so the optimizer can see it.
+              </span>
             </div>
           </div>
         )}
@@ -638,14 +643,11 @@ useEffect(() => {
 
         {state.step === 'instructions' && state.parsedResume && (
           <div className="space-y-6 anim-page-enter">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold text-[var(--color-text)] mb-1">Define your optimization goals</h1>
-                <p className="text-sm text-[var(--color-text-muted)]">
-                  Loaded: <span className="font-medium text-[var(--color-text)]">{state.parsedResume.title}</span> — {state.parsedResume.sections.length} sections detected
-                </p>
-              </div>
-              <a href={state.copiedDocUrl ?? '#'} target="_blank" rel="noopener noreferrer" className="text-xs text-[var(--color-primary)] hover:underline">Open copy ↗</a>
+            <div>
+              <h1 className="text-2xl font-bold text-[var(--color-text)] mb-1">Define your optimization goals</h1>
+              <p className="text-sm text-[var(--color-text-muted)]">
+                Loaded <code className="font-mono text-xs">resumes/{activeProfile.texFile}</code> — {state.parsedResume.sections.length} sections detected
+              </p>
             </div>
             <div className="bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] p-4">
               <p className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wide mb-3">Detected Sections</p>
@@ -655,34 +657,35 @@ useEffect(() => {
                 ))}
               </div>
             </div>
+            {state.latexSource && <LatexPreview latex={state.latexSource} title="Current LaTeX source" />}
             <div className="space-y-4">
               <label className="block">
                 <span className="text-sm font-semibold text-[var(--color-text)] mb-1.5 block">Job Description *</span>
                 <span className="text-xs text-[var(--color-text-muted)] block mb-2">Paste the full job posting. The AI will extract keywords automatically.</span>
-                <textarea rows={6} placeholder="We are looking for a Senior Software Engineer with React, Node.js, AWS..." value={state.jobDescription} onChange={(e) => setState((s) => ({ ...s, jobDescription: e.target.value }))}
+                <textarea rows={6} placeholder="We are looking for a Forward Deployed Engineer with Python, LLMs, RAG, React..." value={state.jobDescription} onChange={(e) => setState((s) => ({ ...s, jobDescription: e.target.value }))}
                   className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-sm placeholder:text-[var(--color-text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] resize-y transition-all" />
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <label className="block">
                   <span className="text-sm font-semibold text-[var(--color-text)] mb-1.5 block">Hard Instructions</span>
                   <span className="text-xs text-[var(--color-text-muted)] block mb-2">Rules the AI must never break.</span>
-                  <textarea rows={4} placeholder={"Do not modify the Google role\nDo not remove Education section\nDo not add fake experience"} value={state.hardInstructions} onChange={(e) => setState((s) => ({ ...s, hardInstructions: e.target.value }))}
+                  <textarea rows={4} placeholder={'Do not modify the Innodata role\nDo not remove the IEEE publication\nDo not add fake experience'} value={state.hardInstructions} onChange={(e) => setState((s) => ({ ...s, hardInstructions: e.target.value }))}
                     className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-sm placeholder:text-[var(--color-text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] resize-y transition-all" />
                 </label>
                 <label className="block">
                   <span className="text-sm font-semibold text-[var(--color-text)] mb-1.5 block">Soft Instructions</span>
                   <span className="text-xs text-[var(--color-text-muted)] block mb-2">Optimization preferences.</span>
-                  <textarea rows={4} placeholder={"Use action verbs (Built, Led, Designed)\nAdd measurable impact\nAlign with React & TypeScript keywords"} value={state.softInstructions} onChange={(e) => setState((s) => ({ ...s, softInstructions: e.target.value }))}
+                  <textarea rows={4} placeholder={'Use action verbs (Built, Led, Designed)\nAdd measurable impact\nLead with RAG and LLM evaluation'} value={state.softInstructions} onChange={(e) => setState((s) => ({ ...s, softInstructions: e.target.value }))}
                     className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-sm placeholder:text-[var(--color-text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] resize-y transition-all" />
                 </label>
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <button onClick={handleOptimize} disabled={loading || !state.jobDescription.trim()}
+              <button onClick={() => runPass('optimize')} disabled={loading || !state.jobDescription.trim()}
                 className="w-full py-3 px-6 rounded-xl bg-[var(--color-primary)] text-white font-semibold text-sm hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2">
                 Generate Optimizations →
               </button>
-              <button onClick={handleRevamp} disabled={loading || !state.jobDescription.trim()}
+              <button onClick={() => runPass('revamp')} disabled={loading || !state.jobDescription.trim()}
                 className="w-full py-3 px-6 rounded-xl font-semibold text-sm text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
                 style={{ background: 'linear-gradient(135deg, #e8450e 0%, #f59e0b 100%)' }}>
                 🔥 Full Revamp
@@ -700,7 +703,7 @@ useEffect(() => {
           <div className="space-y-6 anim-page-enter">
             <div>
               <h1 className="text-2xl font-bold text-[var(--color-text)] mb-1">Review proposed changes</h1>
-              <p className="text-sm text-[var(--color-text-muted)]">Approve or reject each suggestion. Only approved changes will be written to your document.</p>
+              <p className="text-sm text-[var(--color-text-muted)]">Approve or reject each suggestion. Only approved changes are written into the LaTeX.</p>
             </div>
             <div className="bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] p-4 space-y-3">
               <p className="text-sm text-[var(--color-text)]">{state.optimizationResult.summary}</p>
@@ -747,10 +750,8 @@ useEffect(() => {
           </div>
         )}
 
-        {/* Step 4 — Enhanced Done */}
         {state.step === 'done' && (
-          <div className="space-y-8 text-center py-12 anim-page-enter relative">
-            {/* Confetti */}
+          <div className="space-y-8 anim-page-enter relative">
             <div className="confetti-container">
               {Array.from({ length: 20 }).map((_, i) => (
                 <div key={i} className="confetti-particle" style={{
@@ -765,69 +766,89 @@ useEffect(() => {
               ))}
             </div>
 
-            {/* Animated checkmark */}
-            <div className="w-20 h-20 rounded-full bg-[var(--color-success-highlight)] flex items-center justify-center mx-auto anim-circle-pop">
-              <svg className="w-10 h-10 text-[var(--color-success)]" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12" className="anim-check-draw" />
-              </svg>
+            <div className="text-center space-y-6">
+              <div className="w-20 h-20 rounded-full bg-[var(--color-success-highlight)] flex items-center justify-center mx-auto anim-circle-pop">
+                <svg className="w-10 h-10 text-[var(--color-success)]" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" className="anim-check-draw" />
+                </svg>
+              </div>
+
+              <div>
+                <h1 className="text-2xl font-bold text-[var(--color-text)] mb-2">Resume optimized!</h1>
+                <p className="text-sm text-[var(--color-text-muted)]">
+                  Your changes are spliced into a tailored copy of the LaTeX. <code className="font-mono text-xs">resumes/{activeProfile.texFile}</code> is untouched.
+                </p>
+              </div>
+
+              {state.applyWarning && (
+                <div className="max-w-xl mx-auto flex items-start gap-3 rounded-xl border border-[var(--color-warning)] bg-[var(--color-warning-highlight)] p-4 text-left text-sm text-[var(--color-warning)]">
+                  <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                    <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+                  </svg>
+                  <span>{state.applyWarning}</span>
+                </div>
+              )}
+
+              {state.optimizationResult && (
+                <div className="flex justify-center gap-6">
+                  <div className="bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] px-5 py-3 text-center">
+                    <p className="text-2xl font-bold text-[var(--color-primary)]">{state.optimizationResult.sectionsModified.length}</p>
+                    <p className="text-xs text-[var(--color-text-muted)]">Sections</p>
+                  </div>
+                  <div className="bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] px-5 py-3 text-center">
+                    <p className="text-2xl font-bold text-[var(--color-success)]">{approvedCount}</p>
+                    <p className="text-xs text-[var(--color-text-muted)]">Changes</p>
+                  </div>
+                  <div className="bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] px-5 py-3 text-center">
+                    <p className="text-2xl font-bold text-[var(--color-gold)]">{state.optimizationResult.keywordsAdded.length}</p>
+                    <p className="text-xs text-[var(--color-text-muted)]">Keywords</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <button onClick={handleDownloadTex}
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-[var(--color-primary)] text-white font-semibold text-sm hover:bg-[var(--color-primary-hover)] transition-all shadow-md hover:shadow-lg">
+                  <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  Download .tex
+                </button>
+                <button onClick={() => state.optimizedLatex && openInOverleaf(state.optimizedLatex)}
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl border border-[var(--color-border)] text-[var(--color-text)] font-semibold text-sm hover:bg-[var(--color-surface-offset)] transition-all">
+                  <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+                  </svg>
+                  Open in Overleaf
+                </button>
+                <button onClick={handleCompilePdf} disabled={compiling}
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl border border-[var(--color-border)] text-[var(--color-text)] font-semibold text-sm hover:bg-[var(--color-surface-offset)] disabled:opacity-50 transition-all">
+                  <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" />
+                  </svg>
+                  {compiling ? 'Compiling…' : 'Compile PDF'}
+                </button>
+              </div>
+
+              <p className="text-[11px] text-[var(--color-text-faint)] max-w-xl mx-auto">
+                <strong>Download .tex</strong> keeps everything on your machine. <strong>Open in Overleaf</strong> and{' '}
+                <strong>Compile PDF</strong> send the document to overleaf.com and {compileHost} respectively to be typeset.
+              </p>
             </div>
 
-            <div>
-              <h1 className="text-2xl font-bold text-[var(--color-text)] mb-2">Resume optimized!</h1>
-              <p className="text-sm text-[var(--color-text-muted)]">Your changes have been merged into the copied document.</p>
-            </div>
-
-            {state.applyWarning && (
-              <div className="max-w-xl mx-auto flex items-start gap-3 rounded-xl border border-[var(--color-warning)] bg-[var(--color-warning-highlight)] p-4 text-left text-sm text-[var(--color-warning)]">
-                <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-                  <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
-                </svg>
-                <span>{state.applyWarning}</span>
-              </div>
+            {state.optimizedLatex && (
+              <LatexPreview latex={state.optimizedLatex} title="Optimized LaTeX source" defaultOpen />
             )}
 
-            {/* Stats */}
-            {state.optimizationResult && (
-              <div className="flex justify-center gap-6">
-                <div className="bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] px-5 py-3 text-center">
-                  <p className="text-2xl font-bold text-[var(--color-primary)]">{state.optimizationResult.sectionsModified.length}</p>
-                  <p className="text-xs text-[var(--color-text-muted)]">Sections</p>
-                </div>
-                <div className="bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] px-5 py-3 text-center">
-                  <p className="text-2xl font-bold text-[var(--color-success)]">{approvedCount}</p>
-                  <p className="text-xs text-[var(--color-text-muted)]">Changes</p>
-                </div>
-                <div className="bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] px-5 py-3 text-center">
-                  <p className="text-2xl font-bold text-[var(--color-gold)]">{state.optimizationResult.keywordsAdded.length}</p>
-                  <p className="text-xs text-[var(--color-text-muted)]">Keywords</p>
-                </div>
-              </div>
-            )}
-
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <a href={state.copiedDocUrl ?? '#'} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-[var(--color-primary)] text-white font-semibold text-sm hover:bg-[var(--color-primary-hover)] transition-all shadow-md hover:shadow-lg">
-                <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
-                </svg>
-                Open in Google Docs
-              </a>
-              <button onClick={handleExportPdf}
-                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl border border-[var(--color-border)] text-[var(--color-text)] font-semibold text-sm hover:bg-[var(--color-surface-offset)] transition-all">
-                <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
-                </svg>
-                Export as PDF
+            <div className="text-center">
+              <button onClick={() => setState({ ...INITIAL_STATE, profileId: state.profileId })} className="text-sm text-[var(--color-primary)] hover:text-[var(--color-primary-hover)] font-medium transition-colors">
+                ← Optimize for another job
               </button>
             </div>
-            <button onClick={() => setState(INITIAL_STATE)} className="text-sm text-[var(--color-primary)] hover:text-[var(--color-primary-hover)] font-medium transition-colors">
-              ← Optimize another resume
-            </button>
           </div>
         )}
 
-        {/* Settings Modal */}
         {state.showSettings && (
           <SettingsModal
             settings={{

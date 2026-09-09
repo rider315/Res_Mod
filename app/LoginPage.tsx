@@ -33,14 +33,14 @@ export default function LoginPage() {
         <div className="space-y-2">
           <h1 className="text-3xl font-bold text-[var(--color-text)]">ResMod</h1>
           <p className="text-sm text-[var(--color-text-muted)] max-w-xs mx-auto">
-            AI-powered resume optimization. Paste a job description, review every change, and export — all through Google Docs.
+            AI-powered resume optimization. Paste a job description, review every change, and export a tailored LaTeX resume.
           </p>
         </div>
 
         <ul className="text-left space-y-3 bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] p-5">
           {[
-            ['Non-destructive', 'Creates a copy — original document is never modified'],
-            ['Section-aware', 'Parses Experience, Skills, Projects, Education separately'],
+            ['LaTeX native', 'Rewrites your .tex directly — the source file is never modified'],
+            ['ATS-first', 'Injects the job description’s exact keywords into every role'],
             ['Diff review', 'See every proposed change before it is applied'],
             ['Hard constraints', 'Define rules the AI cannot break'],
           ].map(([title, desc]) => (
@@ -72,7 +72,7 @@ export default function LoginPage() {
         </button>
 
         <p className="text-xs text-[var(--color-text-faint)]">
-          Requires Google Docs and Drive access to read and copy your resume.
+          Google is used for sign-in only — no Docs or Drive access is requested.
         </p>
         
         <div className="flex items-center justify-center gap-4 text-xs text-[var(--color-text-muted)] pt-4">

@@ -15,6 +15,7 @@ export interface ResumeSection {
 }
 
 export interface ParsedResume {
+  /** The profile id the LaTeX was loaded for. */
   documentId: string
   title: string
   sections: ResumeSection[]
@@ -29,7 +30,6 @@ export interface ResumeChange {
   reason: string
   type: 'rewrite' | 'add_keywords' | 'improve_clarity' | 'action_verb'
   approved: boolean | null
-  boldKeywords?: string[]
 }
 
 export interface OptimizationResult {
@@ -59,17 +59,17 @@ export interface AppState {
   step: AppStep
   /** Which resume layout is being optimized. */
   profileId: 'gaurav' | 'himanshu'
-  /** Document URL per profile, so each resume keeps its own link. */
-  resumeUrls: Record<'gaurav' | 'himanshu', string>
-  copiedDocId: string | null
-  copiedDocUrl: string | null
+  /** The base .tex as loaded from resumes/, never modified. */
+  latexSource: string | null
+  /** The .tex with approved rewrites spliced in — what gets downloaded. */
+  optimizedLatex: string | null
   parsedResume: ParsedResume | null
   jobDescription: string
   hardInstructions: string
   softInstructions: string
   optimizationResult: OptimizationResult | null
   error: string | null
-  /** Non-fatal notice shown on the done screen (e.g. changes that matched no text). */
+  /** Non-fatal notice shown on the done screen (e.g. changes that matched no line). */
   applyWarning: string | null
   aiProvider: AIProvider
   /** API keys kept per provider so switching providers doesn't clobber another key. */

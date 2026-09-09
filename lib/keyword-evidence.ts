@@ -108,12 +108,10 @@ export function findUnevidencedSkills(
 export function buildEvidencePrompt(
   jobDescription: string,
   gaps: EvidenceGap[],
-  withBoldKeywords: boolean,
   profileNotes = ''
 ): string {
   const terms = gaps.map((g) => `- ${g.term}`).join('\n')
   const lines = gaps[0]?.candidateLines.map((l) => `- ${l}`).join('\n') ?? ''
-  const boldField = withBoldKeywords ? ',\n      "boldKeywords": ["keyword1"]' : ''
 
   return `## TARGET JOB DESCRIPTION
 ${jobDescription}
@@ -151,7 +149,7 @@ ${profileNotes ? '\n\n' + profileNotes : ''}
 - Never touch company names, role titles, dates, or project/client title lines.
 - Keep "proposed" within roughly 30% of the original length.
 - Preserve any metric or achievement already in the bullet.
-- Plain text only — no markdown, no asterisks.
+- LaTeX only, not markdown: bold injected keywords with \\textbf{...} and escape % & _ # as \\% \\& \\_ \\#.
 
 
 ## OUTPUT FORMAT
@@ -169,7 +167,7 @@ Return this exact JSON structure and nothing else:
       "original": "verbatim line copied from the list above",
       "proposed": "rewritten line that genuinely demonstrates the skill",
       "reason": "which claimed skill this now evidences",
-      "type": "add_keywords"${boldField}
+      "type": "add_keywords"
     }
   ]
 }`

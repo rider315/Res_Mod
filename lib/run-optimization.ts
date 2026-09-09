@@ -110,7 +110,6 @@ export async function runOptimization(opts: RunOptions): Promise<OptimizationRes
       jobDescription,
       hardInstructions,
       gaps,
-      isRevamp,
       profile.promptNotes
     )
     const secondPass = parse(
@@ -188,7 +187,7 @@ async function evidencePass(
       : buildOptimizeSystemInstruction(profile)
     const raw = await generate({
       systemInstruction,
-      prompt: buildEvidencePrompt(jobDescription, gaps, isRevamp, profile.promptNotes),
+      prompt: buildEvidencePrompt(jobDescription, gaps, profile.promptNotes),
       temperature: 0.2,
     })
 

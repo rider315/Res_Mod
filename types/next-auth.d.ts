@@ -1,20 +1,11 @@
 import { DefaultSession } from 'next-auth'
 
+// Google is used for sign-in only — the app holds no access token, because it
+// no longer calls any Google API.
 declare module 'next-auth' {
   interface Session {
-    accessToken: string
-    error?: string
     user: {
       id: string
     } & DefaultSession['user']
-  }
-}
-
-declare module 'next-auth/jwt' {
-  interface JWT {
-    accessToken: string
-    refreshToken?: string
-    expiresAt?: number
-    error?: string
   }
 }

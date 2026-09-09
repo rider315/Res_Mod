@@ -1,120 +1,124 @@
-import { ResumeProfile } from '@/lib/profiles/types'
+import { LATEX_RULES, ResumeProfile, STRUCTURAL_LINE } from '@/lib/profiles/types'
 
 /**
- * Gaurav's resume layout.
+ * Gaurav's resume layout — resumes/gaurav.tex.
  *
- * Sections run: Header/Contact, Skills, Work Experience, Education, Projects,
- * Awards/Certificates, Soft Skills. Work experience is a flat list of bullets
- * under each role — there are no client/project sub-headings inside it.
+ * Sections run: Header/Contact, Summary, Technical Skills, Experience, Projects,
+ * Education, Achievements & Publications, Soft Skills. Work experience is a flat
+ * list of bullets under each role, with no client sub-headings inside it.
  *
- * The rule text below is carried over verbatim from the original single-resume
- * prompts, so behaviour for this resume is unchanged.
+ * Each role and each project ends with a "Tech:" bullet listing its stack. Those
+ * are ordinary editable bullets and are one of the highest-value things to
+ * retune per job description, so the rules call them out explicitly.
  */
 
 const SECTION_RULES = `## SECTION-LEVEL RULES (these override everything else):
 
-### SKILLS section:
-- You may REORDER existing skills to prioritize JD-relevant ones at the front of each list.
-- You may REPLACE less-relevant skills with JD-critical skills. Be AGGRESSIVE here — if the JD requires a skill and the resume has a weaker/older alternative, SWAP IT. For example: "jQuery" → "React.js", "Jenkins" → "GitHub Actions", "MySQL" → "PostgreSQL".
-- You CAN add JD-required skills even if not closely related, as long as they are in the same DOMAIN (e.g., adding a new framework the candidate could plausibly know).
-- **CRITICAL CATEGORY MATCHING**: When replacing skills, you MUST respect the sub-category! If the JD requires a "Language" (e.g. Python, Java), you MUST place it in the line labeled "Languages:". If the JD requires a "Tool" (e.g. Docker, Git), you MUST place it in the line labeled "Tools:" or "Technologies:". NEVER put a framework in the languages line, or a language in the tools line.
-- You MUST preserve the EXACT formatting structure. If the original has category labels like "Languages:" and "Technologies & Tools:", keep those exact category labels unchanged.
-- Do NOT merge categories into one line. Do NOT split one category into multiple.
-- Keep the same number of lines, the same pattern (label: comma-separated items).
-- **KEEP THE LINE A SIMILAR LENGTH**: If swapping in JD skills makes the line noticeably longer, drop the LEAST relevant existing skills to make room. Aim to stay within about 20% of the original line length.
+${LATEX_RULES}
 
-### WORK EXPERIENCE section:
-- Company names, role titles, and date ranges are FROZEN — never modify them.
-- ONLY modify the bullet-point descriptions of work done.
-- **CRITICAL — ATS KEYWORD INJECTION**: For EVERY work experience role, you MUST rewrite at least 2 bullet points to DIRECTLY USE the JD's exact keywords, tool names, methodologies, and domain terms.
-- Do NOT just "softly align" — REPLACE generic descriptions with JD-specific language. If the JD says "microservices architecture" and the bullet says "built backend modules", rewrite it to "architected microservices for backend systems".
-- If the JD says "CI/CD pipelines" and the bullet says "automated deployment", rewrite to "implemented CI/CD pipelines for automated deployment".
-- If the JD says "Agile/Scrum" and the bullet says "worked with team", rewrite to "collaborated in Agile sprints with cross-functional teams".
-- The goal is that an ATS scanner reading each bullet point will find EXACT MATCHES for the JD's required skills.
-- Preserve the core achievement and any metrics, but completely reframe the HOW using JD terminology.
+### SUMMARY section:
+- One paragraph. This is the first thing a recruiter and an ATS both read, so it MUST carry the job title from the JD and its top 4-6 keywords.
+- Rewrite it to mirror the JD's own language for the role (e.g. if the JD says "Forward Deployed Engineer", the summary should say that).
+- Keep it honest: only claim experience the rest of the resume evidences.
+- Keep it to roughly the same length — 3 to 4 lines.
+
+### TECHNICAL SKILLS section:
+- Several labelled lines, each of the form \\textbf{Category:} item, item, item.
+- **KEEP THE CATEGORY LABEL EXACTLY AS IT IS**, including the \\textbf{} wrapper and the colon. Rewrite only the comma-separated items after it.
+- You may REORDER items to put JD-relevant ones first, and REPLACE less-relevant items with JD-critical ones. Be AGGRESSIVE — if the JD requires a skill and this resume lists a weaker alternative, swap it.
+- **CRITICAL CATEGORY MATCHING**: a language goes on the "Languages:" line, a database on the "Databases & Caching:" line, a cloud tool on the "Cloud & DevOps:" line, an AI technique on the "AI & Machine Learning:" line, a frontend/backend framework on the "Full Stack & Frontend:" line. NEVER move an item across categories.
+- Do NOT merge, split, add or remove lines. Keep the same number of lines.
+- **KEEP THE LINE A SIMILAR LENGTH**: if adding JD skills makes a line noticeably longer, drop the least relevant existing items to make room. Stay within about 20% of the original length.
+- Do NOT bold the individual skills — only the category label is bold.
+
+### EXPERIENCE section:
+- Employer, role and dates live on frozen [Role] lines. Never rewrite those.
+- ONLY the bullet points may change.
+- **CRITICAL — ATS KEYWORD INJECTION**: for EVERY role, rewrite at least 2 bullets to DIRECTLY USE the JD's exact keywords, tool names, methodologies and domain terms, wrapped in \\textbf{}.
+- Do NOT just "softly align" — REPLACE generic phrasing with JD-specific language. If the JD says "microservices architecture" and the bullet says "built backend modules", rewrite it to "architected \\textbf{microservices} for backend systems".
+- Preserve the achievement and every metric. A bullet that says 40\\% must still say 40\\%.
+- **THE "Tech:" BULLET**: each role ends with a bullet starting \\textbf{Tech:}. Keep that label, and retune the technology list after it to lead with the JD's stack. This is a cheap, high-value ATS win — do it for every role.
+- Keep the domain honest. The Innodata role is AI/LLM evaluation work, KPIT is automotive embedded work, and the two internships are web development. Express the JD's keywords through the work that is actually described rather than relocating it to a new field.
+
+### PROJECTS section:
+- Project titles, links and tech-stack summaries sit on frozen [Project] lines. Never rewrite those.
+- ONLY the bullet points under each project may change.
+- Apply the SAME aggressive keyword injection as experience: at least 2 bullets per project.
 
 ### EDUCATION section:
 - DO NOT modify anything. Skip this section entirely.
 
-### PROJECTS section:
-- Project names, links, and date ranges are FROZEN — never modify them.
-- ONLY modify the project descriptions and bullet points.
-- Apply the SAME aggressive keyword injection as work experience — rewrite bullets to use the JD's exact terminology.
-
-### AWARDS / CERTIFICATES section:
-- DO NOT modify anything. Skip this section entirely.
+### ACHIEVEMENTS & PUBLICATIONS section:
+- DO NOT modify anything. These are factual credentials with live links.
 
 ### SOFT SKILLS section:
-- The soft skills use a Google Docs numbered list. The numbers (1. 2. 3.) are AUTO-GENERATED by the document — they are NOT part of the text content.
-- In your "original" and "proposed" fields, include ONLY the skill text (e.g. "Communication Skills"), NEVER include the number prefix like "1." or "2.".
-- You may replace soft skill names to better align with the JD, but keep the EXACT same count.
-- Do NOT add bold, italic, or any formatting markers.
-- Each replacement skill name should be similar in length to the original it replaces.
+- A single line of skills separated by $|$.
+- You may swap a skill name for a JD-relevant one, but keep the same count and keep the $|$ separators exactly as they are.
+- No bold, no other formatting.
 
 ### HEADER / CONTACT section:
 - DO NOT modify anything. Skip this section entirely.`
 
 const REVAMP_SECTION_RULES = `## SECTION-LEVEL RULES (these override everything else):
 
-### SKILLS section:
-- You may REORDER existing skills to prioritize JD-relevant ones at the front of each list.
-- You may REPLACE less-relevant skills with JD-critical skills. Be VERY AGGRESSIVE — swap out any skill the JD doesn't mention for one it explicitly requires.
-- **KEEP THE LINE A SIMILAR LENGTH**: If swapping in JD skills makes the line longer, remove up to 5 of the LEAST relevant existing skills to make room. Aim to stay within about 20% of the original line length.
-- **CRITICAL CATEGORY MATCHING**: Respect sub-categories. Languages go in "Languages:", frameworks in "Frameworks:", tools in "Tools:".
-- Preserve the EXACT formatting structure (labels, comma-separated pattern, number of lines).
-- Keep the total line length within about 20% of the original.
+${LATEX_RULES}
 
-### WORK EXPERIENCE section:
-- Company names, role titles, and date ranges are FROZEN — never modify them.
-- ONLY modify the bullet-point descriptions of work done.
-- **CRITICAL — ATS KEYWORD SATURATION**: For EVERY work experience role listed (not just the primary one), you MUST rewrite at least 2 bullet points to DIRECTLY USE the JD's exact keywords, tool names, methodologies, and domain terms.
-- Do NOT "softly align" — COMPLETELY RESTRUCTURE bullet points around the JD's language.
-- If the JD says "microservices" and the bullet says "built backend modules", rewrite to "architected and deployed microservices for backend systems".
-- If the JD says "CI/CD with Jenkins" and the bullet says "automated deployment", rewrite to "implemented CI/CD pipelines using Jenkins for automated deployment".
-- If the JD mentions "Agile/Scrum", "cross-functional teams", or "stakeholder management", weave these phrases into bullets.
-- Keep the same achievement structure — if the original has a metric (e.g., "reduced load time by 40%"), preserve a similar metric.
-- Keep the proposed text within about 30% of the original length.
+### SUMMARY section:
+- Rewrite it completely around the JD: lead with the JD's job title and saturate it with the JD's top keywords, each in \\textbf{}.
+- Stay honest — every claim must be evidenced elsewhere in the resume.
 
-### EDUCATION section:
-- DO NOT modify anything. Skip this section entirely.
+### TECHNICAL SKILLS section:
+- Keep every \\textbf{Category:} label exactly as written; rewrite only the items after it.
+- Be VERY AGGRESSIVE — swap out any item the JD does not mention for one it explicitly requires, up to 5 swaps per line.
+- **CRITICAL CATEGORY MATCHING**: never move an item across categories.
+- Keep the same number of lines and stay within about 20% of the original line length.
+
+### EXPERIENCE section:
+- [Role] lines are frozen. Only bullets change.
+- **CRITICAL — ATS KEYWORD SATURATION**: for EVERY role (not just the most recent), rewrite at least 2 bullets to directly use the JD's exact keywords, in \\textbf{}.
+- COMPLETELY RESTRUCTURE each bullet around the JD's language rather than appending a keyword to the end.
+- Preserve every metric. Keep "proposed" within about 30% of the original length.
+- Retune the \\textbf{Tech:} bullet of every role to lead with the JD's stack.
 
 ### PROJECTS section:
-- **PROJECT TITLES, NAMES, LINKS, and HEADING LINES are FROZEN — NEVER modify them.**
-- The first line of each project (the title/heading line, often containing project name, link, tech stack summary) is COMPLETELY FROZEN. Do NOT generate a change for it.
-- ONLY modify the bullet-point descriptions UNDER each project heading.
-- Apply the SAME aggressive ATS keyword injection — rewrite bullets to directly use JD terminology.
-- Keep the proposed text within about 30% of the original length.
+- [Project] lines are frozen — never rewrite a project title, link or stack summary.
+- Rewrite at least 2 bullets per project with the JD's terminology.
+- Keep "proposed" within about 30% of the original length.
 
-### AWARDS / CERTIFICATES section:
-- DO NOT modify anything. Skip this section entirely.
+### EDUCATION section:
+- DO NOT modify anything.
+
+### ACHIEVEMENTS & PUBLICATIONS section:
+- DO NOT modify anything.
 
 ### SOFT SKILLS section:
-- The soft skills use a Google Docs numbered list. The numbers (1. 2. 3.) are AUTO-GENERATED — they are NOT part of the text content.
-- In "original" and "proposed" fields, include ONLY the skill text (e.g. "Communication Skills"), NEVER include the number prefix.
-- You may replace soft skill names to better align with the JD.
-- Each replacement must be similar in character length to the original.
+- One line separated by $|$. Swap names for JD-relevant ones, keep the count and the separators.
 
 ### HEADER / CONTACT section:
-- DO NOT modify anything. Skip this section entirely.`
+- DO NOT modify anything.`
 
 export const gauravProfile: ResumeProfile = {
   id: 'gaurav',
   label: 'Gaurav',
   personName: 'Gaurav Chaudhary',
-  description: 'Flat bullets under each role; Projects section with numbered titles',
-  defaultDocUrl: 'https://docs.google.com/document/d/1stlPithiuAkje-JK59M52ZOBQaPT2H5CiyeKZk_6-Ns/edit',
-  urlStorageKey: 'resmod_resume_url',
+  description: 'AI / full-stack LaTeX resume; flat bullets per role, each ending in a Tech: line',
+  texFile: 'gaurav.tex',
 
   sectionRules: SECTION_RULES,
   revampSectionRules: REVAMP_SECTION_RULES,
-  promptNotes: '',
+
+  promptNotes: `## LAYOUT REMINDERS FOR THIS RESUME
+- This is LaTeX. Return LaTeX in "proposed", bold injected keywords with \\textbf{}, and escape % & _ # as \\% \\& \\_ \\#.
+- Never return a change for a line starting with [Role] or [Project] — those are frozen.
+- Every role and project ends with a bullet starting \\textbf{Tech:}. Keep that label and retune the list after it to match the JD's stack.
+- The Summary is the highest-leverage line in the document: make it name the JD's job title.`,
 
   coverage: {
-    frozenSection: /education|award|certificat|header|contact/i,
+    frozenSection: /education|achievement|publication|award|certificat|header|contact/i,
     experienceSection: /experience|employment|work history|professional background/i,
     projectSection: /project/i,
     minBulletLength: 40,
-    frozenLinePatterns: [],
+    frozenLinePatterns: [STRUCTURAL_LINE],
     // Two rewrites per section, or fewer if there aren't that many bullets.
     requiredChanges: (_section, bulletCount) => Math.min(2, bulletCount),
   },

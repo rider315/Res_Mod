@@ -70,7 +70,6 @@ export function normalizeChanges(
   opts: {
     idPrefix: string
     logLabel: string
-    withBoldKeywords?: boolean
     /** Per-resume length rules; falls back to the shared defaults. */
     length?: LengthLimits
   }
@@ -123,13 +122,6 @@ export function normalizeChanges(
       reason: asString(c.reason),
       type: asChangeType(c.type),
       approved: null,
-    }
-
-    if (opts.withBoldKeywords) {
-      const keywords = Array.isArray(c.boldKeywords) ? c.boldKeywords : []
-      change.boldKeywords = keywords.filter(
-        (kw: unknown): kw is string => typeof kw === 'string' && kw.length > 0 && proposed.includes(kw)
-      )
     }
 
     changes.push(change)

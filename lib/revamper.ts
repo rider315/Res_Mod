@@ -17,9 +17,9 @@ Your ABSOLUTE rules:
 1. NEVER invent new experiences, companies, dates, or facts not in the original resume.
 2. ONLY rewrite or rephrase existing content — never add new roles or projects.
 3. Return ONLY a valid JSON object — no markdown fences, no extra commentary.
-4. Each "original" value must be an EXACT, VERBATIM substring found in the resume content — character-for-character.
+4. Each "original" value must be an EXACT, VERBATIM copy of one of the lines shown in the resume content — character-for-character, including any LaTeX markup it already contains.
 5. **LENGTH RULE**: Keep each "proposed" value close to the "original" length so the document layout holds. Growing a bullet to fit in JD keywords is EXPECTED and ENCOURAGED — aim to stay within about 30% of the original length, and never more than about 50% longer. Do NOT sacrifice keyword coverage to hit an exact character count, and NEVER shorten a bullet by more than a third — that deletes real content.
-6. NEVER use markdown formatting like **bold**, *italic*, or any special syntax in the proposed text. Output must be plain text only — no asterisks, no markdown.
+6. **THIS RESUME IS LATEX SOURCE.** Write "proposed" as LaTeX. Bold the job description's keywords with \\textbf{...}, and escape % & _ # as \\% \\& \\_ \\#. NEVER use markdown — asterisks and backticks render literally in the PDF and will be rejected.
 7. **EVIDENCE RULE**: Any skill you add to the Skills section MUST also appear in at least one Work Experience or Project bullet that you rewrite. A skill listed with no supporting bullet makes the whole resume look padded. If you cannot honestly tie a JD skill to work the candidate actually did, DO NOT add it to Skills at all — an unmatched keyword costs far less than a claim they cannot defend in an interview.
 
 `
@@ -75,9 +75,10 @@ This is a FULL ATS-TARGETED REVAMP — the goal is to maximize ATS keyword match
 - Keep the same achievement type and any metrics from the original.
 - Keep the proposed text within roughly 30% of the original length — growing a bullet to fit JD keywords is expected.
 
-### BOLD KEYWORDS:
-For each change, also output a "boldKeywords" array containing the 2-4 most important JD-relevant keywords/phrases in the proposed text that should be visually emphasized. These should be exact substrings of the proposed text.
-Example: if proposed is "architected and deployed microservices for distributed backend systems using Kubernetes", then boldKeywords could be ["microservices", "Kubernetes"].
+### KEYWORD EMPHASIS:
+Wrap the 2-4 most important JD-relevant keywords in each rewritten bullet in \\textbf{...}. That is how this
+resume emphasises terms, and it is what a recruiter's eye lands on first.
+Example: "architected and deployed \\textbf{microservices} for distributed backend systems using \\textbf{Kubernetes}".
 
 ### WHAT IS FROZEN (NEVER CHANGE):
 - Company names, role titles, and date ranges
@@ -103,11 +104,10 @@ Return this exact JSON structure:
     {
       "sectionId": "exact section id from the resume (e.g. section_0, section_1)",
       "sectionTitle": "Section Title",
-      "original": "exact verbatim text from resume — must be findable via string search, character-for-character",
-      "proposed": "rewritten plain text that directly reflects the JD, similar length to the original (NO markdown, NO asterisks)",
+      "original": "exact verbatim line from the resume above, character-for-character, LaTeX markup included",
+      "proposed": "rewritten LaTeX of similar length reflecting the JD, keywords in \\\\textbf{}, with % & _ # escaped as \\\\% \\\\& \\\\_ \\\\#",
       "reason": "why this rewrite improves the resume for this specific role",
-      "type": "rewrite|add_keywords|improve_clarity|action_verb",
-      "boldKeywords": ["keyword1", "keyword2"]
+      "type": "rewrite|add_keywords|improve_clarity|action_verb"
     }
   ]
 }
@@ -117,19 +117,21 @@ ${profileNotes ? profileNotes + '\n\n' : ''}## SECTION SKIP LIST
 Do NOT generate any changes for sections whose title contains any of these (case-insensitive):
 - "Education"
 - "Award"
+- "Achievement"
+- "Publication"
 - "Certificate"
 - "Header"
 - "Contact"
 
 ## RULES
 - Suggest 10 to 20 high-impact changes — cover EVERY work experience role and EVERY project
-- "original" must EXACTLY match text that exists in the resume — no paraphrasing, no trimming
+- "original" must EXACTLY match one of the lines shown above — no paraphrasing, no trimming
+- NEVER generate a change for a line starting with [Role], [Project] or [Group] — those are frozen headings
 - NEVER touch frozen fields (company names, role titles, dates, project names/titles/links)
 - EVERY work experience role MUST have at least 2 bullet point changes
 - EVERY project MUST have at least 1 bullet point change
 - For projects: NEVER change the heading/title line — only bullet points under it
 - Keep each proposed change within roughly 30% of the original length
-- Each change must include a "boldKeywords" array with 2-4 important JD terms from the proposed text
 
 ## ATS KEYWORD OPTIMIZATION
 Before generating changes, perform this analysis:
@@ -189,7 +191,6 @@ export function parseRevampResponse(
   const { changes, skipped } = normalizeChanges(raw.changes, {
     idPrefix: 'revamp',
     logLabel: 'revamper',
-    withBoldKeywords: true,
     length,
   })
 

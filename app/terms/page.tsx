@@ -22,14 +22,15 @@ export default function TermsOfService() {
 
           <section className="space-y-3">
             <h2 className="text-xl font-semibold text-[var(--color-text)]">2. Description of Service</h2>
-            <p>ResMod is an AI-powered resume optimization tool that integrates with Google Docs and the Google Gemini API to analyze and propose edits to user-provided resume documents.</p>
+            <p>ResMod is an AI-powered resume optimization tool. It reads a LaTeX resume, sends it with your job description to an AI provider of your choosing, and writes the edits you approve into a tailored copy of that LaTeX for you to download or compile.</p>
           </section>
 
           <section className="space-y-3">
             <h2 className="text-xl font-semibold text-[var(--color-text)]">3. User Responsibilities</h2>
             <ul className="list-disc pl-5 space-y-1">
               <li>You are responsible for maintaining the confidentiality of your Google account.</li>
-              <li>You must only optimize documents that you own or have explicit permission to modify.</li>
+              <li>You must only optimize resumes that you own or have explicit permission to modify.</li>
+              <li>You are responsible for verifying that the optimized resume remains truthful before you send it to an employer.</li>
               <li>You agree not to use the service for any illegal or unauthorized purpose.</li>
             </ul>
           </section>

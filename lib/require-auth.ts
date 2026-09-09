@@ -4,8 +4,7 @@ import { authOptions } from '@/lib/auth'
 
 interface AuthSuccess {
   ok: true
-  accessToken: string
-  /** Signed-in user's display name, used for the exported file name. */
+  /** Signed-in user's display name. Not used for file naming — see below. */
   userName: string
 }
 
@@ -15,37 +14,25 @@ interface AuthFailure {
 }
 
 /**
- * Shared guard for the Google Docs routes.
+ * Shared guard for the resume routes.
  *
- * Beyond checking for a session, this surfaces RefreshAccessTokenError. Without
- * it an expired refresh token produced confusing 401s straight from the Google
- * API instead of telling the user to sign in again.
+ * Only checks that someone is signed in. The routes no longer call any Google
+ * API, so there is no access token to validate or refresh.
+ *
+ * Note the exported file name comes from the resume *profile*, never from
+ * `userName` — otherwise Himanshu's resume downloads under whoever is logged in.
  */
-export async function requireGoogleAuth(): Promise<AuthSuccess | AuthFailure> {
+export async function requireAuth(): Promise<AuthSuccess | AuthFailure> {
   const session = await getServerSession(authOptions)
 
-  if (!session?.accessToken) {
+  if (!session?.user) {
     return {
       ok: false,
       response: NextResponse.json({ error: 'Not authenticated' }, { status: 401 }),
     }
   }
 
-  if (session.error === 'RefreshAccessTokenError') {
-    return {
-      ok: false,
-      response: NextResponse.json(
-        { error: 'Your Google session expired. Please sign out and sign in again to reconnect Google Docs.' },
-        { status: 401 }
-      ),
-    }
-  }
-
-  return {
-    ok: true,
-    accessToken: session.accessToken,
-    userName: session.user?.name ?? '',
-  }
+  return { ok: true, userName: session.user.name ?? '' }
 }
 
 // The filename helpers live in their own module so the browser and the pure
