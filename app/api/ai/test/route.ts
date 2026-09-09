@@ -6,6 +6,10 @@ import { AIProvider } from '@/types/resume'
 import { getProvider, PROVIDER_ORDER, ProviderConfig } from '@/lib/providers'
 import { resolveApiKey, resolveBaseUrl, resolveModel, providerErrorMessage } from '@/lib/ai-provider'
 
+// A cold start plus the upstream key/model check can exceed Vercel's 10s Hobby
+// default, which would return an HTML error page instead of the test result.
+export const maxDuration = 30
+
 const schema = z.object({
   provider: z.enum(PROVIDER_ORDER as [AIProvider, ...AIProvider[]]),
   apiKey: z.string().optional(),

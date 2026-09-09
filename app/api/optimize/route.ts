@@ -8,6 +8,12 @@ import { runOptimization } from '@/lib/run-optimization'
 import { PROVIDER_ORDER } from '@/lib/providers'
 import { getProfile, PROFILE_ORDER } from '@/lib/profiles'
 
+// An optimize run makes up to three sequential model calls, which runs well past
+// Vercel's 10s Hobby default. Without this the function is killed mid-run and
+// Vercel returns an HTML error page — the browser then fails to parse it as JSON
+// ("Unexpected token '<'"). 60 is the Hobby ceiling; raise on Pro if needed.
+export const maxDuration = 60
+
 const schema = z.object({
   resume: z.object({
     documentId: z.string(),

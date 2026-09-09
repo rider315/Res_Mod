@@ -8,6 +8,11 @@ import { runOptimization } from '@/lib/run-optimization'
 import { PROVIDER_ORDER } from '@/lib/providers'
 import { getProfile, PROFILE_ORDER } from '@/lib/profiles'
 
+// A revamp run makes several sequential model calls — far longer than Vercel's
+// 10s Hobby default. Without this the function is killed and Vercel returns an
+// HTML error page the browser can't parse as JSON. 60 is the Hobby ceiling.
+export const maxDuration = 60
+
 const schema = z.object({
   resume: z.object({
     documentId: z.string(),

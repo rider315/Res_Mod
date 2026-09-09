@@ -6,6 +6,12 @@ import { AIProvider } from '@/types/resume'
 import { getProvider, PROVIDER_ORDER, ProviderConfig } from '@/lib/providers'
 import { resolveApiKey, resolveBaseUrl } from '@/lib/ai-provider'
 
+// A cold start plus an upstream catalogue fetch can exceed Vercel's 10s Hobby
+// default; when it does the function returns an HTML error page and the picker
+// shows "Unexpected token '<'". Give it room — the picker still falls back to
+// the built-in shortlist if the list genuinely can't load.
+export const maxDuration = 30
+
 export interface CatalogModel {
   id: string
   name: string
