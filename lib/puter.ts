@@ -88,6 +88,45 @@ export async function ensurePuterSignedIn(): Promise<void> {
   await puter.auth.signIn()
 }
 
+/**
+ * Turn whatever Puter rejected with into a readable string.
+ *
+ * puter.ai.chat does not reject with an Error — it throws a plain object whose
+ * shape varies: sometimes `{ success:false, error:{ message, code, delegate } }`,
+ * sometimes `{ error:"..." }`, sometimes just `{ message:"..." }`. String()ing
+ * any of those gives "[object Object]" and swallows the real cause (model not
+ * available, usage-limit delegate, permission denied), so pull the message out
+ * by hand and only fall back to JSON as a last resort.
+ */
+export function puterErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message
+  if (typeof err === 'string') return err
+  if (err && typeof err === 'object') {
+    const e = err as Record<string, unknown>
+    const inner = e.error
+
+    if (typeof inner === 'string') return inner
+    if (inner && typeof inner === 'object') {
+      const ie = inner as Record<string, unknown>
+      if (typeof ie.message === 'string' && ie.message) return ie.message
+      if (typeof ie.delegate === 'string' && ie.delegate) {
+        const code = typeof ie.code === 'string' ? ` (${ie.code})` : ''
+        return `${ie.delegate}${code}`
+      }
+    }
+
+    if (typeof e.message === 'string' && e.message) return e.message
+
+    try {
+      const json = JSON.stringify(err)
+      if (json && json !== '{}') return json
+    } catch {
+      // Circular or otherwise unserializable — fall through.
+    }
+  }
+  return String(err)
+}
+
 /** Pull the text out of Puter's response shape, which varies a little by model. */
 function readPuterContent(response: PuterChatResponse): string {
   const content = response?.message?.content
@@ -130,7 +169,7 @@ export async function generatePuterResponse(options: {
       { model: model || 'gpt-5-nano', temperature, max_tokens: 8192 }
     )
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err)
+    const message = puterErrorMessage(err)
     throw new Error(
       `Puter request failed: ${message}. ` +
       'Check that you are signed in to Puter and that the selected model is available on your account.'
