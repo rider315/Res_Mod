@@ -111,8 +111,12 @@ export const PROVIDERS: Record<AIProvider, ProviderConfig> = {
     // The guide's production pick: strong instruction-following and a big context,
     // which the strict-JSON resume prompt needs. Switch to glm-4.6 (free) to spend nothing.
     defaultModel: 'claude-sonnet-4-5-20250929',
-    hasModelCatalog: true,
-    catalogNeedsKey: true,
+    // GET /v1/models is auth-gated but answers an authorised request with the
+    // site's own SPA HTML rather than a model list, so a live catalogue fetch
+    // just yields "Unexpected token '<'". POST /v1/chat/completions — the call
+    // that actually matters — is fine, so ship the curated list instead.
+    hasModelCatalog: false,
+    catalogNeedsKey: false,
     maxOutputTokens: 8192,
     // A gateway with both free and paid models, like OpenRouter — so free vs paid
     // is per model, and the "Free only" filter is meaningful here.

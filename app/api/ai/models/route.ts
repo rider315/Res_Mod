@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { authOptions } from '@/lib/auth'
 import { AIProvider } from '@/types/resume'
 import { getProvider, PROVIDER_ORDER, ProviderConfig } from '@/lib/providers'
-import { resolveApiKey, resolveBaseUrl } from '@/lib/ai-provider'
+import { resolveApiKey, resolveBaseUrl, readProviderJson } from '@/lib/ai-provider'
 
 // A cold start plus an upstream catalogue fetch can exceed Vercel's 10s Hobby
 // default; when it does the function returns an HTML error page and the picker
@@ -86,7 +86,7 @@ async function fetchOpenAIStyleModels(config: ProviderConfig, apiKey: string): P
     throw new Error(`${config.label} model list failed (${res.status}): ${body.slice(0, 200)}`)
   }
 
-  const data = await res.json()
+  const data = await readProviderJson(config, res, 'the model catalogue')
   return (data.data ?? [])
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .map((m: any): CatalogModel => {

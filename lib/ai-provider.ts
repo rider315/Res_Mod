@@ -126,6 +126,38 @@ function buildHeaders(config: ProviderConfig, apiKey: string): Record<string, st
   return headers
 }
 
+/**
+ * Read an upstream response as JSON, failing with a message that names the
+ * provider and what actually came back.
+ *
+ * A gateway can answer an API path with its own marketing/SPA HTML — AgentRouter
+ * does exactly that for GET /v1/models. A bare res.json() then surfaces
+ * "Unexpected token '<', \"<!doctype \"...", which says nothing about which
+ * service misbehaved or what to do next.
+ */
+export async function readProviderJson(
+  config: ProviderConfig,
+  res: Response,
+  what: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Promise<any> {
+  const text = await res.text()
+  try {
+    return JSON.parse(text)
+  } catch {
+    if (/^\s*<(?:!doctype|html)/i.test(text)) {
+      throw new Error(
+        `${config.label} returned an HTML page instead of JSON for ${what}. ` +
+        'That endpoint does not behave like an OpenAI-compatible API on this provider — ' +
+        'pick a model from the built-in list instead.'
+      )
+    }
+    throw new Error(
+      `${config.label} returned a non-JSON response for ${what}: ${text.slice(0, 150)}`
+    )
+  }
+}
+
 /** Turn a provider error payload into something worth showing the user. */
 export function providerErrorMessage(
   config: ProviderConfig,
@@ -227,7 +259,7 @@ async function callChatCompletions(
     }
 
     if (response.ok) {
-      const data = await response.json()
+      const data = await readProviderJson(config, response, 'the chat endpoint')
 
       // Some gateways return HTTP 200 with an error payload when the upstream fails.
       if (data?.error) {
