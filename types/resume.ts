@@ -1,5 +1,6 @@
 export type AIProvider =
   | 'openrouter'
+  | 'agentrouter'
   | 'gemini'
   | 'sambanova'
   | 'puter'
