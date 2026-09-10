@@ -17,6 +17,8 @@
     "lib/coverage.ts",
     "lib/keyword-evidence.ts",
     "lib/normalize-changes.ts",
+    "lib/resume-doc.ts",
+    "lib/import/render.ts",
     "types/resume.ts"
   ]
 }

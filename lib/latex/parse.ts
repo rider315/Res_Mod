@@ -101,10 +101,11 @@ export function stripMarkup(latex: string): string {
   let out = latex
   // \href{url}{label} -> label
   out = out.replace(/\\href\s*\{[^{}]*\}\s*\{/g, '{')
-  // \textbf{x} / \emph{x} / ... -> x   (repeat for nesting)
-  for (let pass = 0; pass < 4; pass++) {
-    out = out.replace(/\\(?:textbf|textit|emph|underline|texttt|textsc|small|scshape)\s*\{([^{}]*)\}/g, '$1')
-  }
+  // \textbf{x} / \emph{x} / ... -> {x}. Dropping only the command and leaving its
+  // braces for the final brace strip below also unwraps nested content such as a
+  // project title's \textbf{\href{...}{label}}, which a [^{}]* match never
+  // reached — it used to surface as "\textbfLabel".
+  out = out.replace(/\\(?:textbf|textit|emph|underline|texttt|textsc|small|scshape)\s*(?=\{)/g, '')
   out = out
     .replace(/\$\|\$/g, '|')
     .replace(/\$\\cdot\$/g, '-')

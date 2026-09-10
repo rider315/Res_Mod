@@ -19,6 +19,9 @@
  *   7. evidence     — an evidence-pass rewrite of an already-rewritten bullet
  *                     chains back to the real source line and still applies
  *   8. access       — who counts as the owner, and that everyone else doesn't
+ *   9. render       — a structured resume renders into the house template, with
+ *                     every user character escaped and every bullet editable;
+ *                     writes .pipeline-test/rendered.tex to compile
  */
 const path = require('path')
 const fs = require('fs')
@@ -337,6 +340,89 @@ const { parseOwnerEmails, roleForEmail, getAccess } = require(BUILD + '/lib/acce
     roleForEmail(OWNER, parseOwnerEmails('  , ')) === 'owner')
   check('no session means no access', getAccess(null) === null)
   check('a session without an email means no access', getAccess({ user: { name: 'x' } }) === null)
+}
+
+// ------------------------------------------------------- 9. structured render
+console.log('\n=== structured resume -> house LaTeX ===')
+
+const { renderResumeLatex, latexUrl } = require(BUILD + '/lib/import/render')
+const { ResumeDocSchema } = require(BUILD + '/lib/resume-doc')
+const { visible } = require(BUILD + '/lib/latex/match')
+
+{
+  const doc = ResumeDocSchema.parse({
+    name: 'Zoë O’Connor-Smith',
+    contact: {
+      email: 'zoe.oc@example.com',
+      phone: '+1 555 010 0199',
+      location: 'Austin, TX',
+      links: [
+        { label: 'github.com/zoe_dev', url: 'https://github.com/zoe_dev?tab=repos#top' },
+        { label: 'sneaky', url: 'javascript:alert(1)' },
+      ],
+    },
+    summary: 'Ships 50% faster & cheaper: C#, a $5M budget, ~{braces}~, <p95> \\input{x} ^caret … — “quoted”',
+    skills: [{ category: 'Languages & Tools:', items: ['C#', 'C++', 'Node.js', 'R&D', ''] }],
+    experience: [
+      {
+        company: 'Acme_Corp & Co.',
+        role: 'Senior Engineer',
+        dates: 'Jan 2020 – Present',
+        location: 'Remote',
+        bullets: ['Cut p95 latency by 40% (from 1.8s to <400ms)', 'Owned a $2M budget, the #1 priority'],
+        groups: [{ title: 'Client: Big Bank', bullets: ['Built ISO 20022 payment flows'] }],
+      },
+      { company: 'Empty Role Inc', role: 'Intern', bullets: [] },
+    ],
+    projects: [{ name: 'Resume Parser', url: 'example.com/a_b c', stack: 'TypeScript, Next.js', dates: '2024', bullets: ['Parsed 10k+ resumes'] }],
+    education: [{ school: 'State University', degree: 'B.S. Computer Science', dates: '2016 – 2020', location: 'Austin, TX', details: ['GPA 3.9/4.0'] }],
+    sections: [
+      { title: 'Certifications', lines: ['AWS Solutions Architect – Associate'] },
+      { title: 'Soft Skills', lines: ['Communication | Leadership'] },
+      { title: 'Empty', lines: ['  '] },
+    ],
+  })
+
+  const tex = renderResumeLatex(doc)
+  fs.writeFileSync(path.join(BUILD, 'rendered.tex'), tex)
+  check('the rendered document validates', validateLatexDocument(tex).length === 0, validateLatexDocument(tex).join('; '))
+
+  const parsed = parseLatexResume(tex, doc.name)
+  const titles = parsed.resume.sections.map((s) => s.title)
+  check('every non-empty section is rendered',
+    ['Summary', 'Technical Skills', 'Experience', 'Projects', 'Education', 'Certifications', 'Soft Skills'].every((t) => titles.includes(t)),
+    titles.join(', '))
+  check('empty sections are left out', !titles.includes('Empty'))
+  check('all prose is editable: summary, a skill line, 3 bullets, a project, an education detail, 2 extra lines',
+    parsed.editable.length === 9, 'got ' + parsed.editable.length)
+
+  const lines = parsed.resume.sections.flatMap((s) => s.content)
+  check('employer, project and client group are structural lines',
+    lines.some((l) => l.startsWith('[Role] Acme_Corp & Co. | Senior Engineer')) &&
+    lines.some((l) => l.startsWith('[Project] Resume Parser | TypeScript, Next.js')) &&
+    lines.includes('[Group] Client: Big Bank'),
+    lines.filter((l) => l.startsWith('[')).join(' | '))
+  check('a role with no bullets opens no empty list', !/\\resumeItemListStart\s*\\resumeItemListEnd/.test(tex))
+  check('special characters are escaped',
+    ['40\\%', 'R\\&D', 'C\\#', '\\$2M', '\\textless{}400ms', '\\{braces\\}', '\\textbackslash{}input', 'Acme\\_Corp'].every((s) => tex.includes(s)))
+  check('an imported \\input is only text', !/\\input\{x\}/.test(tex))
+  check('every editable span is unchanged by the rewrite sanitizer',
+    parsed.editable.every((s) => { const r = sanitizeLatexFragment(s.text); return r.ok && r.text === s.text }),
+    parsed.editable.filter((s) => { const r = sanitizeLatexFragment(s.text); return !r.ok || r.text !== s.text }).map((s) => s.text.slice(0, 50)).join(' | '))
+  check('a bullet still reads the same once markup is stripped',
+    parsed.editable.some((s) => visible(s.text).includes('40% (from 1.8s to')))
+  check('a javascript: link is not rendered as a link', !tex.includes('javascript') && tex.includes('sneaky'))
+  check('a bare domain becomes an https link with escaped characters',
+    latexUrl('example.com/a_b c') === 'https://example.com/a\\_b\\%20c', latexUrl('example.com/a_b c'))
+
+  const bullet = parsed.editable.find((s) => s.text.startsWith('Cut p95'))
+  const spliced = applyLatexChanges(tex, [{ original: bullet.text, proposed: 'Cut \\textbf{p95 latency} by 40% with caching' }])
+  check('the existing splice pipeline rewrites a rendered bullet',
+    spliced.applied === 1 && validateLatexDocument(spliced.latex).length === 0,
+    JSON.stringify({ applied: spliced.applied, unmatched: spliced.unmatched.length, rejected: spliced.rejected }))
+
+  check('a resume without a name is rejected', !ResumeDocSchema.safeParse({ name: '' }).success)
+  check('a resume with only a name gets defaults', ResumeDocSchema.safeParse({ name: 'A' }).success)
 }
 
 console.log('\n' + '='.repeat(46))

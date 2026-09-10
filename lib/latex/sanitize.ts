@@ -228,6 +228,39 @@ export function sanitizeLatexFragment(input: string): SanitizeResult {
   return { ok: true, text, problems }
 }
 
+const TEXT_ESCAPES: Record<string, string> = {
+  '\\': '\\textbackslash{}',
+  '{': '\\{',
+  '}': '\\}',
+  '%': '\\%',
+  '&': '\\&',
+  '_': '\\_',
+  '#': '\\#',
+  '$': '\\$',
+  '~': '\\textasciitilde{}',
+  '^': '\\textasciicircum{}',
+  '<': '\\textless{}',
+  '>': '\\textgreater{}',
+}
+
+/**
+ * Escape plain text for LaTeX, for text that must never be read as markup.
+ * Everything a user imports goes through this on its way into a .tex.
+ *
+ * Unlike sanitizeLatexFragment, nothing is let through: a backslash becomes a
+ * printed backslash, so an imported "\input{...}" is only characters on the
+ * page. Markdown bold and code are the one translation, the same one the
+ * sanitizer makes, which keeps the output a fixed point of sanitizeLatexFragment:
+ * the tailoring pipeline can quote and rewrite a rendered line without it
+ * changing underneath.
+ */
+export function escapeLatexText(input: string): string {
+  const flat = stripControlChars(input.replace(/\s+/g, ' '))
+  let out = ''
+  for (const ch of flat) out += TEXT_ESCAPES[ch] ?? ch
+  return foldUnicode(convertMarkdown(out)).replace(/\s+/g, ' ').trim()
+}
+
 /**
  * Whole-document check, run before the optimized .tex is handed back.
  * Catches a splice that unbalanced the file even though each fragment was fine.
