@@ -11,10 +11,7 @@ import {
   providerErrorMessage,
   readProviderJson,
 } from '@/lib/ai-provider'
-
-// A cold start plus the upstream key/model check can exceed Vercel's 10s Hobby
-// default, which would return an HTML error page instead of the test result.
-export const maxDuration = 30
+import { describeClaudeModel } from '@/lib/claude'
 
 const schema = z.object({
   provider: z.enum(PROVIDER_ORDER as [AIProvider, ...AIProvider[]]),
@@ -54,7 +51,9 @@ export async function POST(req: NextRequest) {
         ? await testOpenRouter(config, key, targetModel)
         : config.transport === 'gemini'
           ? await testGemini(key, targetModel)
-          : await testOpenAIStyle(config, key, targetModel)
+          : config.transport === 'anthropic'
+            ? await testClaude(key, targetModel)
+            : await testOpenAIStyle(config, key, targetModel)
 
     return NextResponse.json({ ok: true, detail, usingServerKey })
   } catch (err: unknown) {
@@ -130,6 +129,15 @@ async function testOpenRouter(config: ProviderConfig, key: string, model: string
   }
 
   return parts.join(' ')
+}
+
+/**
+ * A model lookup on the Claude API: a bad key fails with 401 and an unknown model
+ * with 404, and neither costs a token.
+ */
+async function testClaude(key: string, model: string): Promise<string> {
+  const info = await describeClaudeModel(key, model)
+  return `Key accepted by the Claude API · "${info.name}" (${model}) ready`
 }
 
 async function testGemini(key: string, model: string): Promise<string> {

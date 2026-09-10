@@ -1,5 +1,6 @@
 export type AIProvider =
   | 'openrouter'
+  | 'anthropic'
   | 'gemini'
   | 'sambanova'
   | 'puter'

@@ -4,10 +4,6 @@ import { requireAuth, sanitizeFileName } from '@/lib/require-auth'
 import { compileLatexToPdf, compileHost } from '@/lib/latex/compile'
 import { validateLatexDocument } from '@/lib/latex/sanitize'
 
-// The external LaTeX build can be slow; keep it under one function budget rather
-// than hitting Vercel's 10s Hobby default and returning an HTML error page.
-export const maxDuration = 60
-
 const schema = z.object({
   latex: z.string().min(1).max(400_000),
   fileName: z.string().optional(),

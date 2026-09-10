@@ -68,13 +68,14 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## AI providers
 
-Eight providers are supported, all with a free path. **OpenRouter is the
-default.** Switch providers any time from the **Settings** dialog (gear icon in
-the header).
+Nine providers are supported; all but the Claude API have a free path.
+**OpenRouter is the default.** Switch providers any time from the **Settings**
+dialog (gear icon in the header).
 
 | Provider | Key needed | Env var | Free tier | Get a key |
 | --- | --- | --- | --- | --- |
 | OpenRouter (default) | yes | `OPENROUTER_API_KEY` | many `:free` models | <https://openrouter.ai/keys> |
+| Claude API | yes | `ANTHROPIC_API_KEY` | none — billed per token | <https://platform.claude.com/settings/keys> |
 | Gemini | yes | `GEMINI_API_KEY` | daily request limits | <https://aistudio.google.com/apikey> |
 | SambaNova | yes | `SAMBANOVA_API_KEY` | free with rate limits | <https://cloud.sambanova.ai> |
 | Puter | **no** | — | free allowance, then user-pays | — |
@@ -146,7 +147,8 @@ lib/latex/sanitize.ts escaping + the macro allow-list
 lib/latex/apply.ts    the splice, plus whole-document validation
 lib/profiles/*.ts     per-resume layout rules (which sections are frozen, quotas)
 lib/providers.ts      the provider registry — add new providers here
-lib/ai-provider.ts    server dispatch: one OpenAI-compatible adapter + Gemini
+lib/ai-provider.ts    server dispatch: one OpenAI-compatible adapter + Gemini + Claude
+lib/claude.ts         Claude API via the official Anthropic SDK (server-only)
 lib/puter.ts          browser-side Puter client (no API key)
 lib/json-repair.ts    tolerant JSON extraction, shared by server and browser
 lib/optimizer.ts      optimize prompt + response validation (client-safe)

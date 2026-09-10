@@ -8,11 +8,11 @@ import { runOptimization } from '@/lib/run-optimization'
 import { PROVIDER_ORDER } from '@/lib/providers'
 import { getProfile, PROFILE_ORDER } from '@/lib/profiles'
 
-// An optimize run makes up to three sequential model calls, which runs well past
-// Vercel's 10s Hobby default. Without this the function is killed mid-run and
-// Vercel returns an HTML error page — the browser then fails to parse it as JSON
-// ("Unexpected token '<'"). 60 is the Hobby ceiling; raise on Pro if needed.
-export const maxDuration = 60
+// An optimize run makes up to three sequential model calls, and a thinking model
+// can spend over a minute on each. Pin the limit to the Hobby maximum under Fluid
+// compute (300s, also its default) so a lowered project default can't cut a run
+// short — Vercel kills an over-time function and returns an HTML error page.
+export const maxDuration = 300
 
 const schema = z.object({
   resume: z.object({

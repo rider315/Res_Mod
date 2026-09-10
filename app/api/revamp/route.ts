@@ -8,10 +8,11 @@ import { runOptimization } from '@/lib/run-optimization'
 import { PROVIDER_ORDER } from '@/lib/providers'
 import { getProfile, PROFILE_ORDER } from '@/lib/profiles'
 
-// A revamp run makes several sequential model calls — far longer than Vercel's
-// 10s Hobby default. Without this the function is killed and Vercel returns an
-// HTML error page the browser can't parse as JSON. 60 is the Hobby ceiling.
-export const maxDuration = 60
+// A revamp run makes up to three sequential model calls, and a thinking model can
+// spend over a minute on each. Pin the limit to the Hobby maximum under Fluid
+// compute (300s, also its default) so a lowered project default can't cut a run
+// short — Vercel kills an over-time function and returns an HTML error page.
+export const maxDuration = 300
 
 const schema = z.object({
   resume: z.object({

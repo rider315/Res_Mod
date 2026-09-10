@@ -2,13 +2,16 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 import { AIProvider } from '@/types/resume'
 import { getProvider, ProviderConfig } from '@/lib/providers'
 import { extractJSON, estimateTokens } from '@/lib/json-repair'
+import { generateClaude } from '@/lib/claude'
 
 /**
  * Server-side provider dispatch.
  *
- * Every provider except Gemini speaks the OpenAI chat-completions dialect, so one
- * adapter covers them all — the differences live in lib/providers.ts. Puter never
- * reaches this module: it runs entirely in the browser (see lib/puter.ts).
+ * Every provider except Gemini and the Claude API speaks the OpenAI
+ * chat-completions dialect, so one adapter covers them all — the differences live
+ * in lib/providers.ts. Claude goes through the official SDK in lib/claude.ts.
+ * Puter never reaches this module: it runs entirely in the browser (see
+ * lib/puter.ts).
  */
 
 interface AIRequestOptions {
@@ -75,6 +78,18 @@ export async function generateAIResponse(options: AIRequestOptions): Promise<str
 
   if (config.transport === 'gemini') {
     return generateGemini(apiKey, systemInstruction, prompt, temperature, resolveModel(provider, model))
+  }
+
+  if (config.transport === 'anthropic') {
+    // No temperature: current Claude models reject sampling parameters with a 400.
+    const text = await generateClaude({
+      apiKey,
+      systemInstruction,
+      prompt,
+      model: resolveModel(provider, model),
+      maxOutputTokens: config.maxOutputTokens ?? 64000,
+    })
+    return extractJSON(text) ?? text.trim()
   }
 
   return generateOpenAICompatible(config, apiKey, systemInstruction, prompt, temperature, model)

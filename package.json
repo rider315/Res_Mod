@@ -10,6 +10,7 @@
     "test:latex": "tsc -p tsconfig.pipeline-test.json && node scripts/latex-pipeline-test.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.124.0",
     "@google/generative-ai": "^0.24.1",
     "diff": "^9.0.0",
     "next": "14.2.35",

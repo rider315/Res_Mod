@@ -19,8 +19,11 @@ export interface ProviderConfig {
   label: string
   tagline: string
   emoji: string
-  /** How requests are made. 'openai' covers every OpenAI-compatible REST API. */
-  transport: 'openai' | 'gemini' | 'puter'
+  /**
+   * How requests are made. 'openai' covers every OpenAI-compatible REST API;
+   * 'anthropic' is the Claude API through the official SDK (lib/claude.ts).
+   */
+  transport: 'openai' | 'gemini' | 'puter' | 'anthropic'
   /** Root of the OpenAI-compatible API, without a trailing slash. */
   baseUrl?: string
   /** Server-side env var checked when the user hasn't set a key in Settings. */
@@ -93,6 +96,30 @@ export const PROVIDERS: Record<AIProvider, ProviderConfig> = {
       { id: 'google/gemma-4-31b-it:free', name: 'Gemma 4 31B (free)', note: '262K context', free: true },
       { id: 'google/gemini-2.5-flash', name: 'Gemini 2.5 Flash', note: 'Paid · 1M context', free: false },
       { id: 'anthropic/claude-sonnet-4.5', name: 'Claude Sonnet 4.5', note: 'Paid · best quality', free: false },
+    ],
+  },
+
+  anthropic: {
+    id: 'anthropic',
+    label: 'Claude API',
+    tagline: 'Anthropic, direct',
+    emoji: '✳️',
+    transport: 'anthropic',
+    envVar: 'ANTHROPIC_API_KEY',
+    needsKey: true,
+    keyUrl: 'https://platform.claude.com/settings/keys',
+    keyPlaceholder: 'sk-ant-...',
+    keyHint: 'Create a key at platform.claude.com — usage bills to your Anthropic account.',
+    defaultModel: 'claude-opus-5',
+    hasModelCatalog: true,
+    catalogNeedsKey: true,
+    // Sent as max_tokens, lowered per model to the output cap the Models API reports.
+    maxOutputTokens: 64000,
+    freeNote: 'Paid per token on your Anthropic account — no free tier.',
+    fallbackModels: [
+      { id: 'claude-opus-5', name: 'Claude Opus 5', note: '1M context · most capable Opus', free: false },
+      { id: 'claude-sonnet-5', name: 'Claude Sonnet 5', note: '1M context · faster', free: false },
+      { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5', note: '200K context · fastest', free: false },
     ],
   },
 
@@ -278,6 +305,7 @@ export const PROVIDERS: Record<AIProvider, ProviderConfig> = {
 /** Display order in the settings picker. */
 export const PROVIDER_ORDER: AIProvider[] = [
   'openrouter',
+  'anthropic',
   'gemini',
   'sambanova',
   'puter',

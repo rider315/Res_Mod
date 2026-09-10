@@ -5,12 +5,7 @@ import { authOptions } from '@/lib/auth'
 import { AIProvider } from '@/types/resume'
 import { getProvider, PROVIDER_ORDER, ProviderConfig } from '@/lib/providers'
 import { resolveApiKey, resolveBaseUrl, readProviderJson } from '@/lib/ai-provider'
-
-// A cold start plus an upstream catalogue fetch can exceed Vercel's 10s Hobby
-// default; when it does the function returns an HTML error page and the picker
-// shows "Unexpected token '<'". Give it room — the picker still falls back to
-// the built-in shortlist if the list genuinely can't load.
-export const maxDuration = 30
+import { listClaudeModels } from '@/lib/claude'
 
 export interface CatalogModel {
   id: string
@@ -52,7 +47,9 @@ export async function POST(req: NextRequest) {
     const models =
       config.transport === 'gemini'
         ? await fetchGeminiModels(apiKey)
-        : await fetchOpenAIStyleModels(config, apiKey)
+        : config.transport === 'anthropic'
+          ? await fetchClaudeModels(apiKey)
+          : await fetchOpenAIStyleModels(config, apiKey)
 
     return NextResponse.json({ models })
   } catch (err: unknown) {
@@ -109,6 +106,21 @@ async function fetchOpenAIStyleModels(config: ProviderConfig, apiKey: string): P
     })
     .filter((m: CatalogModel) => Boolean(m.id))
     .sort((a: CatalogModel, b: CatalogModel) => a.name.localeCompare(b.name))
+}
+
+/**
+ * Newest first, as the Models API returns them. The Claude API has no free tier,
+ * so every model is marked paid rather than guessed from a price field.
+ */
+async function fetchClaudeModels(apiKey: string): Promise<CatalogModel[]> {
+  return (await listClaudeModels(apiKey)).map((m) => ({
+    id: m.id,
+    name: m.name,
+    contextLength: m.contextLength,
+    free: false,
+    promptPricePerM: 0,
+    maxCompletionTokens: m.maxOutputTokens,
+  }))
 }
 
 async function fetchGeminiModels(apiKey: string): Promise<CatalogModel[]> {
