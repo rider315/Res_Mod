@@ -595,8 +595,8 @@ export default function Dashboard() {
             <div>
               <h1 className="text-2xl font-bold text-[var(--color-text)] mb-1">Optimize your resume</h1>
               <p className="text-sm text-[var(--color-text-muted)]">
-                Pick whose resume to tailor. The LaTeX source lives in this project — the optimizer reads it and
-                writes a tailored copy, never touching the original.
+                Pick whose resume to tailor. The optimizer reads the stored LaTeX and writes a tailored copy,
+                never touching the original.
               </p>
             </div>
 
@@ -636,7 +636,7 @@ export default function Dashboard() {
               <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-[var(--color-primary)]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
               <span>
                 To change the base resume itself, edit <code className="font-mono text-xs">resumes/{activeProfile.texFile}</code> and
-                reload. Keep prose inside <code className="font-mono text-xs">\resumeItem&#123;&#125;</code>,{' '}
+                run <code className="font-mono text-xs">npm run db:seed-owner</code>. Keep prose inside <code className="font-mono text-xs">\resumeItem&#123;&#125;</code>,{' '}
                 <code className="font-mono text-xs">\skillLine&#123;&#125;</code> and{' '}
                 <code className="font-mono text-xs">\resumeSummary&#123;&#125;</code> so the optimizer can see it.
               </span>

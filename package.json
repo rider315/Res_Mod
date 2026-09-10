@@ -7,12 +7,17 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test:latex": "tsc -p tsconfig.pipeline-test.json && node scripts/latex-pipeline-test.js"
+    "test:latex": "tsc -p tsconfig.pipeline-test.json && node scripts/latex-pipeline-test.js",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node scripts/db-migrate.mjs",
+    "db:seed-owner": "node scripts/seed-owner-resumes.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.124.0",
     "@google/generative-ai": "^0.24.1",
+    "@neondatabase/serverless": "^1.1.0",
     "diff": "^9.0.0",
+    "drizzle-orm": "^0.45.2",
     "next": "14.2.35",
     "next-auth": "^4.24.14",
     "react": "^18",
@@ -24,6 +29,7 @@
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "drizzle-kit": "^0.31.10",
     "eslint": "^8",
     "eslint-config-next": "14.2.35",
     "postcss": "^8",

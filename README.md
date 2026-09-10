@@ -1,6 +1,6 @@
 # ResMod — ATS Resume Optimizer
 
-Your resume is a LaTeX file in [resumes/](resumes/). Paste a job description and
+Your resume is a LaTeX file. Paste a job description and
 the app parses that `.tex` into sections, asks an LLM for ATS-targeted rewrites,
 lets you approve each change in a diff view, then splices the approved changes
 into a **copy** of the LaTeX — the source file is never written to. Download the
@@ -8,8 +8,10 @@ into a **copy** of the LaTeX — the source file is never written to. Download t
 
 ## The resume is the source of truth
 
-Each profile owns one file under `resumes/`. To change the base resume, edit that
-file and reload the app.
+Each owner profile has one LaTeX resume. The copy the app reads lives in the
+database; `resumes/` is the owner's local working copy and is not committed. To
+change a base resume, edit its file under `resumes/` and run
+`npm run db:seed-owner`, which publishes it to every environment at once.
 
 The parser only offers the model text that lives inside one of three macros, so
 anything you add must use them:
@@ -58,7 +60,15 @@ automatically — only on an explicit click.
 npm install
 ```
 
-Copy `.env.example` to `.env.local` and fill it in, then:
+Copy `.env.example` to `.env.local` and fill it in. With the Neon connection
+strings in place, create the tables and publish the owner resumes:
+
+```bash
+npm run db:migrate
+npm run db:seed-owner
+```
+
+Then start the app:
 
 ```bash
 npm run dev
@@ -154,5 +164,10 @@ lib/json-repair.ts    tolerant JSON extraction, shared by server and browser
 lib/optimizer.ts      optimize prompt + response validation (client-safe)
 lib/revamper.ts       revamp prompt + response validation (client-safe)
 lib/settings-storage.ts  per-provider keys and models in localStorage
+lib/db/schema.ts      database tables (Drizzle); migrations live in drizzle/
+lib/latex/source.ts   loads an owner profile's resume from the database
+app/api/health        database liveness check
+scripts/db-migrate.mjs          npm run db:migrate
+scripts/seed-owner-resumes.mjs  npm run db:seed-owner
 scripts/latex-pipeline-test.js  npm run test:latex
 ```
