@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { requireAuth } from '@/lib/require-auth'
-import { getProfile, PROFILE_ORDER } from '@/lib/profiles'
+import { requireOwner } from '@/lib/require-auth'
+import { getProfile, PROFILE_ORDER, ResumeProfileId } from '@/lib/profiles'
 import { loadResumeSource } from '@/lib/latex/source'
 import { parseLatexResume } from '@/lib/latex/parse'
 import { compileHost } from '@/lib/latex/compile'
 
 const schema = z.object({
-  profileId: z.enum(PROFILE_ORDER as [string, ...string[]]),
+  profileId: z.enum(PROFILE_ORDER as [ResumeProfileId, ...ResumeProfileId[]]),
 })
 
 /**
@@ -18,7 +18,8 @@ const schema = z.object({
  * optimization produces a fresh copy in memory.
  */
 export async function POST(req: NextRequest) {
-  const auth = await requireAuth()
+  // The profiles and their .tex files are the owner's alone.
+  const auth = await requireOwner()
   if (!auth.ok) return auth.response
 
   const parsed = schema.safeParse(await req.json())

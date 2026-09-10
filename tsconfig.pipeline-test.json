@@ -13,6 +13,7 @@
   "include": [
     "lib/latex/**/*.ts",
     "lib/profiles/**/*.ts",
+    "lib/access.ts",
     "lib/coverage.ts",
     "lib/keyword-evidence.ts",
     "lib/normalize-changes.ts",

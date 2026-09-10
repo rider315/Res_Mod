@@ -18,6 +18,7 @@
  *                     that anything the sanitizer accepts actually typesets
  *   7. evidence     — an evidence-pass rewrite of an already-rewritten bullet
  *                     chains back to the real source line and still applies
+ *   8. access       — who counts as the owner, and that everyone else doesn't
  */
 const path = require('path')
 const fs = require('fs')
@@ -313,6 +314,29 @@ const { mergeEvidenceChanges } = require(BUILD + '/lib/keyword-evidence')
   const repeat = change(b.text, b.text + ' twice', b.sectionTitle)
   check('a second rewrite of the same untouched bullet is dropped',
     mergeEvidenceChanges([], [fresh, repeat], profile.length).length === 1)
+}
+
+// ------------------------------------------------------------ 8. access roles
+console.log('\n=== access roles ===')
+
+const { parseOwnerEmails, roleForEmail, getAccess } = require(BUILD + '/lib/access')
+
+{
+  const OWNER = 'gaurav.chaudhary.865022@gmail.com'
+  const defaults = parseOwnerEmails(undefined)
+  const configured = parseOwnerEmails('a@x.com, B@Y.com')
+
+  check('the platform owner is an owner by default', roleForEmail(OWNER, defaults) === 'owner')
+  check('owner matching ignores case and surrounding spaces',
+    roleForEmail('  Gaurav.Chaudhary.865022@Gmail.com ', defaults) === 'owner')
+  check('any other account is a user', roleForEmail('someone@example.com', defaults) === 'user')
+  check('a missing email is never an owner', roleForEmail(undefined, defaults) === 'user')
+  check('OWNER_EMAILS replaces the default owner list',
+    roleForEmail('b@y.com', configured) === 'owner' && roleForEmail(OWNER, configured) === 'user')
+  check('a blank OWNER_EMAILS falls back to the default owner',
+    roleForEmail(OWNER, parseOwnerEmails('  , ')) === 'owner')
+  check('no session means no access', getAccess(null) === null)
+  check('a session without an email means no access', getAccess({ user: { name: 'x' } }) === null)
 }
 
 console.log('\n' + '='.repeat(46))

@@ -1,14 +1,14 @@
 import { NextAuthOptions } from 'next-auth'
 import GoogleProvider from 'next-auth/providers/google'
+import { roleForEmail } from '@/lib/access'
 
 /**
- * Sign-in only.
+ * Google sign-in, used only to identify who is signed in.
  *
- * This app used to read and copy the user's Google Docs, which meant asking for
- * the Drive and Documents scopes and keeping a refreshable access token around.
- * The resume is now a .tex file in this repository, so none of that is needed:
- * Google is here purely to identify who is signed in, and the app requests the
- * minimum scopes that allows.
+ * The app requests the minimum scopes that allows (openid, email, profile) and
+ * never calls a Google API. Identity decides access: the owner's email unlocks
+ * the resume profiles and server keys (lib/access.ts), so an unverified address
+ * is refused outright rather than trusted.
  */
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -27,5 +27,20 @@ export const authOptions: NextAuthOptions = {
   },
   session: {
     strategy: 'jwt',
+  },
+  callbacks: {
+    async signIn({ account, profile }) {
+      if (account?.provider !== 'google') return false
+      return (profile as { email_verified?: boolean } | undefined)?.email_verified === true
+    },
+    // The role is worked out on every read instead of being frozen into the JWT,
+    // so a change to OWNER_EMAILS applies without anyone signing out.
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.id = token.sub ?? ''
+        session.user.role = roleForEmail(session.user.email)
+      }
+      return session
+    },
   },
 }

@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
 import { z } from 'zod'
-import { authOptions } from '@/lib/auth'
+import { requireOwner } from '@/lib/require-auth'
 import { AIProvider } from '@/types/resume'
 import { generateAIResponse, resolveApiKey, resolveModel } from '@/lib/ai-provider'
 import { runOptimization } from '@/lib/run-optimization'
 import { PROVIDER_ORDER } from '@/lib/providers'
-import { getProfile, PROFILE_ORDER } from '@/lib/profiles'
+import { DEFAULT_PROFILE_ID, getProfile, PROFILE_ORDER, ResumeProfileId } from '@/lib/profiles'
 
 // A revamp run makes up to three sequential model calls, and a thinking model can
 // spend over a minute on each. Pin the limit to the Hobby maximum under Fluid
@@ -32,13 +31,14 @@ const schema = z.object({
   provider: z.enum(PROVIDER_ORDER as [AIProvider, ...AIProvider[]]).optional(),
   apiKey: z.string().optional(),
   model: z.string().optional(),
-  profileId: z.enum(PROFILE_ORDER as [string, ...string[]]).optional(),
+  profileId: z.enum(PROFILE_ORDER as [ResumeProfileId, ...ResumeProfileId[]]).optional(),
 })
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session)
-    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+  // Tailoring still runs on the owner's resume profiles, so it is owner-only
+  // until regular users have resumes of their own to tailor.
+  const auth = await requireOwner()
+  if (!auth.ok) return auth.response
 
   const body = await req.json()
   const parsed = schema.safeParse(body)
@@ -49,11 +49,11 @@ export async function POST(req: NextRequest) {
   const provider = (parsed.data.provider ?? 'openrouter') as AIProvider
 
   try {
-    const key = resolveApiKey(provider, apiKey)
+    const key = resolveApiKey(provider, apiKey, { allowServerKey: auth.role === 'owner' })
 
     const result = await runOptimization({
       mode: 'revamp',
-      profile: getProfile(parsed.data.profileId),
+      profile: getProfile(parsed.data.profileId ?? DEFAULT_PROFILE_ID),
       resume,
       jobDescription,
       hardInstructions,

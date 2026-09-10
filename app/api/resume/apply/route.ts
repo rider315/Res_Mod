@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { requireAuth, buildResumeFileName } from '@/lib/require-auth'
-import { getProfile, PROFILE_ORDER } from '@/lib/profiles'
+import { requireOwner, buildResumeFileName } from '@/lib/require-auth'
+import { getProfile, PROFILE_ORDER, ResumeProfileId } from '@/lib/profiles'
 import { loadResumeSource } from '@/lib/latex/source'
 import { applyLatexChanges } from '@/lib/latex/apply'
 
 const schema = z.object({
-  profileId: z.enum(PROFILE_ORDER as [string, ...string[]]),
+  profileId: z.enum(PROFILE_ORDER as [ResumeProfileId, ...ResumeProfileId[]]),
   changes: z.array(
     z.object({
       id: z.string(),
@@ -26,7 +26,8 @@ const schema = z.object({
  * document the changes are applied to is always the real one on disk.
  */
 export async function POST(req: NextRequest) {
-  const auth = await requireAuth()
+  // Splices into the owner's profile .tex, so owner-only.
+  const auth = await requireOwner()
   if (!auth.ok) return auth.response
 
   const parsed = schema.safeParse(await req.json())

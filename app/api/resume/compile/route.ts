@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { requireAuth, sanitizeFileName } from '@/lib/require-auth'
+import { requireOwner, sanitizeFileName } from '@/lib/require-auth'
 import { compileLatexToPdf, compileHost } from '@/lib/latex/compile'
 import { validateLatexDocument } from '@/lib/latex/sanitize'
 
@@ -17,7 +17,9 @@ const schema = z.object({
  * or apply flow. The UI names the destination host next to the button.
  */
 export async function POST(req: NextRequest) {
-  const auth = await requireAuth()
+  // Owner-only for now: regular users have no resume stored on the server to
+  // compile yet, and an open endpoint would be a free LaTeX build proxy.
+  const auth = await requireOwner()
   if (!auth.ok) return auth.response
 
   const parsed = schema.safeParse(await req.json())

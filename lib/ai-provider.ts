@@ -24,22 +24,29 @@ interface AIRequestOptions {
 }
 
 /**
- * Pick the API key to use: the one the user typed in Settings wins, otherwise
- * fall back to the provider's server-side env var. Providers that need no key
- * (Ollama, Puter) return an empty string.
+ * Pick the API key to use: the one the user typed in Settings wins. Only when
+ * `allowServerKey` is set — the owner — does it fall back to the provider's
+ * server-side env var, because those keys are billed to the platform. Providers
+ * that need no key (Ollama, Puter) return an empty string.
  */
-export function resolveApiKey(provider: AIProvider, clientKey?: string): string {
+export function resolveApiKey(
+  provider: AIProvider,
+  clientKey?: string,
+  { allowServerKey = false }: { allowServerKey?: boolean } = {}
+): string {
   const config = getProvider(provider)
   const userKey = clientKey?.trim()
   if (userKey) return userKey
   if (!config.needsKey) return ''
 
-  const envKey = config.envVar ? process.env[config.envVar]?.trim() : undefined
+  const envKey = allowServerKey && config.envVar ? process.env[config.envVar]?.trim() : undefined
   if (envKey) return envKey
 
   throw new Error(
-    `No ${config.label} API key configured. Add one in Settings (gear icon), ` +
-    `or set ${config.envVar} in .env.local.`
+    allowServerKey
+      ? `No ${config.label} API key configured. Add one in Settings (gear icon), ` +
+        `or set ${config.envVar} in .env.local.`
+      : `Add your ${config.label} API key in Settings (gear icon) to use this provider.`
   )
 }
 

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
 import { z } from 'zod'
-import { authOptions } from '@/lib/auth'
+import { requireAuth } from '@/lib/require-auth'
 import { AIProvider } from '@/types/resume'
 import { getProvider, PROVIDER_ORDER, ProviderConfig } from '@/lib/providers'
 import { resolveApiKey, resolveBaseUrl, readProviderJson } from '@/lib/ai-provider'
@@ -31,8 +30,8 @@ const schema = z.object({
  * has no business sitting in a query string.
  */
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+  const auth = await requireAuth()
+  if (!auth.ok) return auth.response
 
   const parsed = schema.safeParse(await req.json())
   if (!parsed.success) return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
@@ -43,7 +42,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const apiKey = config.catalogNeedsKey ? resolveApiKey(config.id, parsed.data.apiKey) : ''
+    const apiKey = config.catalogNeedsKey ? resolveApiKey(config.id, parsed.data.apiKey, { allowServerKey: auth.role === 'owner' }) : ''
     const models =
       config.transport === 'gemini'
         ? await fetchGeminiModels(apiKey)

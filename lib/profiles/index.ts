@@ -14,8 +14,14 @@ export const PROFILE_ORDER: ResumeProfileId[] = ['gaurav', 'himanshu']
 
 export const DEFAULT_PROFILE_ID: ResumeProfileId = 'gaurav'
 
-export function getProfile(id: ResumeProfileId | string | undefined): ResumeProfile {
-  return PROFILES[id as ResumeProfileId] ?? PROFILES[DEFAULT_PROFILE_ID]
+/**
+ * Strict on purpose: an unknown id used to fall back to Gaurav's profile, which
+ * would hand the owner's prompts to anyone who sent a bad id.
+ */
+export function getProfile(id: ResumeProfileId): ResumeProfile {
+  const profile = PROFILES[id]
+  if (!profile) throw new Error(`Unknown resume profile "${id}"`)
+  return profile
 }
 
 export function isValidProfileId(id: string): id is ResumeProfileId {
