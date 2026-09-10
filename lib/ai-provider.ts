@@ -130,10 +130,10 @@ function buildHeaders(config: ProviderConfig, apiKey: string): Record<string, st
  * Read an upstream response as JSON, failing with a message that names the
  * provider and what actually came back.
  *
- * A gateway can answer an API path with its own marketing/SPA HTML — AgentRouter
- * does exactly that for GET /v1/models. A bare res.json() then surfaces
- * "Unexpected token '<', \"<!doctype \"...", which says nothing about which
- * service misbehaved or what to do next.
+ * A gateway can answer an API path with its own web page instead of JSON — when
+ * it blocks callers it doesn't recognise, or when the path isn't a real API
+ * route. A bare res.json() then surfaces "Unexpected token '<', \"<!doctype
+ * \"...", which says nothing about which service misbehaved.
  */
 export async function readProviderJson(
   config: ProviderConfig,
@@ -147,9 +147,9 @@ export async function readProviderJson(
   } catch {
     if (/^\s*<(?:!doctype|html)/i.test(text)) {
       throw new Error(
-        `${config.label} returned an HTML page instead of JSON for ${what}. ` +
-        'That endpoint does not behave like an OpenAI-compatible API on this provider — ' +
-        'pick a model from the built-in list instead.'
+        `${config.label} returned a web page instead of JSON for ${what}. ` +
+        'It may be blocking requests from this app, or the endpoint is not an ' +
+        'OpenAI-compatible API — try a different provider in Settings.'
       )
     }
     throw new Error(

@@ -54,9 +54,7 @@ export async function POST(req: NextRequest) {
         ? await testOpenRouter(config, key, targetModel)
         : config.transport === 'gemini'
           ? await testGemini(key, targetModel)
-          : config.hasModelCatalog
-            ? await testOpenAIStyle(config, key, targetModel)
-            : await testChatCompletion(config, key, targetModel)
+          : await testOpenAIStyle(config, key, targetModel)
 
     return NextResponse.json({ ok: true, detail, usingServerKey })
   } catch (err: unknown) {
@@ -64,39 +62,6 @@ export async function POST(req: NextRequest) {
     console.error('[ai/test]', config.id, message)
     return NextResponse.json({ ok: false, error: message }, { status: 400 })
   }
-}
-
-/**
- * Verify a key against the endpoint the app actually uses.
- *
- * For providers with no usable model catalogue (AgentRouter answers GET /models
- * with its own SPA HTML), listing models proves nothing. A one-token completion
- * on the selected model is cheap and is exactly the call an optimization makes,
- * so it also catches a model id the account cannot reach.
- */
-async function testChatCompletion(config: ProviderConfig, key: string, model: string): Promise<string> {
-  const baseUrl = resolveBaseUrl(config)
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (key) headers.Authorization = `Bearer ${key}`
-
-  let res: Response
-  try {
-    res = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ model, messages: [{ role: 'user', content: 'ping' }], max_tokens: 1 }),
-      cache: 'no-store',
-    })
-  } catch (err) {
-    throw new Error(
-      `Could not reach ${config.label}: ${err instanceof Error ? err.message : String(err)}`
-    )
-  }
-
-  if (!res.ok) throw new Error(providerErrorMessage(config, res.status, await res.text(), model))
-
-  await readProviderJson(config, res, 'the chat endpoint')
-  return `Key accepted by ${config.label} · "${model}" ready`
 }
 
 /** Generic check: list models with the key, then confirm the chosen id is there. */

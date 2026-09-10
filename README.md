@@ -68,14 +68,13 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## AI providers
 
-Nine providers are supported, all with a free path. **OpenRouter is the
+Eight providers are supported, all with a free path. **OpenRouter is the
 default.** Switch providers any time from the **Settings** dialog (gear icon in
 the header).
 
 | Provider | Key needed | Env var | Free tier | Get a key |
 | --- | --- | --- | --- | --- |
 | OpenRouter (default) | yes | `OPENROUTER_API_KEY` | many `:free` models | <https://openrouter.ai/keys> |
-| AgentRouter | yes | `AGENTROUTER_API_KEY` | free credits on signup | <https://agentrouter.org> |
 | Gemini | yes | `GEMINI_API_KEY` | daily request limits | <https://aistudio.google.com/apikey> |
 | SambaNova | yes | `SAMBANOVA_API_KEY` | free with rate limits | <https://cloud.sambanova.ai> |
 | Puter | **no** | — | free allowance, then user-pays | — |

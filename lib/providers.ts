@@ -96,46 +96,6 @@ export const PROVIDERS: Record<AIProvider, ProviderConfig> = {
     ],
   },
 
-  agentrouter: {
-    id: 'agentrouter',
-    label: 'AgentRouter',
-    tagline: 'Claude, GPT & Gemini, one key',
-    emoji: '🧭',
-    transport: 'openai',
-    baseUrl: 'https://agentrouter.org/v1',
-    envVar: 'AGENTROUTER_API_KEY',
-    needsKey: true,
-    keyUrl: 'https://agentrouter.org',
-    keyPlaceholder: 'sk-...',
-    keyHint: 'Get a key at agentrouter.org — free credits included, then user-pays.',
-    // The guide's production pick: strong instruction-following and a big context,
-    // which the strict-JSON resume prompt needs. Switch to glm-4.6 (free) to spend nothing.
-    defaultModel: 'claude-sonnet-4-5-20250929',
-    // GET /v1/models is auth-gated but answers an authorised request with the
-    // site's own SPA HTML rather than a model list, so a live catalogue fetch
-    // just yields "Unexpected token '<'". POST /v1/chat/completions — the call
-    // that actually matters — is fine, so ship the curated list instead.
-    hasModelCatalog: false,
-    catalogNeedsKey: false,
-    maxOutputTokens: 8192,
-    // A gateway with both free and paid models, like OpenRouter — so free vs paid
-    // is per model, and the "Free only" filter is meaningful here.
-    pricingIsPerModel: true,
-    freeNote: 'Free credits on signup; premium models spend them.',
-    fallbackModels: [
-      {
-        id: 'claude-sonnet-4-5-20250929',
-        name: 'Claude Sonnet 4.5',
-        note: 'Best quality · strong JSON',
-        free: false,
-      },
-      { id: 'gpt-4o', name: 'GPT-4o', note: 'Strong all-rounder', free: false },
-      { id: 'gpt-4o-mini', name: 'GPT-4o mini', note: 'Cheaper, fast', free: false },
-      { id: 'glm-4.6', name: 'GLM-4.6', note: 'Free tier', free: true },
-      { id: 'glm-4.5-air', name: 'GLM-4.5 Air', note: 'Free · fastest', free: true },
-    ],
-  },
-
   puter: {
     id: 'puter',
     label: 'Puter',
@@ -318,7 +278,6 @@ export const PROVIDERS: Record<AIProvider, ProviderConfig> = {
 /** Display order in the settings picker. */
 export const PROVIDER_ORDER: AIProvider[] = [
   'openrouter',
-  'agentrouter',
   'gemini',
   'sambanova',
   'puter',
