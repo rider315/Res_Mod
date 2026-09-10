@@ -16,6 +16,8 @@
  *   5. applying     — splices land, frozen lines resist, bad LaTeX is refused
  *   6. fuzz corpus  — writes .pipeline-test/fuzz.tex; compile it to confirm
  *                     that anything the sanitizer accepts actually typesets
+ *   7. evidence     — an evidence-pass rewrite of an already-rewritten bullet
+ *                     chains back to the real source line and still applies
  */
 const path = require('path')
 const fs = require('fs')
@@ -258,6 +260,60 @@ fs.writeFileSync(path.join(BUILD, 'fuzz.tex'), fuzzDoc)
 check('fuzz document passes whole-document validation',
   validateLatexDocument(fuzzDoc).length === 0, validateLatexDocument(fuzzDoc).join('; '))
 console.log('  wrote .pipeline-test/fuzz.tex (' + accepted.length + ' fragments) — compile it to verify typesetting')
+
+// ---------------------------------------------------------- 7. evidence merge
+console.log('\n=== evidence merge (gaurav.tex) ===')
+
+const { mergeEvidenceChanges } = require(BUILD + '/lib/keyword-evidence')
+
+{
+  const profile = PROFILES.gaurav
+  const src = fs.readFileSync(path.join(ROOT, 'resumes', profile.texFile), 'utf8')
+  const [a, b] = parseLatexResume(src, 'resume').editable.filter((s) => s.macro === 'resumeItem')
+  const change = (original, proposed, sectionTitle) => ({
+    id: 'test_' + original.length + '_' + proposed.length,
+    sectionId: '',
+    sectionTitle,
+    original,
+    proposed,
+    reason: '',
+    type: 'rewrite',
+    approved: true,
+  })
+  const addition = ' with \\textbf{RAG}'
+
+  // A real rewrite restructures the sentence, so the matcher's "contains"
+  // fallback can't quietly recover it — reversing the words has the same effect.
+  const first = change(a.text, 'Reworked ' + a.text.split(' ').reverse().join(' '), a.sectionTitle)
+  // The evidence prompt shows an already-rewritten bullet as its proposed text.
+  const chained = change(first.proposed, a.text + addition, 'Other')
+  const fresh = change(b.text, b.text + addition, b.sectionTitle)
+
+  check('fixture fits the length rules',
+    addition.length <= profile.length.maxGrowth(a.text.length),
+    'addition ' + addition.length + ' > budget ' + profile.length.maxGrowth(a.text.length))
+  check('an evidence change quoting rewritten text cannot apply on its own',
+    applyLatexChanges(src, [chained]).unmatched.length === 1)
+
+  const merged = mergeEvidenceChanges([first], [chained, fresh], profile.length)
+  check('a chained rewrite replaces the earlier change', merged.length === 2, 'got ' + merged.length)
+  check('a chained rewrite points back at the real source line', merged[0].original === a.text)
+  check('a chained rewrite keeps the newer wording', merged[0].proposed === chained.proposed)
+  check('a chained rewrite keeps the source section', merged[0].sectionTitle === a.sectionTitle)
+
+  const applied = applyLatexChanges(src, merged)
+  check('both merged changes splice into the .tex',
+    applied.applied === 2 && applied.unmatched.length === 0,
+    'applied ' + applied.applied + ', unmatched ' + applied.unmatched.length)
+
+  const bloated = change(first.proposed, a.text + ' ' + 'x'.repeat(400), 'Other')
+  check('a chained rewrite that breaks the length rules leaves the earlier one',
+    mergeEvidenceChanges([first], [bloated], profile.length)[0].proposed === first.proposed)
+
+  const repeat = change(b.text, b.text + ' twice', b.sectionTitle)
+  check('a second rewrite of the same untouched bullet is dropped',
+    mergeEvidenceChanges([], [fresh, repeat], profile.length).length === 1)
+}
 
 console.log('\n' + '='.repeat(46))
 console.log('  ' + pass + ' passed, ' + fail + ' failed')

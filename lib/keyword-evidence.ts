@@ -1,6 +1,7 @@
 import { OptimizationResult, ParsedResume, ResumeChange } from '@/types/resume'
 import { CoverageRules } from '@/lib/profiles/types'
 import { isEditableSection } from '@/lib/coverage'
+import { LengthLimits } from '@/lib/normalize-changes'
 
 /**
  * Skills claimed without evidence.
@@ -171,6 +172,58 @@ Return this exact JSON structure and nothing else:
     }
   ]
 }`
+}
+
+/**
+ * Merge evidence-pass rewrites into the existing changes.
+ *
+ * The evidence prompt shows bullets as they read after the earlier rewrites, so
+ * when the model picks an already-rewritten bullet its "original" is that earlier
+ * change's proposed text. That text exists nowhere in the .tex, so the splice
+ * could never find it and the change was skipped as "no longer matched". Chain
+ * those instead: keep the earlier change's real source line and take the new
+ * wording — unless the combined growth breaks the length rules, in which case
+ * the earlier rewrite stands.
+ */
+export function mergeEvidenceChanges(
+  primary: ResumeChange[],
+  extra: ResumeChange[],
+  length: LengthLimits
+): ResumeChange[] {
+  const key = (text: string) => text.replace(/\s+/g, ' ').trim()
+  const merged = [...primary]
+  const byProposed = new Map(merged.map((change, i) => [key(change.proposed), i]))
+  const originals = new Set(merged.map((change) => key(change.original)))
+
+  for (const change of extra) {
+    const earlier = byProposed.get(key(change.original))
+    if (earlier !== undefined) {
+      const base = merged[earlier]
+      const growth = change.proposed.length - base.original.length
+      if (
+        growth > length.maxGrowth(base.original.length) ||
+        change.proposed.length < length.minLength(base.original.length)
+      ) {
+        continue
+      }
+      merged[earlier] = {
+        ...change,
+        original: base.original,
+        sectionId: base.sectionId,
+        sectionTitle: base.sectionTitle,
+      }
+      byProposed.delete(key(base.proposed))
+      byProposed.set(key(change.proposed), earlier)
+      continue
+    }
+
+    if (originals.has(key(change.original))) continue
+    originals.add(key(change.original))
+    byProposed.set(key(change.proposed), merged.length)
+    merged.push(change)
+  }
+
+  return merged
 }
 
 /** Terms still unevidenced after the follow-up pass, for honest reporting. */

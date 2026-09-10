@@ -34,11 +34,13 @@ export type CompileResult =
  * Compile `source` with pdfLaTeX.
  *
  * The service takes a multipart form describing a small file tree; a resume is
- * a single self-contained file, so one entry is enough.
+ * a single self-contained file, so one entry is enough. That entry must be named
+ * `document.tex`: latexcgi treats it as the main file and refuses any tree
+ * without one ("Bad form type / Bad Form: no main document").
  */
 export async function compileLatexToPdf(source: string): Promise<CompileResult> {
   const form = new FormData()
-  form.append('filename[]', 'resume.tex')
+  form.append('filename[]', 'document.tex')
   form.append('filecontents[]', source)
   form.append('engine', 'pdflatex')
   form.append('return', 'pdf')

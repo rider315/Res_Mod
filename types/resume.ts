@@ -72,6 +72,8 @@ export interface AppState {
   error: string | null
   /** Non-fatal notice shown on the done screen (e.g. changes that matched no line). */
   applyWarning: string | null
+  /** Source lines of the changes that could not be spliced, listed under that notice. */
+  applySkipped: string[]
   aiProvider: AIProvider
   /** API keys kept per provider so switching providers doesn't clobber another key. */
   aiApiKeys: Record<AIProvider, string>

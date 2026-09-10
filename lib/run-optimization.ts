@@ -19,6 +19,7 @@ import { ResumeProfile } from '@/lib/profiles/types'
 import {
   buildEvidencePrompt,
   findUnevidencedSkills,
+  mergeEvidenceChanges,
   remainingUnevidenced,
 } from '@/lib/keyword-evidence'
 
@@ -193,8 +194,12 @@ async function evidencePass(
 
     const evidence = parse(raw, provider, model, profile.length)
     const extra = stripFrozenLineChanges(evidence.changes, profile.coverage).kept
-    const changes = mergeChanges(result.changes, extra)
-    console.log(`[${label}] Evidence pass added ${changes.length - result.changes.length} change(s)`)
+    // Not mergeChanges: evidence rewrites can target bullets an earlier pass already rewrote.
+    const changes = mergeEvidenceChanges(result.changes, extra, profile.length)
+    console.log(
+      `[${label}] Evidence pass merged ${extra.length} rewrite(s), ` +
+      `${changes.length - result.changes.length} of them on untouched bullets`
+    )
 
     const withEvidence: OptimizationResult = {
       ...result,

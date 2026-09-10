@@ -24,6 +24,7 @@ const INITIAL_STATE: AppState = {
   optimizationResult: null,
   error: null,
   applyWarning: null,
+  applySkipped: [],
   aiProvider: DEFAULT_AI_SETTINGS.provider,
   aiApiKeys: { ...DEFAULT_AI_SETTINGS.apiKeys },
   aiModels: { ...DEFAULT_AI_SETTINGS.models },
@@ -266,6 +267,7 @@ export default function Dashboard() {
       optimizationResult: null,
       error: null,
       applyWarning: null,
+      applySkipped: [],
     }))
   }
 
@@ -428,6 +430,10 @@ export default function Dashboard() {
         applyWarning: notes.length
           ? `${data.appliedCount} of ${data.requestedCount} changes applied. ${notes.join(' ')}`
           : null,
+        applySkipped: [
+          ...(Array.isArray(data.unmatched) ? data.unmatched : []),
+          ...(Array.isArray(data.rejected) ? data.rejected.map((r: { original: string }) => r.original) : []),
+        ],
       }))
     } catch (err: unknown) {
       setState((s) => ({ ...s, step: 'review', error: err instanceof Error ? err.message : String(err) }))
@@ -786,7 +792,19 @@ export default function Dashboard() {
                     <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
                     <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
                   </svg>
-                  <span>{state.applyWarning}</span>
+                  <div className="space-y-2">
+                    <p>{state.applyWarning}</p>
+                    {state.applySkipped.length > 0 && (
+                      <details className="text-xs">
+                        <summary className="cursor-pointer font-medium">Show the skipped lines</summary>
+                        <ul className="mt-2 space-y-1.5 list-disc pl-4 text-[var(--color-text-muted)]">
+                          {state.applySkipped.map((line, i) => (
+                            <li key={i} className="break-words">{line}</li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+                  </div>
                 </div>
               )}
 

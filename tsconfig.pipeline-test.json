@@ -14,6 +14,8 @@
     "lib/latex/**/*.ts",
     "lib/profiles/**/*.ts",
     "lib/coverage.ts",
+    "lib/keyword-evidence.ts",
+    "lib/normalize-changes.ts",
     "types/resume.ts"
   ]
 }
