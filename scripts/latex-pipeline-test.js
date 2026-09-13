@@ -537,7 +537,15 @@ const {
   mentionsKeyword,
   parseKeywordResponse,
 } = require(BUILD + '/lib/tailor/keywords')
-const { capBulletChanges, dropFrozenSectionChanges, editableLines, snapToLines } = require(BUILD + '/lib/tailor/guards')
+const {
+  capBulletChanges,
+  dropFrozenSectionChanges,
+  editableLines,
+  findGroupGaps,
+  labelSections,
+  snapToLines,
+} = require(BUILD + '/lib/tailor/guards')
+const { LEVELS } = require(BUILD + '/lib/tailor/levels')
 const { standardProfile } = require(BUILD + '/lib/profiles/standard')
 const { runOptimization } = require(BUILD + '/lib/run-optimization')
 const { buildOptimizeSystemInstruction } = require(BUILD + '/lib/optimizer')
@@ -637,6 +645,24 @@ async function tailorTests() {
     Boolean(toolsChange) && toolsChange.proposed.endsWith('Terraform') && toolsChange.type === 'add_keywords', toolsChange && toolsChange.proposed)
   check('a missing job title goes into the summary',
     Boolean(summaryChange) && summaryChange.proposed.includes('Site Reliability Engineer'), summaryChange && summaryChange.proposed)
+
+  const prose = addMissingKeywords(resume, [], [kw('incident response', { kind: 'responsibility' })], profile.coverage)
+  check('a missing responsibility is written into the summary, not a tools line',
+    prose.changes.length === 1 && prose.changes[0].sectionTitle === 'Summary' &&
+    /experienced in incident response/i.test(prose.changes[0].proposed),
+    JSON.stringify(prose.changes.map((c) => [c.sectionTitle, c.proposed])))
+
+  const groupGaps = findGroupGaps(resume, [change], profile.coverage, LEVELS.hard.bulletsOwed)
+  check('hard owes two rewrites under every role, counted per role',
+    groupGaps.length === 2 &&
+    groupGaps[0].required === 2 && groupGaps[0].have === 1 && groupGaps[0].sectionTitle.includes('Payco') &&
+    groupGaps[1].required === 2 && groupGaps[1].have === 0 && groupGaps[1].sectionTitle.includes('Shopster'),
+    JSON.stringify(groupGaps.map((g) => [g.sectionTitle, g.have, g.required])))
+  check('soft owes no rewrites, and hardest owes every bullet',
+    findGroupGaps(resume, [], profile.coverage, LEVELS.soft.bulletsOwed).length === 0 &&
+    findGroupGaps(resume, [change], profile.coverage, LEVELS.hardest.bulletsOwed).reduce((n, g) => n + g.required, 0) === 5)
+  check('changes are labelled with the section their line is really in',
+    labelSections(resume, [{ ...change, sectionId: 'x', sectionTitle: 'Wrong' }])[0].sectionTitle === 'Experience')
   const spliced = applyLatexChanges(tex, fallback.changes.map((c) => ({ original: c.original, proposed: c.proposed })))
   check('the fallback changes splice cleanly into the .tex',
     spliced.applied === fallback.changes.length && validateLatexDocument(spliced.latex).length === 0,

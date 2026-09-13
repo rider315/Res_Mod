@@ -47,7 +47,8 @@ export function standardProfile(level: TailorLevel): ResumeProfile {
       projectSection: /project/i,
       minBulletLength: 30,
       frozenLinePatterns: [STRUCTURAL_LINE],
-      requiredChanges: (_section, bulletCount) => spec.bulletsPerSection(bulletCount),
+      requiredChanges: (section, bulletCount) =>
+        spec.bulletsOwed(/project/i.test(section.title) ? 'project' : 'role', bulletCount),
     },
     length: spec.length,
   }

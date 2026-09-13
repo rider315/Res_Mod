@@ -19,8 +19,8 @@ export interface LevelSpec {
   /** One line for the level picker. */
   blurb: string
   temperature: number
-  /** Rewrites an experience or project section owes, given its editable bullets. */
-  bulletsPerSection(bulletCount: number): number
+  /** Bullet rewrites owed under each role or project, given how many bullets it has. */
+  bulletsOwed(kind: 'role' | 'project', bulletCount: number): number
   /** Most bullet rewrites allowed under one role or project; undefined means no cap. */
   maxBulletsPerGroup?: number
   length: LengthLimits
@@ -37,7 +37,7 @@ export const LEVELS: Record<TailorLevel, LevelSpec> = {
     label: 'Soft',
     blurb: 'Light touch. The summary and skills pick up the job’s keywords, and at most one bullet per role is adjusted.',
     temperature: 0.2,
-    bulletsPerSection: () => 0,
+    bulletsOwed: () => 0,
     maxBulletsPerGroup: 1,
     length: { maxGrowth: (len) => Math.max(60, Math.round(len * 0.25)), minLength: keepAtLeast(0.8) },
     lengthHint: 'at most about 25% longer (a skills line may take a few extra items), and never shorter than 80% of the original',
@@ -51,7 +51,7 @@ export const LEVELS: Record<TailorLevel, LevelSpec> = {
     label: 'Hard',
     blurb: 'Clear alignment. The summary and skills are rebuilt, and at least two bullets per role are rewritten around the job.',
     temperature: 0.25,
-    bulletsPerSection: (count) => Math.min(2, count),
+    bulletsOwed: (kind, count) => Math.min(kind === 'role' ? 2 : 1, count),
     length: { maxGrowth: (len) => Math.max(60, Math.round(len * 0.5)), minLength: keepAtLeast(0.7) },
     lengthHint: 'at most about 50% longer, and never shorter than 70% of the original',
     strategy: `Clearly align the resume with this job while keeping every fact.
@@ -64,7 +64,7 @@ export const LEVELS: Record<TailorLevel, LevelSpec> = {
     label: 'Hardest',
     blurb: 'Full realignment. Every editable line is rewritten toward the job; employers, titles, dates and metrics still never change.',
     temperature: 0.3,
-    bulletsPerSection: (count) => count,
+    bulletsOwed: (_kind, count) => count,
     length: { maxGrowth: (len) => Math.max(70, Math.round(len * 0.6)), minLength: keepAtLeast(0.6) },
     lengthHint: 'at most about 60% longer, and never shorter than 60% of the original',
     strategy: `Rework the whole resume toward this job: every editable line should read as if written for it, while the facts stay exactly the same.

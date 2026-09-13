@@ -1,6 +1,7 @@
 import { ParsedResume, ResumeChange, ResumeSection } from '@/types/resume'
 import { CoverageRules, STRUCTURAL_LINE } from '@/lib/profiles/types'
 import { visible } from '@/lib/latex/match'
+import type { CoverageGap } from '@/lib/coverage'
 
 /**
  * Limits on tailoring changes for regular users' resumes, on top of the frozen
@@ -81,6 +82,72 @@ export function capBulletChanges(
     result.kept.push(change)
   }
   return result
+}
+
+/** Label each change with the section its line actually sits in, whatever the model called it. */
+export function labelSections(resume: ParsedResume, changes: ResumeChange[]): ResumeChange[] {
+  return changes.map((change) => {
+    const where = locate(resume, change.original)
+    return where ? { ...change, sectionId: where.section.id, sectionTitle: where.section.title } : change
+  })
+}
+
+/**
+ * Rewrites still owed under each role and project.
+ *
+ * Counting per section let a level's quota be met by rewriting two bullets of
+ * the first job and none of the rest. Counting per role or project holds every
+ * one of them to the level, and each shortfall becomes its own block in the
+ * top-up prompt.
+ */
+export function findGroupGaps(
+  resume: ParsedResume,
+  changes: ResumeChange[],
+  rules: CoverageRules,
+  owed: (kind: 'role' | 'project', bulletCount: number) => number
+): CoverageGap[] {
+  const changed = new Set(changes.map((change) => looseKey(change.original)))
+  const gaps: CoverageGap[] = []
+
+  for (const section of resume.sections) {
+    if (rules.frozenSection.test(section.title)) continue
+    const kind = rules.experienceSection.test(section.title)
+      ? 'role'
+      : rules.projectSection.test(section.title)
+        ? 'project'
+        : null
+    if (!kind) continue
+
+    let heading = ''
+    let bullets: string[] = []
+    const flush = () => {
+      if (bullets.length === 0) return
+      const required = Math.min(owed(kind, bullets.length), bullets.length)
+      const have = bullets.filter((line) => changed.has(looseKey(line))).length
+      const candidateLines = bullets.filter((line) => !changed.has(looseKey(line)))
+      if (have < required && candidateLines.length > 0) {
+        gaps.push({
+          sectionId: section.id,
+          sectionTitle: heading ? `${section.title}: ${heading.replace(STRUCTURAL_LINE, '').trim()}` : section.title,
+          required,
+          have,
+          candidateLines,
+        })
+      }
+    }
+
+    for (const line of section.content) {
+      if (GROUP_HEADING.test(line)) {
+        flush()
+        heading = line
+        bullets = []
+      } else if (!STRUCTURAL_LINE.test(line) && line.trim().length >= rules.minBulletLength) {
+        bullets.push(line)
+      }
+    }
+    flush()
+  }
+  return gaps
 }
 
 export interface ResumeLine {

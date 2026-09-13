@@ -25,7 +25,14 @@ import {
 import { LEVELS, TailorLevel } from '@/lib/tailor/levels'
 import { buildKeywordTopUpPrompt, buildTailorPrompt, buildTailorSystemInstruction } from '@/lib/tailor/prompt'
 import { addMissingKeywords, JdKeywords, keywordCoverage } from '@/lib/tailor/keywords'
-import { capBulletChanges, dropFrozenSectionChanges, editableLines, snapToLines } from '@/lib/tailor/guards'
+import {
+  capBulletChanges,
+  dropFrozenSectionChanges,
+  editableLines,
+  findGroupGaps,
+  labelSections,
+  snapToLines,
+} from '@/lib/tailor/guards'
 
 /**
  * Orchestrates a full optimization run: the first pass, the coverage top-up,
@@ -152,7 +159,7 @@ function tailoringGuard(opts: RunOptions, label: string, level: TailorLevel) {
   const { resume, profile } = opts
   const cap = LEVELS[level].maxBulletsPerGroup
   return (changes: ResumeChange[]): ResumeChange[] => {
-    const facts = dropFrozenSectionChanges(resume, changes, profile.coverage)
+    const facts = dropFrozenSectionChanges(resume, labelSections(resume, changes), profile.coverage)
     if (facts.dropped.length > 0) {
       console.warn(`[${label}] Dropped ${facts.dropped.length} change(s) to sections that hold facts`)
     }
@@ -168,9 +175,13 @@ function tailoringGuard(opts: RunOptions, label: string, level: TailorLevel) {
 /** Did every experience/project section actually get its rewrites? If not, ask for the missing ones. */
 async function coveragePass(baseline: OptimizationResult, ctx: PassContext): Promise<OptimizationResult> {
   const { opts, label, systemInstruction, temperature, parse, guard } = ctx
-  const { profile, resume, jobDescription, hardInstructions, provider, model, generate } = opts
+  const { level, profile, resume, jobDescription, hardInstructions, provider, model, generate } = opts
 
-  const gaps = findCoverageGaps(resume, baseline.changes, profile.coverage)
+  // Tailoring levels owe their rewrites under every role and project; the owner's
+  // profiles keep their per-section quotas.
+  const gaps = level
+    ? findGroupGaps(resume, baseline.changes, profile.coverage, LEVELS[level].bulletsOwed)
+    : findCoverageGaps(resume, baseline.changes, profile.coverage)
   if (gaps.length === 0) return baseline
 
   console.log(

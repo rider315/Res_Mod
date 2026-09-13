@@ -286,11 +286,22 @@ function categoryLabel(line: string): string {
   return colon > 0 && colon <= 40 ? text.slice(0, colon) : ''
 }
 
+/** Keywords that describe work a person does rather than a tool: a skills list is a poor home for them. */
+const PROSE_KINDS = new Set<JdKeyword['kind']>(['responsibility', 'domain', 'soft_skill'])
+
+/** A skills line whose category label fits the keyword's kind, if there is one. */
+function labelledSkillLine(lines: ResumeLine[], keyword: JdKeyword): ResumeLine | undefined {
+  const hint = KIND_HINTS[keyword.kind]
+  return lines.find((line) => hint.test(categoryLabel(line.current)))
+}
+
+/** The fitting skills line, or failing that the longest one. */
 function bestSkillLine(lines: ResumeLine[], keyword: JdKeyword): ResumeLine | undefined {
   if (lines.length === 0) return undefined
-  const hint = KIND_HINTS[keyword.kind]
-  const labelled = lines.find((line) => hint.test(categoryLabel(line.current)))
-  return labelled ?? lines.reduce((best, line) => (visible(line.current).length > visible(best.current).length ? line : best))
+  return (
+    labelledSkillLine(lines, keyword) ??
+    lines.reduce((best, line) => (visible(line.current).length > visible(best.current).length ? line : best))
+  )
 }
 
 function appendToSkillLine(current: string, keywords: JdKeyword[]): string {
@@ -300,12 +311,20 @@ function appendToSkillLine(current: string, keywords: JdKeyword[]): string {
 }
 
 function appendToSummary(current: string, keywords: JdKeyword[]): string {
-  const titles = keywords.filter((k) => k.kind === 'title').map((k) => escapeLatexText(k.term))
-  const skills = keywords.filter((k) => k.kind !== 'title').map((k) => escapeLatexText(k.term))
-  let text = current.replace(/[\s.;,]+$/, '')
-  if (titles.length > 0) text += `. Targeting ${titles.join(' / ')} roles`
-  if (skills.length > 0) text += `${titles.length > 0 ? '; key' : '. Key'} skills: ${skills.join(', ')}`
-  return `${text}.`
+  const terms = (keep: (k: JdKeyword) => boolean) =>
+    keywords.filter(keep).map((k) => escapeLatexText(k.term))
+  const titles = terms((k) => k.kind === 'title')
+  const prose = terms((k) => PROSE_KINDS.has(k.kind))
+  const skills = terms((k) => k.kind !== 'title' && !PROSE_KINDS.has(k.kind))
+
+  const sentence = [
+    titles.length > 0 ? `targeting ${titles.join(' / ')} roles` : '',
+    prose.length > 0 ? `experienced in ${prose.join(', ')}` : '',
+    skills.length > 0 ? `key skills: ${skills.join(', ')}` : '',
+  ]
+    .filter(Boolean)
+    .join('; ')
+  return `${current.replace(/[\s.;,]+$/, '')}. ${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}.`
 }
 
 export interface KeywordFallback {
@@ -318,9 +337,10 @@ export interface KeywordFallback {
 
 /**
  * The last resort behind the guarantee. Any required keyword the rewrites didn't
- * place is appended to the skills line of the closest category (a job title, or
- * any keyword in a resume without skills lines, goes into the summary) as an
- * ordinary change the user reviews. The review screen marks these as listed but
+ * place becomes an ordinary change the user reviews: a tool or skill is appended
+ * to the skills line of the closest category, while a job title, a responsibility
+ * or a domain term (or any keyword in a resume without skills lines) is written
+ * into the summary. The review screen marks these as listed but
  * unevidenced, because nothing in the experience backs them up.
  */
 export function addMissingKeywords(
@@ -344,7 +364,9 @@ export function addMissingKeywords(
     const target =
       keyword.kind === 'title'
         ? summaryLine ?? bestSkillLine(skillLines, keyword)
-        : bestSkillLine(skillLines, keyword) ?? summaryLine
+        : PROSE_KINDS.has(keyword.kind)
+          ? labelledSkillLine(skillLines, keyword) ?? summaryLine ?? bestSkillLine(skillLines, keyword)
+          : bestSkillLine(skillLines, keyword) ?? summaryLine
     if (!target) {
       unplaced.push(keyword.term)
       continue

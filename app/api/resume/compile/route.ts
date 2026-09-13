@@ -6,12 +6,15 @@ import { validateLatexDocument } from '@/lib/latex/sanitize'
 import { getResume } from '@/lib/db/resumes'
 import { renderResumeLatex } from '@/lib/import/render'
 import { ResumeDocSchema } from '@/lib/resume-doc'
+import { ChangeListSchema, tailorStoredResume } from '@/lib/tailor/splice'
 
 const schema = z.object({
   /** Owner only: the LaTeX to compile, straight from the dashboard. */
   latex: z.string().min(1).max(400_000).optional(),
   /** Any user: one of their saved resumes, re-rendered here from its structured doc. */
   resumeId: z.string().optional(),
+  /** With resumeId: approved tailoring changes, spliced in on the server before compiling. */
+  changes: ChangeListSchema.optional(),
   fileName: z.string().optional(),
 })
 
@@ -38,7 +41,14 @@ export async function POST(req: NextRequest) {
     if (!doc?.success) {
       return NextResponse.json({ error: 'Resume not found' }, { status: 404 })
     }
-    latex = renderResumeLatex(doc.data)
+    const approved = (parsed.data.changes ?? []).filter((change) => change.approved === true)
+    if (approved.length > 0) {
+      const tailored = tailorStoredResume(doc.data, approved)
+      if (!tailored.ok) return NextResponse.json({ error: tailored.error }, { status: tailored.status })
+      latex = tailored.result.latex
+    } else {
+      latex = renderResumeLatex(doc.data)
+    }
   } else {
     // Arbitrary LaTeX is the owner's alone; for anyone else this route would be
     // a free LaTeX build proxy.
