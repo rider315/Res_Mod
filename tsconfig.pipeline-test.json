@@ -18,7 +18,7 @@
     "lib/keyword-evidence.ts",
     "lib/normalize-changes.ts",
     "lib/resume-doc.ts",
-    "lib/import/render.ts",
+    "lib/import/**/*.ts",
     "types/resume.ts"
   ]
 }

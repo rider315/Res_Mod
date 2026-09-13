@@ -1,5 +1,6 @@
 import { ResumeDoc } from '@/lib/resume-doc'
-import { escapeLatexText } from '@/lib/latex/sanitize'
+import { parseLatexResume, ParsedLatexResume } from '@/lib/latex/parse'
+import { escapeLatexText, validateLatexDocument } from '@/lib/latex/sanitize'
 import { HOUSE_PREAMBLE } from '@/lib/latex/template'
 
 /**
@@ -175,4 +176,27 @@ export function renderResumeLatex(doc: ResumeDoc): string {
 
   out.push('', '\\end{document}', '')
   return out.join('\n')
+}
+
+export type CheckedRender =
+  | { ok: true; latex: string; parsed: ParsedLatexResume }
+  | { ok: false; problems: string[] }
+
+/**
+ * Render, then refuse anything the rest of the pipeline can't use: a document
+ * that doesn't validate, or one with no summary, skill line or bullet to tailor.
+ */
+export function renderCheckedResume(doc: ResumeDoc): CheckedRender {
+  const latex = renderResumeLatex(doc)
+  const problems = validateLatexDocument(latex)
+  if (problems.length > 0) return { ok: false, problems }
+
+  const parsed = parseLatexResume(latex, doc.name)
+  if (parsed.editable.length === 0) {
+    return {
+      ok: false,
+      problems: ['This resume has no summary, skills or bullet points yet, so there is nothing to tailor.'],
+    }
+  }
+  return { ok: true, latex, parsed }
 }

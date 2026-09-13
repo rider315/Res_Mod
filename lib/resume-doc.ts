@@ -70,3 +70,13 @@ export const ResumeDocSchema = z.object({
 })
 
 export type ResumeDoc = z.infer<typeof ResumeDocSchema>
+
+/** What a resume was imported from. */
+export const SOURCE_FORMATS = ['pdf', 'docx', 'latex', 'text'] as const
+export type SourceFormat = (typeof SOURCE_FORMATS)[number]
+
+/** Vercel rejects request bodies over 4.5 MB, so uploads stop a little short of that. */
+export const MAX_UPLOAD_BYTES = 4 * 1024 * 1024
+
+/** Roughly eight dense pages. Anything longer isn't a resume. */
+export const MAX_RESUME_TEXT = 40_000

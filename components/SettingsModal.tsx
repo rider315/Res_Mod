@@ -24,6 +24,12 @@ interface SettingsModalProps {
   settings: AISettings
   onSave: (next: AISettings) => void
   onClose: () => void
+  /**
+   * False for regular users. The server-side keys belong to the owner, so the
+   * dialog must not suggest leaning on them, and Ollama is hidden: on the hosted
+   * app the server can't reach a model running on the user's own machine.
+   */
+  serverKeys?: boolean
 }
 
 function formatContext(tokens: number): string {
@@ -39,7 +45,7 @@ function formatPrice(model: CatalogModel): string {
   return `$${price < 1 ? price.toFixed(2) : price.toFixed(1)}/M in`
 }
 
-export default function SettingsModal({ settings, onSave, onClose }: SettingsModalProps) {
+export default function SettingsModal({ settings, onSave, onClose, serverKeys = true }: SettingsModalProps) {
   const [provider, setProvider] = useState<AIProvider>(settings.provider)
   const [apiKeys, setApiKeys] = useState<Record<AIProvider, string>>({ ...settings.apiKeys })
   const [models, setModels] = useState<Record<AIProvider, string>>({ ...settings.models })
@@ -195,7 +201,7 @@ export default function SettingsModal({ settings, onSave, onClose }: SettingsMod
               Active Provider
             </label>
             <div className="grid grid-cols-2 gap-2">
-              {PROVIDER_ORDER.map((id) => {
+              {PROVIDER_ORDER.filter((id) => serverKeys || id !== 'ollama').map((id) => {
                 const p = getProvider(id)
                 const selected = provider === id
                 const hasKey = Boolean(apiKeys[id]?.trim()) || !p.needsKey
@@ -270,7 +276,9 @@ export default function SettingsModal({ settings, onSave, onClose }: SettingsMod
                 className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-sm placeholder:text-[var(--color-text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition-all font-mono"
               />
               <p className="text-[11px] text-[var(--color-text-faint)] mt-1.5">
-                Stored in this browser only. Leave blank to use {config.envVar} from .env.local.
+                {serverKeys
+                  ? <>Stored in this browser only. Leave blank to use {config.envVar} from .env.local.</>
+                  : 'Stored in this browser only, and sent only with your own requests.'}
               </p>
             </div>
           ) : (

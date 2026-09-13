@@ -18,10 +18,12 @@
     "@neondatabase/serverless": "^1.1.0",
     "diff": "^9.0.0",
     "drizzle-orm": "^0.45.2",
+    "mammoth": "^1.12.2",
     "next": "14.2.35",
     "next-auth": "^4.24.14",
     "react": "^18",
     "react-dom": "^18",
+    "unpdf": "^1.7.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {

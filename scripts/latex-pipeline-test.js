@@ -22,6 +22,10 @@
  *   9. render       — a structured resume renders into the house template, with
  *                     every user character escaped and every bullet editable;
  *                     writes .pipeline-test/rendered.tex to compile
+ *  10. import       — text comes out of PDF, Word, LaTeX and text uploads (the
+ *                     binary fixtures in scripts/fixtures are synthetic), bad
+ *                     uploads are refused, and the model's structuring reply is
+ *                     validated and retried once
  */
 const path = require('path')
 const fs = require('fs')
@@ -425,7 +429,104 @@ const { visible } = require(BUILD + '/lib/latex/match')
   check('a resume with only a name gets defaults', ResumeDocSchema.safeParse({ name: 'A' }).success)
 }
 
-console.log('\n' + '='.repeat(46))
-console.log('  ' + pass + ' passed, ' + fail + ' failed')
-console.log('='.repeat(46))
-process.exit(fail === 0 ? 0 : 1)
+// ------------------------------------------------------------------ 10. import
+const { extractResumeText, tidyResumeText, ImportError } = require(BUILD + '/lib/import/extract')
+const { parseStructureResponse, structureResume } = require(BUILD + '/lib/import/structure')
+
+async function importTests() {
+  console.log('\n=== import: extract text, then structure it ===')
+
+  const FIXTURES = path.join(__dirname, 'fixtures')
+  const fixture = (name) => new Uint8Array(fs.readFileSync(path.join(FIXTURES, name)))
+  const utf8 = (s) => new TextEncoder().encode(s)
+
+  const pdf = await extractResumeText({ name: 'resume.pdf', type: 'application/pdf', bytes: fixture('sample-resume.pdf') })
+  check('a PDF resume yields its text',
+    pdf.sourceFormat === 'pdf' && pdf.text.includes('Acme') && pdf.text.includes('Cut p95 latency'), pdf.text.slice(0, 80))
+
+  const docx = await extractResumeText({ name: 'resume.docx', type: '', bytes: fixture('sample-resume.docx') })
+  check('a Word resume yields its text',
+    docx.sourceFormat === 'docx' && docx.text.includes('Senior Engineer') && docx.text.includes('$2M budget'), docx.text.slice(0, 80))
+
+  const renamed = await extractResumeText({ name: 'resume.txt', type: 'text/plain', bytes: fixture('sample-resume.pdf') })
+  check('a PDF with the wrong extension is still read as a PDF', renamed.sourceFormat === 'pdf')
+
+  const tex = await extractResumeText({
+    name: 'resume.tex', type: '', bytes: utf8(fs.readFileSync(path.join(BUILD, 'rendered.tex'), 'utf8')),
+  })
+  check('a LaTeX resume is reduced to its words',
+    tex.sourceFormat === 'latex' && tex.text.includes('Resume Parser') && tex.text.includes('Cut p95 latency') &&
+    !/\\[a-zA-Z]/.test(tex.text), tex.text.slice(0, 120))
+
+  const hostile = await extractResumeText({
+    name: 'evil.tex', type: '',
+    bytes: utf8('\\documentclass{article}\\begin{document}\nJane Doe\n\\input{/etc/passwd} \\write18{rm -rf /}\n% hidden note\n\\end{document}'),
+  })
+  check('commands and comments in an uploaded .tex do not survive',
+    !hostile.text.includes('\\') && !hostile.text.includes('hidden note') && hostile.text.startsWith('Jane Doe'),
+    JSON.stringify(hostile.text))
+
+  const text = await extractResumeText({ name: 'resume.md', type: 'text/markdown', bytes: utf8('  Jane Doe\r\n\r\n\r\n\r\nEngineer  ') })
+  check('plain text is tidied', text.sourceFormat === 'text' && text.text === 'Jane Doe\n\nEngineer', JSON.stringify(text.text))
+
+  const refuses = async (label, file, pattern) => {
+    try {
+      await extractResumeText(file)
+      check(label, false, 'the upload was accepted')
+    } catch (err) {
+      check(label, err instanceof ImportError && pattern.test(err.message), err.message)
+    }
+  }
+  await refuses('an old .doc file is refused with advice',
+    { name: 'cv.doc', type: 'application/msword', bytes: new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1, 0]) }, /\.doc/)
+  await refuses('a zip that is not a .docx is refused',
+    { name: 'cv.zip', type: 'application/zip', bytes: new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0, 0]) }, /\.docx/)
+  await refuses('an image is refused',
+    { name: 'photo.png', type: 'image/png', bytes: new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0]) }, /Upload a PDF/)
+  await refuses('an empty file is refused', { name: 'cv.txt', type: 'text/plain', bytes: new Uint8Array() }, /empty/)
+  await refuses('a file with no text is refused', { name: 'cv.txt', type: 'text/plain', bytes: utf8(' \n\t\n ') }, /No text/)
+  await refuses('a damaged PDF is refused', { name: 'cv.pdf', type: 'application/pdf', bytes: utf8('%PDF-1.4 not really a pdf') }, /could not be read/)
+  let tooLong = null
+  try { tidyResumeText('a'.repeat(40_001)) } catch (err) { tooLong = err }
+  check('text over the length limit is refused', tooLong instanceof ImportError && /limit/.test(tooLong.message))
+
+  const validDoc = { name: 'Jane Doe', contact: { email: 'jane@example.com' }, experience: [{ company: 'Acme', role: 'Engineer', bullets: ['Built things'] }] }
+  const fenced = parseStructureResponse('Here you go:\n```json\n' + JSON.stringify(validDoc) + '\n```')
+  check('a fenced JSON reply is accepted, with defaults filled', fenced.ok && fenced.doc.name === 'Jane Doe' && fenced.doc.contact.phone === '')
+  check('a reply that is not JSON is rejected', !parseStructureResponse('Sorry, I cannot help with that.').ok)
+  const noName = parseStructureResponse(JSON.stringify({ ...validDoc, name: '' }))
+  check('a reply without a name is rejected, naming the field',
+    !noName.ok && noName.problems.some((p) => p.startsWith('name')), JSON.stringify(noName))
+  const placeholder = parseStructureResponse(JSON.stringify({ ...validDoc, summary: '<summary or objective paragraph>' }))
+  check('copied template placeholders are rejected', !placeholder.ok && /placeholder/.test(placeholder.problems[0]))
+  check('real angle brackets in resume text are kept',
+    parseStructureResponse(JSON.stringify({ ...validDoc, summary: 'Kept p95 <400ms' })).ok)
+
+  const calls = []
+  const replies = [JSON.stringify({ ...validDoc, name: '' }), JSON.stringify(validDoc)]
+  const structured = await structureResume({
+    text: 'Jane Doe\nEngineer at Acme',
+    generate: async ({ prompt, temperature }) => { calls.push({ prompt, temperature }); return replies.shift() },
+  })
+  check('a rejected reply is retried once, with the problems fed back',
+    structured.name === 'Jane Doe' && calls.length === 2 &&
+    !calls[0].prompt.includes('REJECTED') && calls[1].prompt.includes('REJECTED') && calls[1].prompt.includes('name:'))
+  check('structuring runs at temperature 0', calls.every((c) => c.temperature === 0))
+
+  let gaveUp = null
+  try { await structureResume({ text: 'Jane Doe', generate: async () => 'not json' }) } catch (err) { gaveUp = err }
+  check('two unusable replies give up with an explanation',
+    gaveUp instanceof Error && /could not turn this resume/.test(gaveUp.message))
+}
+
+function summary() {
+  console.log('\n' + '='.repeat(46))
+  console.log('  ' + pass + ' passed, ' + fail + ' failed')
+  console.log('='.repeat(46))
+  process.exit(fail === 0 ? 0 : 1)
+}
+
+importTests().then(summary, (err) => {
+  check('import tests ran to completion', false, err && err.stack)
+  summary()
+})

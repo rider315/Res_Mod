@@ -3,16 +3,16 @@ import { redirect } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
 import { getAccess } from '@/lib/access'
 import Dashboard from '@/components/Dashboard'
-import UserHome from '@/components/UserHome'
+import UserDashboard from '@/components/user/UserDashboard'
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions)
   if (!session) redirect('/')
 
-  // The resume profiles are the owner's; every other account gets its own home
-  // and never renders the owner dashboard.
+  // The resume profiles are the owner's; every other account gets its own
+  // dashboard for importing and managing its resumes.
   if (getAccess(session)?.role !== 'owner') {
-    return <UserHome name={session.user?.name ?? ''} />
+    return <UserDashboard name={session.user?.name ?? ''} />
   }
   return <Dashboard />
 }
