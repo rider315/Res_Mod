@@ -4,6 +4,7 @@ import { signOut } from 'next-auth/react'
 import SettingsModal from '@/components/SettingsModal'
 import ImportPanel from '@/components/user/ImportPanel'
 import ResumeEditor from '@/components/user/ResumeEditor'
+import TailorPanel from '@/components/user/TailorPanel'
 import {
   dangerButton,
   downloadBlob,
@@ -25,6 +26,7 @@ import { ResumeDoc, SourceFormat } from '@/lib/resume-doc'
 type View =
   | { kind: 'list' }
   | { kind: 'import' }
+  | { kind: 'tailor'; resumeId: string; title: string }
   | {
       kind: 'edit'
       resumeId: string | null
@@ -160,7 +162,7 @@ export default function UserDashboard({ name }: { name: string }) {
                   {firstName ? `Welcome, ${firstName}` : 'Your resumes'}
                 </h1>
                 <p className="text-sm text-[var(--color-text-muted)] mt-1">
-                  Import a resume once, check it, and keep it here. Tailoring it to a job description is coming next.
+                  Import a resume once and check it, then tailor it to any job description.
                 </p>
               </div>
               {resumes && resumes.length > 0 && (
@@ -200,6 +202,13 @@ export default function UserDashboard({ name }: { name: string }) {
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => setView({ kind: 'tailor', resumeId: resume.id, title: resume.title })}
+                        disabled={busyId !== null}
+                        className={primaryButton}
+                      >
+                        Tailor
+                      </button>
                       <button onClick={() => openResume(resume.id)} disabled={busyId !== null} className={secondaryButton}>
                         Edit
                       </button>
@@ -244,6 +253,18 @@ export default function UserDashboard({ name }: { name: string }) {
               setView({ kind: 'list' })
               refresh()
             }}
+            onTailor={(resumeId, title) => setView({ kind: 'tailor', resumeId, title })}
+          />
+        )}
+
+        {view.kind === 'tailor' && (
+          <TailorPanel
+            key={view.resumeId}
+            resumeId={view.resumeId}
+            resumeTitle={view.title}
+            settings={settings}
+            onOpenSettings={() => setShowSettings(true)}
+            onBack={() => setView({ kind: 'list' })}
           />
         )}
       </main>

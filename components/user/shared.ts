@@ -36,17 +36,47 @@ export function downloadBlob(blob: Blob, fileName: string): void {
   URL.revokeObjectURL(url)
 }
 
+/**
+ * Hand a .tex to Overleaf, which opens it as a new project. Overleaf takes the
+ * document as a form field, so this posts a real form: a resume is far too long
+ * to survive a URL.
+ */
+export function openInOverleaf(latex: string): void {
+  const form = document.createElement('form')
+  form.method = 'POST'
+  form.action = 'https://www.overleaf.com/docs'
+  form.target = '_blank'
+  form.rel = 'noopener noreferrer'
+  for (const [name, value] of [['snip', latex], ['engine', 'pdflatex']]) {
+    const input = document.createElement('input')
+    input.type = 'hidden'
+    input.name = name
+    input.value = value
+    form.appendChild(input)
+  }
+  document.body.appendChild(form)
+  form.submit()
+  document.body.removeChild(form)
+}
+
 export function resumeFileBase(name: string): string {
   return `${sanitizeFileName(name) || 'Resume'}_Resume`
 }
 
-/** Build a saved resume into a PDF and download it. Throws with the compiler's reason. */
-export async function downloadResumePdf(resumeId: string, name: string): Promise<void> {
+/**
+ * Build a saved resume into a PDF and download it, with any approved tailoring
+ * changes spliced in on the server. Throws with the compiler's reason.
+ */
+export async function downloadResumePdf(
+  resumeId: string,
+  name: string,
+  changes?: Array<{ original: string; proposed: string; approved: boolean | null }>
+): Promise<void> {
   const fileName = resumeFileBase(name)
   const res = await fetch('/api/resume/compile', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ resumeId, fileName }),
+    body: JSON.stringify({ resumeId, fileName, changes }),
   })
   if (!res.ok) {
     const data = await res.json().catch(() => ({}))

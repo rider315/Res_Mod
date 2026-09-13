@@ -264,6 +264,8 @@ interface ResumeEditorProps {
   initialLatex: string | null
   onSaved: (resume: ResumeSummary) => void
   onBack: () => void
+  /** Offered once the resume is saved with no unsaved changes. */
+  onTailor?: (resumeId: string, title: string) => void
 }
 
 export default function ResumeEditor({
@@ -274,6 +276,7 @@ export default function ResumeEditor({
   initialLatex,
   onSaved,
   onBack,
+  onTailor,
 }: ResumeEditorProps) {
   const [form, setForm] = useState<ResumeForm>(() => toForm(initialDoc, initialTitle))
   const [savedId, setSavedId] = useState(resumeId)
@@ -509,9 +512,15 @@ export default function ResumeEditor({
           <button onClick={downloadPdf} disabled={!savedId || dirty || compiling} className={secondaryButton}>
             {compiling ? 'Building PDF…' : 'Download PDF'}
           </button>
-          <button onClick={save} disabled={saving || !dirty} className={primaryButton}>
-            {saving ? 'Saving…' : 'Save resume'}
-          </button>
+          {onTailor && savedId && !dirty ? (
+            <button onClick={() => onTailor(savedId, form.title || form.name)} className={primaryButton}>
+              Tailor to a job →
+            </button>
+          ) : (
+            <button onClick={save} disabled={saving || !dirty} className={primaryButton}>
+              {saving ? 'Saving…' : 'Save resume'}
+            </button>
+          )}
         </div>
       </div>
       <p className="text-[11px] text-[var(--color-text-faint)] text-center">
