@@ -26,6 +26,9 @@
  *                     binary fixtures in scripts/fixtures are synthetic), bad
  *                     uploads are refused, and the model's structuring reply is
  *                     validated and retried once
+ *  11. tailoring    — keyword matching and coverage, the guards on facts and on
+ *                     soft's bullet cap, the keyword fallback, and a full run
+ *                     with a scripted model that proves the guarantee holds
  */
 const path = require('path')
 const fs = require('fs')
@@ -526,7 +529,192 @@ function summary() {
   process.exit(fail === 0 ? 0 : 1)
 }
 
-importTests().then(summary, (err) => {
-  check('import tests ran to completion', false, err && err.stack)
-  summary()
-})
+// --------------------------------------------------------------- 11. tailoring
+const {
+  addMissingKeywords,
+  extractJdKeywords,
+  keywordCoverage,
+  mentionsKeyword,
+  parseKeywordResponse,
+} = require(BUILD + '/lib/tailor/keywords')
+const { capBulletChanges, dropFrozenSectionChanges, editableLines, snapToLines } = require(BUILD + '/lib/tailor/guards')
+const { standardProfile } = require(BUILD + '/lib/profiles/standard')
+const { runOptimization } = require(BUILD + '/lib/run-optimization')
+const { buildOptimizeSystemInstruction } = require(BUILD + '/lib/optimizer')
+
+async function tailorTests() {
+  console.log('\n=== tailoring: keywords, levels and the guarantee ===')
+
+  const kw = (term, extra = {}) => ({ term, kind: 'skill', required: true, aliases: [], ...extra })
+  const has = (text, term, extra) => mentionsKeyword(text, kw(term, extra))
+
+  check('Node.js matches NodeJS and Node JS, and the other way round',
+    has('Built NodeJS services', 'Node.js') && has('Built Node JS services', 'Node.js') && has('Built Node.js services', 'NodeJS'))
+  check('CI/CD matches CICD', has('Owned the CICD pipeline', 'CI/CD'))
+  check('C++ is found as a whole term', has('Wrote C++ drivers', 'C++'))
+  check('Java is not found inside JavaScript', !has('Wrote JavaScript for the web', 'Java'))
+  check('Go is not found in go-to-market, but is in Go services',
+    !has('Led the go-to-market plan', 'Go') && has('Wrote Go services', 'Go'))
+  check('singular and plural match', has('Designed REST APIs', 'REST API'))
+  check('an alias counts', has('Ran K8s clusters', 'Kubernetes', { aliases: ['K8s'] }))
+
+  const doc = ResumeDocSchema.parse({
+    name: 'Sam Rivera',
+    summary: 'Backend engineer building reliable payment systems.',
+    skills: [
+      { category: 'Languages', items: ['Python', 'Java'] },
+      { category: 'Tools & Cloud', items: ['Docker', 'AWS'] },
+    ],
+    experience: [
+      {
+        company: 'Payco', role: 'Software Engineer', dates: '2021 – Present',
+        bullets: [
+          'Built payment APIs in Python serving 2M requests a day',
+          'Cut deploy time by 40% by containerizing services with Docker',
+          'Mentored three junior engineers through code reviews',
+        ],
+      },
+      {
+        company: 'Shopster', role: 'Junior Developer', dates: '2019 – 2021',
+        bullets: [
+          'Maintained checkout services and fixed production incidents',
+          'Wrote integration tests that caught regressions before release',
+        ],
+      },
+    ],
+    education: [{ school: 'State University', degree: 'B.S. Computer Science', details: ['Graduated with honours in distributed systems'] }],
+  })
+  const tex = renderResumeLatex(doc)
+  const resume = parseLatexResume(tex, doc.name).resume
+  const profile = standardProfile('hard')
+  const keywords = [
+    kw('Kubernetes', { kind: 'tool' }),
+    kw('Terraform', { kind: 'tool' }),
+    kw('Python'),
+    kw('Docker', { kind: 'tool' }),
+    kw('Kafka', { kind: 'tool', required: false }),
+  ]
+  const statusOf = (coverage, term) => coverage.statuses.find((s) => s.keyword.term === term).status
+  const experience = resume.sections.find((s) => s.title === 'Experience').content
+  const bullet = experience.find((l) => l.startsWith('Cut deploy time'))
+  const mentored = experience.find((l) => l.startsWith('Mentored'))
+  const maintained = experience.find((l) => l.startsWith('Maintained'))
+  const eduLine = resume.sections.find((s) => s.title === 'Education').content.find((l) => l.startsWith('Graduated'))
+
+  const before = keywordCoverage(resume, keywords)
+  check('a keyword in a bullet is covered', statusOf(before, 'Docker') === 'covered' && statusOf(before, 'Python') === 'covered')
+  check('keywords the resume lacks are missing', statusOf(before, 'Kubernetes') === 'missing' && statusOf(before, 'Terraform') === 'missing')
+  check('the score counts required keywords double',
+    before.requiredTotal === 4 && before.requiredPresent === 2 && before.score === Math.round((4 / 9) * 100),
+    JSON.stringify({ required: before.requiredPresent + '/' + before.requiredTotal, score: before.score }))
+
+  const change = {
+    id: 'c1', sectionId: '', sectionTitle: 'Experience', original: bullet,
+    proposed: 'Cut deploy time by 40\\% by moving services to \\textbf{Kubernetes}',
+    reason: '', type: 'rewrite', approved: null,
+  }
+  const after = keywordCoverage(resume, keywords, [change])
+  check('coverage reads the resume as the changes leave it',
+    statusOf(after, 'Kubernetes') === 'covered' && statusOf(after, 'Docker') === 'skills_only',
+    JSON.stringify(after.statuses.map((s) => [s.keyword.term, s.status])))
+
+  const facts = dropFrozenSectionChanges(resume, [change, { ...change, id: 'c2', original: eduLine, proposed: 'Graduated with honours in Kubernetes' }], profile.coverage)
+  check('a change to an education line is dropped', facts.kept.length === 1 && facts.dropped.length === 1 && facts.dropped[0].id === 'c2')
+
+  const bulletChange = (id, original) => ({ ...change, id, original, proposed: original + ' using \\textbf{Kafka}' })
+  const capped = capBulletChanges(resume, [bulletChange('a', bullet), bulletChange('b', mentored), bulletChange('c', maintained)], standardProfile('soft').coverage, 1)
+  check('soft keeps at most one bullet change per role', capped.kept.map((c) => c.id).join(',') === 'a,c', capped.kept.map((c) => c.id).join(','))
+
+  const lines = editableLines(resume, [change], profile.coverage)
+  check('editable lines read as rewritten and leave out facts and headings',
+    lines.some((l) => l.text.includes('Kubernetes')) && !lines.some((l) => l.text.startsWith('Graduated')) && !lines.some((l) => l.text.startsWith('[')))
+  check('a copied list marker in "original" is forgiven', snapToLines([{ ...change, original: '- ' + maintained }], lines)[0].original === maintained)
+
+  const fallback = addMissingKeywords(resume, [change], [kw('Terraform', { kind: 'tool' }), kw('Site Reliability Engineer', { kind: 'title' })], profile.coverage)
+  const toolsChange = fallback.changes.find((c) => c.original.includes('Tools'))
+  const summaryChange = fallback.changes.find((c) => c.sectionTitle === 'Summary')
+  check('a missing tool is appended to the tools line',
+    Boolean(toolsChange) && toolsChange.proposed.endsWith('Terraform') && toolsChange.type === 'add_keywords', toolsChange && toolsChange.proposed)
+  check('a missing job title goes into the summary',
+    Boolean(summaryChange) && summaryChange.proposed.includes('Site Reliability Engineer'), summaryChange && summaryChange.proposed)
+  const spliced = applyLatexChanges(tex, fallback.changes.map((c) => ({ original: c.original, proposed: c.proposed })))
+  check('the fallback changes splice cleanly into the .tex',
+    spliced.applied === fallback.changes.length && validateLatexDocument(spliced.latex).length === 0,
+    JSON.stringify({ applied: spliced.applied, unmatched: spliced.unmatched, rejected: spliced.rejected }))
+  check('after the fallback no required keyword is missing',
+    keywordCoverage(resume, [kw('Terraform', { kind: 'tool' }), kw('Kubernetes', { kind: 'tool' })], fallback.changes).statuses.every((s) => s.status !== 'missing'))
+
+  const bare = parseLatexResume(renderResumeLatex(ResumeDocSchema.parse({
+    name: 'No Lines', experience: [{ company: 'X', role: 'Y', bullets: ['Did one solid thing for a long while'] }],
+  })), 'bare').resume
+  check('with no skills line or summary a keyword is reported, not forced into a bullet',
+    addMissingKeywords(bare, [], [kw('Terraform')], profile.coverage).unplaced[0] === 'Terraform')
+
+  const cleaned = parseKeywordResponse('```json\n' + JSON.stringify({
+    jobTitle: 'Backend Engineer',
+    keywords: [{ term: 'Kafka', kind: 'queue', required: 'yes' }, { term: 'kafka' }, { term: '<keyword exactly as the job description writes it>' }],
+  }) + '\n```')
+  check('keyword replies are cleaned: unknown kinds default, duplicates and placeholders go',
+    cleaned.ok && cleaned.value.keywords.length === 1 && cleaned.value.keywords[0].kind === 'skill' && cleaned.value.keywords[0].required === true,
+    JSON.stringify(cleaned))
+  check('a keyword reply with no keywords is rejected', !parseKeywordResponse(JSON.stringify({ keywords: [] })).ok)
+
+  const keywordCalls = []
+  const keywordReplies = ['not json', JSON.stringify({ jobTitle: 'X', keywords: [{ term: 'Go', required: true }] })]
+  const extracted = await extractJdKeywords({
+    jobDescription: 'We need Go.',
+    generate: async ({ prompt, temperature }) => { keywordCalls.push({ prompt, temperature }); return keywordReplies.shift() },
+  })
+  check('keyword extraction retries once, explaining the problem, at temperature 0',
+    extracted.keywords[0].term === 'Go' && keywordCalls.length === 2 &&
+    keywordCalls[1].prompt.includes('REJECTED') && keywordCalls.every((c) => c.temperature === 0))
+
+  // A full hard run with a scripted model: the first pass rewrites one bullet and
+  // tries to edit education; every follow-up pass returns nothing.
+  const calls = []
+  const scripted = async ({ systemInstruction, prompt, temperature }) => {
+    calls.push({ systemInstruction, prompt, temperature })
+    if (prompt.includes('## MISSING REQUIRED KEYWORDS') || prompt.includes('under-delivered') || prompt.includes('## THE PROBLEM')) {
+      return JSON.stringify({ changes: [] })
+    }
+    return JSON.stringify({
+      summary: 'Aligned with the platform role', companyName: 'Acme', keywordsAdded: ['Kubernetes'], sectionsModified: ['Experience'],
+      changes: [
+        { sectionId: 'section_2', sectionTitle: 'Experience', original: bullet, proposed: 'Cut deploy time by 40\\% by moving services to \\textbf{Kubernetes} with Docker', reason: 'Kubernetes', type: 'rewrite' },
+        { sectionId: 'section_3', sectionTitle: 'Education', original: eduLine, proposed: 'Graduated with honours in Kubernetes and Terraform', reason: 'x', type: 'rewrite' },
+      ],
+    })
+  }
+  const result = await runOptimization({
+    mode: 'optimize', level: 'hard', keywords: { jobTitle: 'Platform Engineer', company: '', keywords },
+    profile, resume, jobDescription: 'Platform role: Kubernetes, Terraform, Python and Docker.',
+    hardInstructions: '', softInstructions: '', provider: 'openrouter', generate: scripted,
+  })
+  const final = keywordCoverage(resume, keywords, result.changes)
+  check('a tailoring run never returns a change to education', !result.changes.some((c) => c.original === eduLine))
+  check('a tailoring run leaves no required keyword missing',
+    final.statuses.every((s) => !s.keyword.required || s.status !== 'missing'),
+    JSON.stringify(final.statuses.map((s) => [s.keyword.term, s.status])))
+  check('the run reports the keywords and the starting coverage',
+    Boolean(result.keywordReport) && result.keywordReport.jobTitle === 'Platform Engineer' && result.keywordReport.before.requiredPresent === 2)
+  check('the tailoring prompt names the level and the required keywords',
+    calls[0].systemInstruction.includes('TAILORING LEVEL: HARD') && calls[0].prompt.includes('- Terraform') && calls[0].temperature === 0.25)
+  check('the keyword pass asked the model before falling back', calls.some((c) => c.prompt.includes('## MISSING REQUIRED KEYWORDS')))
+
+  const ownerCalls = []
+  const ownerResult = await runOptimization({
+    mode: 'optimize', profile: PROFILES.gaurav, resume, jobDescription: 'A backend role with Python.',
+    hardInstructions: '', softInstructions: '', provider: 'openrouter',
+    generate: async (args) => { ownerCalls.push(args); return JSON.stringify({ changes: [] }) },
+  })
+  check("the owner's optimize flow still sends its own prompt, and no keyword pass runs",
+    ownerCalls[0].systemInstruction === buildOptimizeSystemInstruction(PROFILES.gaurav) && ownerCalls[0].temperature === 0.2 &&
+    !ownerCalls.some((c) => c.prompt.includes('MISSING REQUIRED KEYWORDS')) && ownerResult.keywordReport === undefined)
+}
+
+importTests()
+  .then(tailorTests)
+  .then(summary, (err) => {
+    check('the async tests ran to completion', false, err && err.stack)
+    summary()
+  })

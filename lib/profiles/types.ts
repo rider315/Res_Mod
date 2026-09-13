@@ -51,7 +51,8 @@ export interface LengthRules {
 }
 
 export interface ResumeProfile {
-  id: ResumeProfileId
+  /** An owner profile, or 'standard' for the house template imported resumes use. */
+  id: ResumeProfileId | 'standard'
   /** Shown in the resume picker. */
   label: string
   /**

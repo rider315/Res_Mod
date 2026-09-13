@@ -19,6 +19,8 @@
     "lib/normalize-changes.ts",
     "lib/resume-doc.ts",
     "lib/import/**/*.ts",
+    "lib/tailor/**/*.ts",
+    "lib/run-optimization.ts",
     "types/resume.ts"
   ]
 }
