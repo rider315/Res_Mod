@@ -1,5 +1,6 @@
 /*
- * Tests for the LaTeX pipeline, run against the real resumes/*.tex.
+ * Tests for the LaTeX pipeline, run against the owner's resumes/*.tex when they
+ * are present, and against a synthetic sample resume when they are not.
  *
  *   npm run test:latex
  *
@@ -32,6 +33,8 @@
  *  12. billing      — Razorpay signatures against digests made with openssl,
  *                     the order runs are spent in, which plan states give runs,
  *                     webhook payloads, prices, and the environment switches
+ *  13. history      — the keyword score kept with a tailored copy, the daily
+ *                     AI cap's counter, and resume text kept out of production logs
  */
 const path = require('path')
 const fs = require('fs')
@@ -56,6 +59,65 @@ const ROOT = path.join(__dirname, '..')
 let pass = 0
 let fail = 0
 
+// The owner's resumes are kept out of git, so on a clone without resumes/ the
+// parsing, applying and evidence tests run against this synthetic resume,
+// rendered into the same house macros. PIPELINE_RESUMES_DIR points the tests at
+// another folder, which is how the fallback itself gets checked.
+const SAMPLE_RESUME = {
+  name: 'Riya Sample',
+  contact: { email: 'riya.sample@example.com', phone: '+91 90000 00000', location: 'Pune, India', links: [] },
+  summary: 'Backend engineer with five years of building reliable payment and search systems in Python and Go, focused on latency, cost and developer tooling.',
+  skills: [
+    { category: 'Languages:', items: ['Python', 'Go', 'TypeScript', 'SQL'] },
+    { category: 'Frameworks:', items: ['FastAPI', 'Django', 'React'] },
+    { category: 'Cloud & Tools:', items: ['AWS', 'Docker', 'Kubernetes', 'Terraform'] },
+    { category: 'Data:', items: ['PostgreSQL', 'Redis', 'Kafka'] },
+  ],
+  experience: [
+    {
+      company: 'Northwind Payments', role: 'Senior Software Engineer', dates: 'Jan 2022 – Present', location: 'Pune, India',
+      bullets: [
+        'Built **Retrieval-Augmented** search over 2M support articles, cutting ticket volume by 30%',
+        'Cut p95 checkout latency by 40% by moving hot paths from Django to FastAPI services',
+        'Led the migration of 14 services to Kubernetes, halving monthly compute spend',
+      ],
+      groups: [{ title: 'Client: City Bank', bullets: ['Delivered ISO 20022 payment flows processing 50K transactions a day'] }],
+    },
+    {
+      company: 'Blue Harbor Labs', role: 'Software Engineer', dates: 'Jul 2019 – Dec 2021', location: 'Remote',
+      bullets: [
+        'Designed a Kafka event pipeline that replaced nightly batch jobs for 40 internal teams',
+        'Wrote integration tests that caught 90% of regressions before release, saving two days a sprint',
+        'Mentored four junior engineers through code reviews and weekly pairing sessions',
+      ],
+    },
+  ],
+  projects: [
+    {
+      name: 'Ledger Lens', url: 'https://github.com/riya-sample/ledger-lens', stack: 'Go, PostgreSQL', dates: '2023',
+      bullets: ['Open-source reconciliation tool that matches bank statements to ledgers in seconds', 'Adopted by three fintech startups, with 800 stars on GitHub'],
+    },
+    { name: 'Resume Parser', stack: 'Python, spaCy', dates: '2021', bullets: ['Parsed 10K resumes into structured fields with 94% accuracy on a labelled sample'] },
+  ],
+  education: [{ school: 'Pune Institute of Technology', degree: 'B.Tech Computer Engineering', dates: '2015 – 2019', location: 'Pune, India', details: ['CGPA 8.9/10'] }],
+  sections: [{ title: 'Certifications', lines: ['AWS Certified Solutions Architect – Associate'] }],
+}
+
+const RESUMES_DIR = process.env.PIPELINE_RESUMES_DIR || path.join(ROOT, 'resumes')
+let syntheticResume = null
+
+function resumeSource(file) {
+  const real = path.join(RESUMES_DIR, file)
+  if (fs.existsSync(real)) return fs.readFileSync(real, 'utf8')
+  if (!syntheticResume) {
+    console.log('\n  (' + real + ' is not here, so the synthetic sample resume stands in)')
+    const render = require(BUILD + '/lib/import/render')
+    const docs = require(BUILD + '/lib/resume-doc')
+    syntheticResume = render.renderResumeLatex(docs.ResumeDocSchema.parse(SAMPLE_RESUME))
+  }
+  return syntheticResume
+}
+
 function check(name, cond, detail) {
   if (cond) {
     pass++
@@ -69,7 +131,7 @@ function check(name, cond, detail) {
 // ---------------------------------------------------------------- 1-3. parse
 for (const id of Object.keys(PROFILES)) {
   const profile = PROFILES[id]
-  const src = fs.readFileSync(path.join(ROOT, 'resumes', profile.texFile), 'utf8')
+  const src = resumeSource(profile.texFile)
 
   console.log('\n=== ' + profile.texFile + ' ===')
   const { resume, editable } = parseLatexResume(src, profile.personName + ' Resume')
@@ -148,7 +210,7 @@ check('escapes stray math dollar', S('costs $5').text === 'costs \\$5', S('costs
 
 // --------------------------------------------------------------- 5. applying
 console.log('\n=== apply (gaurav.tex) ===')
-const gsrc = fs.readFileSync(path.join(ROOT, 'resumes', 'gaurav.tex'), 'utf8')
+const gsrc = resumeSource('gaurav.tex')
 const g = parseLatexResume(gsrc, 'g')
 const target = g.editable.find((s) => s.macro === 'resumeItem' && s.text.includes('Retrieval-Augmented'))
 check('found the RAG bullet', !!target)
@@ -166,10 +228,9 @@ check('result still validates', validateLatexDocument(applied.latex).length === 
   validateLatexDocument(applied.latex).join('; '))
 check('only the splice region changed', Math.abs(applied.latex.length - gsrc.length) < 400)
 
-const frozenAttempt = applyLatexChanges(gsrc, [{
-  original: '[Role] Innodata | Senior Associate Engineer | Jun 2026 -- Present | Noida, India',
-  proposed: 'Something Else Entirely',
-}])
+const roleLine = g.resume.sections.flatMap((s) => s.content).find((l) => l.startsWith('[Role]'))
+check('found a [Role] line to try rewriting', Boolean(roleLine))
+const frozenAttempt = applyLatexChanges(gsrc, [{ original: roleLine, proposed: 'Something Else Entirely' }])
 check('cannot rewrite a [Role] line',
   frozenAttempt.applied === 0 && frozenAttempt.unmatched.length === 1)
 
@@ -259,7 +320,7 @@ for (const raw of MUST_REJECT) {
 check('nothing dangerous leaked through', leaks === 0)
 
 // Reuse the real preamble so the macros are identical to production.
-const template = fs.readFileSync(path.join(ROOT, 'resumes', 'gaurav.tex'), 'utf8')
+const template = resumeSource('gaurav.tex')
 const preamble = template.slice(0, template.indexOf('\\begin{document}'))
 const fuzzDoc = preamble + '\\begin{document}\n' +
   '\\section{Sanitizer Output}\n\\resumeSubHeadingListStart\n' +
@@ -282,7 +343,7 @@ const { mergeEvidenceChanges } = require(BUILD + '/lib/keyword-evidence')
 
 {
   const profile = PROFILES.gaurav
-  const src = fs.readFileSync(path.join(ROOT, 'resumes', profile.texFile), 'utf8')
+  const src = resumeSource(profile.texFile)
   const [a, b] = parseLatexResume(src, 'resume').editable.filter((s) => s.macro === 'resumeItem')
   const change = (original, proposed, sectionTitle) => ({
     id: 'test_' + original.length + '_' + proposed.length,
@@ -879,9 +940,54 @@ function billingTests() {
   }
 }
 
+// ----------------------------------------------------------------- 13. history
+const { historyCoverage } = require(BUILD + '/lib/tailor/history')
+const { logSnippet } = require(BUILD + '/lib/log')
+
+function historyTests() {
+  console.log('\n=== history, daily cap and logs ===')
+
+  const doc = ResumeDocSchema.parse({
+    name: 'Hana Test',
+    summary: 'Engineer who builds data tools for finance teams.',
+    skills: [{ category: 'Tools:', items: ['Python'] }],
+    experience: [{ company: 'Acme', role: 'Engineer', bullets: ['Built reporting services in Python for the finance team'] }],
+  })
+  const resume = parseLatexResume(renderResumeLatex(doc), doc.name).resume
+  const bullet = resume.sections.find((s) => s.title === 'Experience').content.find((l) => l.startsWith('Built'))
+  const keywords = [
+    { term: 'Kubernetes', kind: 'tool', required: true, aliases: [] },
+    { term: 'Python', kind: 'skill', required: true, aliases: [] },
+  ]
+  const kept = historyCoverage(resume, keywords, [
+    { original: bullet, proposed: 'Built reporting services in Python on Kubernetes for the finance team' },
+  ])
+  check('history keeps the keyword score before and after the applied changes, and nothing more',
+    kept.before.requiredPresent === 1 && kept.after.requiredPresent === 2 && kept.after.requiredTotal === 2 &&
+    kept.after.score === 100 && !('statuses' in kept.after), JSON.stringify(kept))
+  check('a run that reported no keywords keeps no score', historyCoverage(resume, [], []) === null)
+
+  check('the daily AI cap counts per UTC day',
+    quota.buckets.dailyAi(new Date('2026-09-15T23:59:59Z')) === 'ai:2026-09-15' &&
+    quota.buckets.dailyAi(new Date('2026-09-16T00:00:00Z')) === 'ai:2026-09-16')
+
+  const savedEnv = process.env.NODE_ENV
+  try {
+    process.env.NODE_ENV = 'production'
+    check('production logs carry the length of resume text, never the text',
+      logSnippet('Jane Doe, jane@example.com') === '[26 characters not logged]', logSnippet('Jane Doe, jane@example.com'))
+    process.env.NODE_ENV = 'development'
+    check('local logs show a snippet, for debugging', logSnippet('abcdef', 3) === 'abc')
+  } finally {
+    if (savedEnv === undefined) delete process.env.NODE_ENV
+    else process.env.NODE_ENV = savedEnv
+  }
+}
+
 importTests()
   .then(tailorTests)
   .then(billingTests)
+  .then(historyTests)
   .then(summary, (err) => {
     check('the async tests ran to completion', false, err && err.stack)
     summary()

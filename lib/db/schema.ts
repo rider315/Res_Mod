@@ -58,6 +58,37 @@ export const resumes = pgTable(
   ]
 )
 
+/**
+ * Tailored copies a user applied, kept so they can be downloaded again. The
+ * LaTeX is the finished document the server produced from the stored resume and
+ * the approved changes, never text from a browser.
+ */
+export const tailorings = pgTable(
+  'tailorings',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** The saved resume it came from. Cleared, not deleted with it, when that resume is deleted. */
+    resumeId: uuid('resume_id').references(() => resumes.id, { onDelete: 'set null' }),
+    resumeTitle: text('resume_title').notNull(),
+    jobTitle: text('job_title').notNull().default(''),
+    company: text('company').notNull().default(''),
+    /** soft, hard or hardest. */
+    level: text('level').notNull(),
+    jobDescription: text('job_description').notNull().default(''),
+    /** The approved changes that were applied: [{ original, proposed }]. */
+    changes: jsonb('changes').notNull(),
+    appliedCount: integer('applied_count').notNull(),
+    /** Keyword coverage before and after (lib/tailor/history.ts), when the run reported its keywords. */
+    coverage: jsonb('coverage'),
+    latex: text('latex').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('tailorings_user_id_created_at_idx').on(table.userId, table.createdAt)]
+)
+
 // ─── Billing ─────────────────────────────────────────────────────────────────
 //
 // Money-related rows (orders, subscriptions, payments) keep their history when

@@ -3,6 +3,7 @@ import { getDb, schema } from '@/lib/db'
 import { CREDIT_PACKS, CreditPack, PRO_PLAN } from '@/lib/billing/plans'
 import {
   buckets,
+  DAILY_AI_REQUESTS,
   importLimit,
   nextMonthStart,
   QuotaState,
@@ -121,6 +122,17 @@ export async function recentUnpaidSubscription(userId: string, planId: string, s
 
 export async function recordSubscription(input: { id: string; userId: string; planId: string; status: string }) {
   await getDb().insert(schema.subscriptions).values(input).onConflictDoNothing()
+}
+
+/** Razorpay statuses in which a subscription can still charge, or be brought back to charging. */
+const OPEN_STATUSES = ['authenticated', 'active', 'pending', 'halted', 'paused']
+
+/** The account's subscriptions that haven't ended. Deleting the account cancels them. */
+export async function openSubscriptions(userId: string): Promise<SubscriptionRow[]> {
+  return getDb()
+    .select()
+    .from(schema.subscriptions)
+    .where(and(eq(schema.subscriptions.userId, userId), inArray(schema.subscriptions.status, OPEN_STATUSES)))
 }
 
 export async function markCancelAtCycleEnd(subscriptionId: string) {
@@ -275,6 +287,11 @@ export async function reserveImport(userId: string): Promise<Reservation | null>
   const quota = await loadQuota(userId)
   const bucket = buckets.imports(quota.now)
   return (await takeFromCounter(userId, bucket, quota.imports.limit)) ? { userId, source: 'import', bucket } : null
+}
+
+/** Count an AI request toward the account's daily cap, whichever AI it runs on. False once the cap is reached. */
+export async function takeDailyAiRequest(userId: string, now = new Date()): Promise<boolean> {
+  return takeFromCounter(userId, buckets.dailyAi(now), DAILY_AI_REQUESTS)
 }
 
 /** Give back what a reservation took, after the work it paid for failed. Never throws. */

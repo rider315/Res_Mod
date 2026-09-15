@@ -55,10 +55,18 @@ export function nextMonthStart(now: Date): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1))
 }
 
+/**
+ * AI requests a regular account can make in a UTC day, on ResMod AI or its own
+ * key: a guard against runaway use of the servers, well above what a person
+ * tailoring resumes by hand gets through.
+ */
+export const DAILY_AI_REQUESTS = 40
+
 /** Counter names: one row per account per bucket, so a new month or cycle is simply a new row. */
 export const buckets = {
   freeRuns: (now: Date) => `runs:${monthKey(now)}`,
   imports: (now: Date) => `imports:${monthKey(now)}`,
+  dailyAi: (now: Date) => `ai:${now.toISOString().slice(0, 10)}`,
   /** Keyed by the cycle's start, so a renewal starts a fresh count with no reset job. */
   subscriptionRuns: (subscriptionId: string, cycleStart: Date | null, now: Date) =>
     `sub:${subscriptionId}:${cycleStart ? Math.floor(cycleStart.getTime() / 1000) : monthKey(now)}`,

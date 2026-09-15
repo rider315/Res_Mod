@@ -6,6 +6,7 @@ export const BILLING_CODES = {
   quotaExhausted: 'quota_exhausted',
   importLimit: 'import_limit_reached',
   platformUnavailable: 'platform_ai_unavailable',
+  dailyLimit: 'daily_limit_reached',
 } as const
 
 /** GET /api/billing for a regular account. */

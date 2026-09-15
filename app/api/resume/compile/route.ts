@@ -4,6 +4,7 @@ import { requireAuth, sanitizeFileName } from '@/lib/require-auth'
 import { compileLatexToPdf, compileHost } from '@/lib/latex/compile'
 import { validateLatexDocument } from '@/lib/latex/sanitize'
 import { getResume } from '@/lib/db/resumes'
+import { getTailoring } from '@/lib/db/tailorings'
 import { renderResumeLatex } from '@/lib/import/render'
 import { ResumeDocSchema } from '@/lib/resume-doc'
 import { ChangeListSchema, tailorStoredResume } from '@/lib/tailor/splice'
@@ -15,6 +16,8 @@ const schema = z.object({
   resumeId: z.string().optional(),
   /** With resumeId: approved tailoring changes, spliced in on the server before compiling. */
   changes: ChangeListSchema.optional(),
+  /** Any user: a tailored copy from their history, compiled exactly as it was saved. */
+  tailoringId: z.string().optional(),
   fileName: z.string().optional(),
 })
 
@@ -30,12 +33,17 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return auth.response
 
   const parsed = schema.safeParse(await req.json().catch(() => null))
-  if (!parsed.success || (!parsed.data.latex && !parsed.data.resumeId)) {
+  if (!parsed.success || (!parsed.data.latex && !parsed.data.resumeId && !parsed.data.tailoringId)) {
     return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
   }
 
   let latex: string
-  if (parsed.data.resumeId) {
+  if (parsed.data.tailoringId) {
+    // Saved by the apply route from the stored resume and checked changes, so it is the server's own document.
+    const saved = auth.userId ? await getTailoring(auth.userId, parsed.data.tailoringId) : null
+    if (!saved) return NextResponse.json({ error: 'Tailored resume not found' }, { status: 404 })
+    latex = saved.latex
+  } else if (parsed.data.resumeId) {
     const row = auth.userId ? await getResume(auth.userId, parsed.data.resumeId) : null
     const doc = row ? ResumeDocSchema.safeParse(row.doc) : null
     if (!doc?.success) {
