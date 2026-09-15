@@ -29,6 +29,9 @@
  *  11. tailoring    — keyword matching and coverage, the guards on facts and on
  *                     soft's bullet cap, the keyword fallback, and a full run
  *                     with a scripted model that proves the guarantee holds
+ *  12. billing      — Razorpay signatures against digests made with openssl,
+ *                     the order runs are spent in, which plan states give runs,
+ *                     webhook payloads, prices, and the environment switches
  */
 const path = require('path')
 const fs = require('fs')
@@ -738,8 +741,147 @@ async function tailorTests() {
     !ownerCalls.some((c) => c.prompt.includes('MISSING REQUIRED KEYWORDS')) && ownerResult.keywordReport === undefined)
 }
 
+// ----------------------------------------------------------------- 12. billing
+const signatures = require(BUILD + '/lib/billing/signatures')
+const quota = require(BUILD + '/lib/billing/quota')
+const { readWebhookEvent } = require(BUILD + '/lib/billing/events')
+const plans = require(BUILD + '/lib/billing/plans')
+const billingConfig = require(BUILD + '/lib/billing/config')
+
+function billingTests() {
+  console.log('\n=== billing: signatures, included runs and webhooks ===')
+
+  // The expected digests were computed with openssl, not with the code under test:
+  //   printf '%s' 'order_9A33XWu170gUtm|pay_29QQoUBi66xm2f' | openssl dgst -sha256 -hmac test_key_secret
+  //   printf '%s' 'pay_29QQoUBi66xm2f|sub_00000000000001' | openssl dgst -sha256 -hmac test_key_secret
+  //   printf '%s' '{"entity":"event","event":"payment.captured"}' | openssl dgst -sha256 -hmac test_webhook_secret
+  const KEY = 'test_key_secret'
+  const HOOK_KEY = 'test_webhook_secret'
+  const order = {
+    orderId: 'order_9A33XWu170gUtm', paymentId: 'pay_29QQoUBi66xm2f',
+    signature: '05a90d99a226250bdd07dcbec806d936d0ac974af71513b19a36466e7f5eb3a3',
+  }
+  const sub = {
+    subscriptionId: 'sub_00000000000001', paymentId: 'pay_29QQoUBi66xm2f',
+    signature: '945d4db9fb1ee2774fad526e78a9f6b85b6d296385c522fd155fc92f6ee7bd69',
+  }
+  const hookBody = '{"entity":"event","event":"payment.captured"}'
+  const hookSignature = 'a438afc6ce7006ee9db518386b03fa11af0ca64eee8a8978885697e4065e9581'
+
+  check('an order payment signature matches the openssl digest', signatures.verifyOrderPayment(order, KEY))
+  check('an order signature fails under another secret or for another payment',
+    !signatures.verifyOrderPayment(order, 'other_secret') && !signatures.verifyOrderPayment({ ...order, paymentId: 'pay_somethingelse' }, KEY))
+  check('a subscription signature puts the payment id first',
+    signatures.verifySubscriptionPayment(sub, KEY) &&
+    !signatures.verifySubscriptionPayment({ ...sub, signature: signatures.hmacSha256Hex(KEY, sub.subscriptionId + '|' + sub.paymentId) }, KEY))
+  check('a webhook signature covers the raw body, as text or as bytes',
+    signatures.verifyWebhook(hookBody, hookSignature, HOOK_KEY) && signatures.verifyWebhook(Buffer.from(hookBody), hookSignature, HOOK_KEY))
+  check('a re-serialised or altered body fails',
+    !signatures.verifyWebhook(JSON.stringify(JSON.parse(hookBody), null, 2), hookSignature, HOOK_KEY) &&
+    !signatures.verifyWebhook(hookBody.replace('captured', 'failed'), hookSignature, HOOK_KEY))
+  check('short, empty or missing signatures and secrets fail without throwing',
+    !signatures.verifyWebhook(hookBody, 'abc', HOOK_KEY) && !signatures.verifyWebhook(hookBody, '', HOOK_KEY) &&
+    !signatures.verifyWebhook(hookBody, hookSignature, '') && !signatures.verifyOrderPayment({ ...order, signature: '' }, KEY))
+
+  const state = (subscription, free, credits) => ({ subscription, free, credits })
+  check('a run spends Pro runs first, then free runs, then credits',
+    quota.runSources(state({ used: 0, limit: 100 }, { used: 0, limit: 5 }, 3)).join() === 'subscription,free,credits')
+  check('sources with nothing left are skipped',
+    quota.runSources(state({ used: 100, limit: 100 }, { used: 5, limit: 5 }, 2)).join() === 'credits' &&
+    quota.runSources(state(null, { used: 5, limit: 5 }, 0)).length === 0)
+  check('runs left adds every source up, and an overdrawn source counts as none',
+    quota.runsLeft(state({ used: 98, limit: 100 }, { used: 7, limit: 5 }, 4)) === 6)
+
+  const lateSeptember = new Date('2026-09-30T23:30:00Z')
+  check('counters are per UTC month and start again on the 1st',
+    quota.buckets.freeRuns(lateSeptember) === 'runs:2026-09' &&
+    quota.nextMonthStart(lateSeptember).toISOString() === '2026-10-01T00:00:00.000Z' &&
+    quota.nextMonthStart(new Date('2026-12-15T12:00:00Z')).toISOString() === '2027-01-01T00:00:00.000Z')
+  check('a renewal starts a fresh Pro counter',
+    quota.buckets.subscriptionRuns('sub_1', new Date('2026-09-01T00:00:00Z'), lateSeptember) !==
+    quota.buckets.subscriptionRuns('sub_1', new Date('2026-10-01T00:00:00Z'), lateSeptember))
+
+  const cycleEnd = new Date('2026-10-01T00:00:00Z')
+  const entitles = (status, at) => quota.subscriptionEntitles({ status, currentEnd: cycleEnd }, new Date(at))
+  check('active and retrying plans give runs; unpaid, halted and cancelled ones do not',
+    entitles('active', '2026-09-20T00:00:00Z') && entitles('pending', '2026-09-20T00:00:00Z') &&
+    ['created', 'authenticated', 'halted', 'cancelled', 'completed', 'expired', 'paused'].every((s) => !entitles(s, '2026-09-20T00:00:00Z')))
+  check('a plan still counts for three days past its cycle, while a late renewal arrives, then stops',
+    entitles('active', '2026-10-03T23:00:00Z') && !entitles('active', '2026-10-04T01:00:00Z'))
+  check('paying accounts get the higher import limit', quota.importLimit(true) > quota.importLimit(false))
+
+  const captured = readWebhookEvent({
+    entity: 'event', event: 'payment.captured', created_at: 1757700000, contains: ['payment'],
+    payload: { payment: { entity: { id: 'pay_A1', entity: 'payment', amount: 9900, currency: 'INR', status: 'captured', order_id: 'order_B2', notes: [] } } },
+  })
+  check('payment.captured is read as a payment for its order',
+    captured.kind === 'order_payment' && captured.payment.orderId === 'order_B2' && captured.payment.amount === 9900, JSON.stringify(captured))
+
+  const charged = readWebhookEvent({
+    entity: 'event', event: 'subscription.charged', created_at: 1757700000,
+    payload: {
+      subscription: { entity: { id: 'sub_C3', plan_id: 'plan_D4', status: 'active', current_start: 1757700000, current_end: 1760292000, notes: { user_id: 'google-123' } } },
+      payment: { entity: { id: 'pay_E5', amount: 19900, currency: 'INR', status: 'captured', order_id: 'order_F6' } },
+    },
+  })
+  check('subscription.charged carries the state, the cycle, the account and the payment',
+    charged.kind === 'subscription' && charged.subscription.status === 'active' && charged.subscription.userId === 'google-123' &&
+    charged.subscription.currentEnd.getTime() === 1760292000 * 1000 && charged.payment !== null && charged.payment.id === 'pay_E5' &&
+    charged.eventAt.getTime() === 1757700000 * 1000, JSON.stringify(charged))
+
+  const garbled = readWebhookEvent({
+    event: 'subscription.charged', created_at: 1757700000,
+    payload: { subscription: { entity: { id: 'sub_C3', plan_id: 'plan_D4', status: 'active', notes: [] } }, payment: { entity: { id: 42 } } },
+  })
+  check('a malformed payment does not hide the subscription update, and empty notes name no account',
+    garbled.kind === 'subscription' && garbled.payment === null && garbled.subscription.userId === null, JSON.stringify(garbled))
+  check('other events, orderless payments and junk are ignored',
+    readWebhookEvent({ event: 'refund.created', created_at: 1, payload: {} }).kind === 'ignore' &&
+    readWebhookEvent('nonsense').kind === 'ignore' && readWebhookEvent(null).kind === 'ignore' &&
+    readWebhookEvent({ event: 'payment.captured', created_at: 1, payload: { payment: { entity: { id: 'pay_1', amount: 1, currency: 'INR', status: 'captured' } } } }).kind === 'ignore')
+
+  check('prices show as rupees', plans.formatPrice(9900) === '₹99' && plans.formatPrice(24950) === '₹249.50',
+    plans.formatPrice(9900) + ' / ' + plans.formatPrice(24950))
+  check('every pack has a unique id it can be found by',
+    new Set(plans.CREDIT_PACKS.map((p) => p.id)).size === plans.CREDIT_PACKS.length &&
+    plans.CREDIT_PACKS.every((p) => plans.findPack(p.id) === p) && plans.findPack('free_money') === undefined)
+
+  const saved = { ...process.env }
+  try {
+    for (const name of ['NODE_ENV', 'RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET', 'RAZORPAY_WEBHOOK_SECRET', 'RAZORPAY_PRO_PLAN_ID',
+      'RAZORPAY_API_BASE', 'PLATFORM_AI_PROVIDER', 'PLATFORM_AI_MODEL', 'PLATFORM_AI_KEY', 'FREE_RUNS_PER_MONTH']) delete process.env[name]
+    check('without Razorpay keys payments are off, and without a platform provider ResMod AI is off',
+      billingConfig.razorpayConfig() === null && billingConfig.platformAiConfig() === null)
+
+    Object.assign(process.env, { RAZORPAY_KEY_ID: 'rzp_test_abc', RAZORPAY_KEY_SECRET: 'secret', RAZORPAY_API_BASE: 'http://localhost:4010/v1/' })
+    const local = billingConfig.razorpayConfig()
+    check('test keys are recognised, and a stand-in API is used outside production',
+      local.testMode && local.apiBase === 'http://localhost:4010/v1' && local.webhookSecret === null && local.proPlanId === null, JSON.stringify(local))
+    process.env.NODE_ENV = 'production'
+    check('a stand-in API is never used in production', billingConfig.razorpayConfig().apiBase === 'https://api.razorpay.com/v1')
+
+    process.env.PLATFORM_AI_PROVIDER = 'gemini'
+    const keyless = billingConfig.platformAiConfig()
+    Object.assign(process.env, { PLATFORM_AI_KEY: 'key', PLATFORM_AI_MODEL: 'gemini-2.5-flash' })
+    const keyed = billingConfig.platformAiConfig()
+    process.env.PLATFORM_AI_PROVIDER = 'puter'
+    check('ResMod AI needs a key for a keyed provider, and is never the browser-only Puter',
+      keyless === null && keyed !== null && keyed.model === 'gemini-2.5-flash' && billingConfig.platformAiConfig() === null)
+
+    process.env.FREE_RUNS_PER_MONTH = 'lots'
+    const junk = billingConfig.freeRunsPerMonth()
+    process.env.FREE_RUNS_PER_MONTH = '0'
+    check('FREE_RUNS_PER_MONTH can be 0, and junk falls back to the default',
+      junk === plans.DEFAULT_FREE_RUNS_PER_MONTH && billingConfig.freeRunsPerMonth() === 0)
+  } finally {
+    for (const name of Object.keys(process.env)) if (!(name in saved)) delete process.env[name]
+    Object.assign(process.env, saved)
+  }
+}
+
 importTests()
   .then(tailorTests)
+  .then(billingTests)
   .then(summary, (err) => {
     check('the async tests ran to completion', false, err && err.stack)
     summary()

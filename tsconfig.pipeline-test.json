@@ -21,6 +21,12 @@
     "lib/import/**/*.ts",
     "lib/tailor/**/*.ts",
     "lib/run-optimization.ts",
+    "lib/billing/plans.ts",
+    "lib/billing/quota.ts",
+    "lib/billing/types.ts",
+    "lib/billing/signatures.ts",
+    "lib/billing/events.ts",
+    "lib/billing/config.ts",
     "types/resume.ts"
   ]
 }
