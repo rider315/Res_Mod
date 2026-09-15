@@ -2,7 +2,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { signOut } from 'next-auth/react'
 import SettingsModal from '@/components/SettingsModal'
+import AccountPanel from '@/components/user/AccountPanel'
 import BillingPanel from '@/components/user/BillingPanel'
+import HistoryPanel from '@/components/user/HistoryPanel'
 import ImportPanel from '@/components/user/ImportPanel'
 import QuotaDialog from '@/components/user/QuotaDialog'
 import ResumeEditor from '@/components/user/ResumeEditor'
@@ -49,7 +51,14 @@ type View =
       latex: string | null
     }
 
+/**
+ * Screens that open over the current view. The view stays mounted underneath,
+ * so a pasted job description survives a trip to buy runs or look something up.
+ */
+type Overlay = 'billing' | 'history' | 'account' | null
+
 const FORMAT_LABEL: Record<string, string> = { pdf: 'PDF', docx: 'Word', latex: 'LaTeX', text: 'text' }
+const headerButton = 'text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors'
 
 interface LoadedResume {
   resume: ResumeSummary
@@ -57,8 +66,9 @@ interface LoadedResume {
   latex: string
 }
 
-export default function UserDashboard({ name }: { name: string }) {
+export default function UserDashboard({ name, email }: { name: string; email: string }) {
   const [view, setView] = useState<View>({ kind: 'list' })
+  const [overlay, setOverlay] = useState<Overlay>(null)
   const [resumes, setResumes] = useState<ResumeSummary[] | null>(null)
   const [listError, setListError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -66,9 +76,6 @@ export default function UserDashboard({ name }: { name: string }) {
   const [showSettings, setShowSettings] = useState(false)
   /** undefined while loading; null when it couldn't be loaded. */
   const [billing, setBilling] = useState<BillingStatus | null | undefined>(undefined)
-  // Billing opens over the current view, which stays mounted underneath, so a
-  // pasted job description survives a trip to buy more runs.
-  const [showBilling, setShowBilling] = useState(false)
   const [aiSource, setAiSource] = useState<AiSource>('platform')
   const [quotaDialog, setQuotaDialog] = useState<'run' | 'import' | null>(null)
 
@@ -113,9 +120,10 @@ export default function UserDashboard({ name }: { name: string }) {
     saveAiSource(source)
   }
 
-  function openBilling() {
+  function openOverlay(next: Overlay) {
     setQuotaDialog(null)
-    setShowBilling(true)
+    setOverlay(next)
+    window.scrollTo({ top: 0 })
   }
 
   const aiProps = {
@@ -124,7 +132,7 @@ export default function UserDashboard({ name }: { name: string }) {
     onAiSourceChange: changeAiSource,
     billing,
     onOpenSettings: () => setShowSettings(true),
-    onOpenBilling: openBilling,
+    onOpenBilling: () => openOverlay('billing'),
     onBillingChanged: refreshBilling,
   }
 
@@ -186,24 +194,25 @@ export default function UserDashboard({ name }: { name: string }) {
   return (
     <div className="min-h-screen bg-[var(--color-bg)]">
       <header className="sticky top-0 z-10 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-6 py-3 flex items-center justify-between gap-4">
-        <span className="font-semibold text-[var(--color-text)] text-base">ResMod</span>
-        <div className="flex items-center gap-4">
+        <button onClick={() => setOverlay(null)} className="font-semibold text-[var(--color-text)] text-base">
+          ResMod
+        </button>
+        <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1">
           {billing?.platformAi && (
-            <button
-              onClick={openBilling}
-              className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
-            >
+            <button onClick={() => openOverlay('billing')} className={headerButton}>
               <span className="font-semibold text-[var(--color-text)] tabular-nums">{billing.runs.left}</span>{' '}
               {billing.runs.left === 1 ? 'run' : 'runs'} left
             </button>
           )}
-          <button
-            onClick={() => setShowSettings(true)}
-            className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
-          >
+          <button onClick={() => openOverlay('history')} className={headerButton}>
+            History
+          </button>
+          <button onClick={() => setShowSettings(true)} className={headerButton}>
             AI settings
           </button>
-          {name && <span className="text-sm text-[var(--color-text-muted)] hidden sm:inline truncate max-w-[160px]">{name}</span>}
+          <button onClick={() => openOverlay('account')} title={email || name} className={headerButton}>
+            Account
+          </button>
           <button
             onClick={() => signOut({ callbackUrl: '/' })}
             className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-error)] transition-colors"
@@ -214,7 +223,7 @@ export default function UserDashboard({ name }: { name: string }) {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-8">
-        <div hidden={showBilling} className="space-y-6">
+        <div hidden={overlay !== null} className="space-y-6">
           {view.kind === 'list' && (
             <div className="space-y-6 anim-page-enter">
               <div className="flex flex-wrap items-end justify-between gap-3">
@@ -325,12 +334,17 @@ export default function UserDashboard({ name }: { name: string }) {
               resumeTitle={view.title}
               {...aiProps}
               onQuotaExhausted={() => setQuotaDialog('run')}
+              onOpenHistory={() => openOverlay('history')}
               onBack={() => setView({ kind: 'list' })}
             />
           )}
         </div>
 
-        {showBilling && <BillingPanel billing={billing} onBillingChange={setBilling} onBack={() => setShowBilling(false)} />}
+        {overlay === 'billing' && <BillingPanel billing={billing} onBillingChange={setBilling} onBack={() => setOverlay(null)} />}
+        {overlay === 'history' && <HistoryPanel onBack={() => setOverlay(null)} />}
+        {overlay === 'account' && (
+          <AccountPanel email={email} onBack={() => setOverlay(null)} onOpenHistory={() => openOverlay('history')} />
+        )}
       </main>
 
       {showSettings && (
@@ -350,7 +364,7 @@ export default function UserDashboard({ name }: { name: string }) {
         <QuotaDialog
           kind={quotaDialog}
           billing={billing}
-          onOpenBilling={openBilling}
+          onOpenBilling={() => openOverlay('billing')}
           onUseOwnAi={() => {
             setQuotaDialog(null)
             changeAiSource('own')

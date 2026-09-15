@@ -36,6 +36,8 @@ interface Applied {
   unmatched: string[]
   overlapping: string[]
   rejected: Array<{ original: string; reason: string }>
+  /** The copy's id in the history; null when it couldn't be saved there. */
+  tailoringId: string | null
 }
 
 interface TailorPanelProps {
@@ -50,6 +52,7 @@ interface TailorPanelProps {
   onOpenBilling: () => void
   onBillingChanged: () => void
   onQuotaExhausted: () => void
+  onOpenHistory: () => void
   onBack: () => void
 }
 
@@ -66,6 +69,7 @@ export default function TailorPanel({
   onOpenBilling,
   onBillingChanged,
   onQuotaExhausted,
+  onOpenHistory,
   onBack,
 }: TailorPanelProps) {
   const [step, setStep] = useState<Step>('form')
@@ -174,7 +178,17 @@ export default function TailorPanel({
       const res = await fetch(`/api/resumes/${resumeId}/apply`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ changes: approvalList }),
+        body: JSON.stringify({
+          changes: approvalList,
+          // Kept with the tailored copy in the history.
+          history: {
+            level,
+            jobDescription,
+            jobTitle: result?.keywordReport?.jobTitle ?? '',
+            company,
+            keywords: result?.keywordReport?.keywords,
+          },
+        }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error ?? 'The changes could not be applied.')
@@ -427,6 +441,15 @@ export default function TailorPanel({
         <p className="text-[11px] text-[var(--color-text-faint)]">
           Download PDF sends the tailored resume to texlive.net to be typeset, and Open in Overleaf sends it to overleaf.com.
         </p>
+        {applied.tailoringId && (
+          <p className="text-xs text-[var(--color-text-muted)]">
+            This copy is saved in your{' '}
+            <button onClick={onOpenHistory} className="text-[var(--color-primary)] hover:underline">
+              history
+            </button>
+            , so you can download it again later.
+          </p>
+        )}
 
         {error && <div className={errorBox}>{error}</div>}
 

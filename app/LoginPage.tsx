@@ -3,10 +3,30 @@
 import { signIn } from 'next-auth/react'
 import Link from 'next/link'
 
-export default function LoginPage() {
+interface LoginPageProps {
+  /** Free runs a month on ResMod AI; null while ResMod AI isn't switched on. */
+  freeRuns: number | null
+  /** Arrived here straight after deleting an account. */
+  accountDeleted: boolean
+}
+
+const FEATURES: Array<[string, string]> = [
+  ['Any format in', 'Upload a PDF, Word, LaTeX or text resume. It becomes a clean LaTeX resume you can check and edit.'],
+  ['Three levels', 'Soft, Hard or Hardest: choose how much of your resume is rewritten for each job.'],
+  ['Every required keyword', 'The keywords an ATS screens the job for always end up in your resume, with a score that shows it.'],
+  ['Still your resume', 'Employers, titles, dates and degrees never change, and nothing goes in until you approve it.'],
+]
+
+export default function LoginPage({ freeRuns, accountDeleted }: LoginPageProps) {
   return (
-    <main className="min-h-screen bg-[var(--color-bg)] flex items-center justify-center px-4">
-      <div className="w-full max-w-sm space-y-8 text-center anim-page-enter">
+    <main className="min-h-screen bg-[var(--color-bg)] flex items-center justify-center px-4 py-10">
+      <div className="w-full max-w-md space-y-8 text-center anim-page-enter">
+        {accountDeleted && (
+          <p className="rounded-xl border border-[var(--color-success)] bg-[var(--color-success-highlight)] p-3 text-sm text-[var(--color-success)]">
+            Your account has been deleted.
+          </p>
+        )}
+
         <div className="flex justify-center">
           <div className="relative">
             <svg width="52" height="52" viewBox="0 0 52 52" fill="none" aria-label="ResMod">
@@ -32,18 +52,17 @@ export default function LoginPage() {
 
         <div className="space-y-2">
           <h1 className="text-3xl font-bold text-[var(--color-text)]">ResMod</h1>
-          <p className="text-sm text-[var(--color-text-muted)] max-w-xs mx-auto">
-            AI-powered resume optimization. Paste a job description, review every change, and export a tailored LaTeX resume.
+          <p className="text-base font-medium text-[var(--color-text)]">
+            Tailor your resume to every job, without losing what makes it yours.
+          </p>
+          <p className="text-sm text-[var(--color-text-muted)] max-w-sm mx-auto">
+            Upload your resume once. For each job description, ResMod proposes changes you review one by one, then hands
+            you a tailored PDF, LaTeX file or Overleaf project.
           </p>
         </div>
 
         <ul className="text-left space-y-3 bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] p-5">
-          {[
-            ['LaTeX native', 'Rewrites your .tex directly — the source file is never modified'],
-            ['ATS-first', 'Injects the job description’s exact keywords into every role'],
-            ['Diff review', 'See every proposed change before it is applied'],
-            ['Hard constraints', 'Define rules the AI cannot break'],
-          ].map(([title, desc]) => (
+          {FEATURES.map(([title, desc]) => (
             <li key={title} className="flex items-start gap-3">
               <div className="w-5 h-5 rounded-full bg-[var(--color-primary-highlight)] flex items-center justify-center flex-shrink-0 mt-0.5">
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" strokeWidth="3">
@@ -72,13 +91,18 @@ export default function LoginPage() {
         </button>
 
         <p className="text-xs text-[var(--color-text-faint)]">
-          Google is used for sign-in only — no Docs or Drive access is requested.
+          {freeRuns
+            ? `Free to start: ${freeRuns} tailoring runs every month on ResMod AI, or use your own AI key.`
+            : 'Free to use with your own AI key, or with Puter.'}{' '}
+          Google is used for sign-in only; no Docs or Drive access is requested.
         </p>
-        
+
         <div className="flex items-center justify-center gap-4 text-xs text-[var(--color-text-muted)] pt-4">
           <Link href="/privacy" className="hover:text-[var(--color-primary)] hover:underline">Privacy Policy</Link>
           <span>•</span>
           <Link href="/terms" className="hover:text-[var(--color-primary)] hover:underline">Terms of Service</Link>
+          <span>•</span>
+          <Link href="/contact" className="hover:text-[var(--color-primary)] hover:underline">Contact</Link>
         </div>
       </div>
     </main>

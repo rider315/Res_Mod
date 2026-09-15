@@ -77,6 +77,14 @@ export function saveAiSource(source: AiSource): void {
   localStorage.setItem(AI_SOURCE_KEY, source)
 }
 
+/** Forget everything ResMod keeps in this browser: AI keys, models and choices. */
+export function clearLocalAppData(): void {
+  if (typeof window === 'undefined') return
+  for (const key of Object.keys(localStorage)) {
+    if (key.startsWith('resmod_')) localStorage.removeItem(key)
+  }
+}
+
 export function saveAISettings(settings: AISettings): void {
   if (typeof window === 'undefined') return
 

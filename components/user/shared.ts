@@ -63,24 +63,31 @@ export function resumeFileBase(name: string): string {
   return `${sanitizeFileName(name) || 'Resume'}_Resume`
 }
 
-/**
- * Build a saved resume into a PDF and download it, with any approved tailoring
- * changes spliced in on the server. Throws with the compiler's reason.
- */
-export async function downloadResumePdf(
-  resumeId: string,
-  name: string,
-  changes?: Array<{ original: string; proposed: string; approved: boolean | null }>
-): Promise<void> {
+/** Compile on the server and download the PDF. Throws with the compiler's reason. */
+async function compileAndDownload(body: Record<string, unknown>, name: string): Promise<void> {
   const fileName = resumeFileBase(name)
   const res = await fetch('/api/resume/compile', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ resumeId, fileName, changes }),
+    body: JSON.stringify({ ...body, fileName }),
   })
   if (!res.ok) {
     const data = await res.json().catch(() => ({}))
     throw new Error(data.log ? `${data.error}\n\n${data.log}` : data.error ?? 'The PDF could not be built.')
   }
   downloadBlob(await res.blob(), `${fileName}.pdf`)
+}
+
+/** Build a saved resume into a PDF and download it, with any approved tailoring changes spliced in on the server. */
+export function downloadResumePdf(
+  resumeId: string,
+  name: string,
+  changes?: Array<{ original: string; proposed: string; approved: boolean | null }>
+): Promise<void> {
+  return compileAndDownload({ resumeId, changes }, name)
+}
+
+/** Build a tailored copy from the history into a PDF, exactly as it was saved, and download it. */
+export function downloadTailoringPdf(tailoringId: string, name: string): Promise<void> {
+  return compileAndDownload({ tailoringId }, name)
 }

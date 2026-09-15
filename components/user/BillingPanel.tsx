@@ -328,6 +328,10 @@ export default function BillingPanel({ billing, onBillingChange, onBack }: Billi
         <a href="/terms" className="underline hover:text-[var(--color-text-muted)]">
           Terms
         </a>
+        ; for anything else,{' '}
+        <a href="/contact" className="underline hover:text-[var(--color-text-muted)]">
+          contact us
+        </a>
         .
       </p>
     </div>

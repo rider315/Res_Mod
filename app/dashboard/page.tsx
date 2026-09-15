@@ -12,7 +12,7 @@ export default async function DashboardPage() {
   // The resume profiles are the owner's; every other account gets its own
   // dashboard for importing and managing its resumes.
   if (getAccess(session)?.role !== 'owner') {
-    return <UserDashboard name={session.user?.name ?? ''} />
+    return <UserDashboard name={session.user?.name ?? ''} email={session.user?.email ?? ''} />
   }
   return <Dashboard />
 }
