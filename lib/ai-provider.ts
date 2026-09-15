@@ -3,6 +3,7 @@ import { AIProvider } from '@/types/resume'
 import { getProvider, ProviderConfig } from '@/lib/providers'
 import { extractJSON, estimateTokens } from '@/lib/json-repair'
 import { generateClaude } from '@/lib/claude'
+import { logSnippet } from '@/lib/log'
 
 /**
  * Server-side provider dispatch.
@@ -341,7 +342,7 @@ async function callChatCompletions(
       continue
     }
 
-    console.error(`[${config.id}] API error (model=${model}):`, response.status, errorBody.slice(0, 500))
+    console.error(`[${config.id}] API error (model=${model}):`, response.status, logSnippet(errorBody))
     throw new Error(providerErrorMessage(config, response.status, errorBody, model))
   }
 
@@ -401,7 +402,7 @@ async function generateOpenAICompatible(
   const extracted = extractJSON(result.rawText)
   if (extracted) return extracted
 
-  console.warn(`[${config.id}] Could not extract valid JSON. First 500 chars:`, result.rawText.slice(0, 500))
+  console.warn(`[${config.id}] Could not extract valid JSON. Reply:`, logSnippet(result.rawText))
   return result.rawText.trim()
 }
 

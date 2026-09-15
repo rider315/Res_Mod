@@ -2,6 +2,7 @@ import { extractJSON, invalidJsonMessage } from '@/lib/json-repair'
 import { normalizeChanges, asStringArray, LengthLimits } from '@/lib/normalize-changes'
 import { AIProvider, ParsedResume, OptimizationResult } from '@/types/resume'
 import { ResumeProfile } from '@/lib/profiles/types'
+import { logSnippet } from '@/lib/log'
 
 
 /**
@@ -180,7 +181,7 @@ export function parseOptimizeResponse(
       }
     }
     if (!raw) {
-      console.error('[optimizer] Failed to parse AI response. First 500 chars:', responseText.slice(0, 500))
+      console.error('[optimizer] Failed to parse AI response:', logSnippet(responseText))
       throw new Error(invalidJsonMessage(provider, model))
     }
   }

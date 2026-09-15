@@ -4,6 +4,7 @@ import { requireOwner, buildResumeFileName } from '@/lib/require-auth'
 import { getProfile, PROFILE_ORDER, ResumeProfileId } from '@/lib/profiles'
 import { loadResumeSource } from '@/lib/latex/source'
 import { applyLatexChanges } from '@/lib/latex/apply'
+import { logSnippet } from '@/lib/log'
 
 const schema = z.object({
   profileId: z.enum(PROFILE_ORDER as [ResumeProfileId, ...ResumeProfileId[]]),
@@ -64,7 +65,7 @@ export async function POST(req: NextRequest) {
     }
 
     for (const bad of result.rejected) {
-      console.warn(`[resume/apply] rejected "${bad.original.slice(0, 60)}": ${bad.reason}`)
+      console.warn(`[resume/apply] rejected ${JSON.stringify(logSnippet(bad.original, 60))}: ${bad.reason}`)
     }
 
     return NextResponse.json({

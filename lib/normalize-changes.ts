@@ -1,4 +1,5 @@
 import { ResumeChange } from '@/types/resume'
+import { logSnippet } from '@/lib/log'
 
 /**
  * Turn whatever the model returned into well-formed ResumeChange objects.
@@ -100,14 +101,14 @@ export function normalizeChanges(
     const growth = proposed.length - original.length
     if (growth > limits.maxGrowth(original.length)) {
       console.warn(
-        `[${opts.logLabel}] Rejected change (+${growth} chars, too long): "${original.slice(0, 50)}..." → "${proposed.slice(0, 50)}..."`
+        `[${opts.logLabel}] Rejected change (+${growth} chars, too long): ${JSON.stringify(logSnippet(original, 50))} → ${JSON.stringify(logSnippet(proposed, 50))}`
       )
       skipped++
       return
     }
     if (proposed.length < limits.minLength(original.length)) {
       console.warn(
-        `[${opts.logLabel}] Rejected change (${proposed.length} vs ${original.length} chars, content lost): "${original.slice(0, 50)}..."`
+        `[${opts.logLabel}] Rejected change (${proposed.length} vs ${original.length} chars, content lost): ${JSON.stringify(logSnippet(original, 50))}`
       )
       skipped++
       return

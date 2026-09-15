@@ -23,6 +23,7 @@ import {
   remainingUnevidenced,
 } from '@/lib/keyword-evidence'
 import { LEVELS, TailorLevel } from '@/lib/tailor/levels'
+import { logSnippet } from '@/lib/log'
 import { buildKeywordTopUpPrompt, buildTailorPrompt, buildTailorSystemInstruction } from '@/lib/tailor/prompt'
 import { addMissingKeywords, JdKeywords, keywordCoverage } from '@/lib/tailor/keywords'
 import {
@@ -144,7 +145,7 @@ export async function runOptimization(opts: RunOptions): Promise<OptimizationRes
   if (guarded.dropped.length > 0) {
     console.warn(
       `[${label}] Dropped ${guarded.dropped.length} change(s) targeting frozen heading lines: ` +
-      guarded.dropped.map((c) => JSON.stringify(c.original.slice(0, 60))).join(', ')
+      guarded.dropped.map((c) => JSON.stringify(logSnippet(c.original, 60))).join(', ')
     )
   }
   const baseline: OptimizationResult = { ...firstPass, changes: ctx.guard(guarded.kept) }
