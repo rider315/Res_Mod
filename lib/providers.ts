@@ -321,6 +321,11 @@ export function getProvider(id: AIProvider): ProviderConfig {
   return PROVIDERS[id] ?? PROVIDERS[DEFAULT_PROVIDER]
 }
 
+/** The provider's key as messages name it: "Gemini API key", but "Claude API key", not "Claude API API key". */
+export function apiKeyName(config: ProviderConfig): string {
+  return /\bAPI$/.test(config.label) ? `${config.label} key` : `${config.label} API key`
+}
+
 export function isValidProvider(id: string): id is AIProvider {
   return id in PROVIDERS
 }

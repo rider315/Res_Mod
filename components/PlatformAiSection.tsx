@@ -1,0 +1,150 @@
+'use client'
+import { useEffect, useState } from 'react'
+import { AIProvider } from '@/types/resume'
+import { getProvider } from '@/lib/providers'
+import type { PlatformAiStatus } from '@/lib/billing/types'
+
+/**
+ * The owner's control for ResMod AI, inside AI settings: make the provider, model
+ * and key picked above the AI that regular accounts run on with their included
+ * runs, or switch it off. A key goes to the server once, is checked, is stored
+ * encrypted, and is never sent back.
+ */
+
+interface PlatformAiSectionProps {
+  provider: AIProvider
+  model: string
+  apiKey: string
+}
+
+const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err))
+
+export default function PlatformAiSection({ provider, model, apiKey }: PlatformAiSectionProps) {
+  const [status, setStatus] = useState<PlatformAiStatus | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [busy, setBusy] = useState<'save' | 'off' | null>(null)
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
+  const config = getProvider(provider)
+  const modelLabel = model ? ` · ${model.split('/').pop()}` : ''
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/admin/platform-ai', { cache: 'no-store' })
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error(data.error ?? 'ResMod AI could not be loaded.')
+        if (!cancelled) setStatus(data)
+      })
+      .catch((err) => {
+        if (!cancelled) setLoadError(errorText(err))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  async function send(method: 'PUT' | 'DELETE') {
+    if (
+      method === 'DELETE' &&
+      !window.confirm("Turn off ResMod AI? Users without their own key won't be able to run, and buying runs switches off.")
+    ) {
+      return
+    }
+    setBusy(method === 'PUT' ? 'save' : 'off')
+    setMessage(null)
+    try {
+      const res = await fetch('/api/admin/platform-ai', {
+        method,
+        headers: method === 'PUT' ? { 'Content-Type': 'application/json' } : undefined,
+        body: method === 'PUT' ? JSON.stringify({ provider, model, apiKey }) : undefined,
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error ?? 'That did not work.')
+      setStatus(data)
+      setMessage({
+        ok: true,
+        text: method === 'PUT' ? `Your users now run on ${config.label}${modelLabel}.` : 'ResMod AI is off, and so is buying runs.',
+      })
+    } catch (err) {
+      setMessage({ ok: false, text: errorText(err) })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const current = status?.current
+  const currentProvider = current ? getProvider(current.provider) : null
+
+  return (
+    <section className="mt-6 pt-5 border-t border-[var(--color-border)] space-y-3">
+      <div>
+        <h3 className="text-sm font-semibold text-[var(--color-text)]">ResMod AI for your users</h3>
+        <p className="text-xs text-[var(--color-text-muted)] mt-1">
+          Signed-in users who haven&apos;t added their own key run on this, paid for with their free runs, credits or
+          Pro. Buying runs stays off until it&apos;s set.
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-offset)] p-3 text-xs space-y-1">
+        {loadError ? (
+          <p className="text-[var(--color-error)]">{loadError}</p>
+        ) : !status ? (
+          <p className="text-[var(--color-text-muted)]">Loading…</p>
+        ) : current && currentProvider ? (
+          <p className="text-[var(--color-text-muted)]">
+            Now:{' '}
+            <span className="font-medium text-[var(--color-text)]">
+              {currentProvider.emoji} {currentProvider.label}
+              {current.model ? ` · ${current.model}` : ''} ·{' '}
+              {current.keySource === 'saved' ? `saved key …${current.keyHint ?? ''}` : currentProvider.needsKey ? `server ${currentProvider.envVar}` : 'no key needed'}
+            </span>
+          </p>
+        ) : (
+          <p className="text-[var(--color-text-muted)]">
+            Now: <span className="font-medium text-[var(--color-text)]">off</span>
+          </p>
+        )}
+        {status && current && !status.working && (
+          <p className="text-[var(--color-warning)]">
+            This can&apos;t run: its key is missing, or was saved before NEXTAUTH_SECRET changed. Save it again.
+          </p>
+        )}
+        {status?.overriddenByEnv && (
+          <p className="text-[var(--color-warning)]">
+            PLATFORM_AI_* variables are set on this server, so they are used instead of this setting.
+          </p>
+        )}
+      </div>
+
+      {message && (
+        <p className={`text-xs ${message.ok ? 'text-[var(--color-success)]' : 'text-[var(--color-error)]'}`}>{message.text}</p>
+      )}
+
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={() => send('PUT')}
+          disabled={busy !== null || config.clientSide}
+          className="py-2 px-3 rounded-xl bg-[var(--color-primary)] text-white text-xs font-semibold hover:bg-[var(--color-primary-hover)] disabled:opacity-50 transition-all"
+        >
+          {busy === 'save' ? 'Checking the key…' : `Use ${config.label}${modelLabel} for ResMod AI`}
+        </button>
+        {current && (
+          <button
+            onClick={() => send('DELETE')}
+            disabled={busy !== null}
+            className="py-2 px-3 rounded-xl border border-[var(--color-border)] text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-error)] hover:border-[var(--color-error)] disabled:opacity-50 transition-all"
+          >
+            {busy === 'off' ? 'Turning off…' : 'Turn off'}
+          </button>
+        )}
+      </div>
+      <p className="text-[11px] text-[var(--color-text-faint)]">
+        {config.clientSide
+          ? `${config.label} runs in each person's browser, so it can't power ResMod AI. Pick another provider above.`
+          : config.needsKey
+            ? `Uses the ${config.label} key above${config.envVar ? `, or this server's ${config.envVar} if that field is blank` : ''}. The key is checked first, then stored encrypted.`
+            : 'This provider needs no key.'}
+      </p>
+    </section>
+  )
+}

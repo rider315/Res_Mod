@@ -1,11 +1,12 @@
+import { z } from 'zod'
 import { AIProvider } from '@/types/resume'
 import { getProvider, isValidProvider } from '@/lib/providers'
 import { DEFAULT_FREE_RUNS_PER_MONTH } from '@/lib/billing/plans'
 
 /**
- * Billing and ResMod AI settings, read from the environment (see .env.example).
- * Each returns null while its variables are missing, and whatever needs it
- * switches off rather than half-working.
+ * Billing settings from the environment (see .env.example), and the rules for
+ * ResMod AI, which the owner chooses in AI settings. Each returns null while it
+ * isn't set, and whatever needs it switches off rather than half-working.
  */
 
 const env = (name: string) => process.env[name]?.trim() ?? ''
@@ -46,11 +47,12 @@ export interface PlatformAiConfig {
 }
 
 /**
- * The model regular accounts run on when they use included runs instead of
- * their own key. Deliberately separate from the provider keys in .env, which
- * belong to the owner.
+ * ResMod AI from PLATFORM_AI_* environment variables. Usually these are unset,
+ * because the owner chooses ResMod AI in AI settings (lib/billing/platform-ai.ts).
+ * When they are set they take precedence, which is how the local checks point
+ * ResMod AI at a stand-in model.
  */
-export function platformAiConfig(): PlatformAiConfig | null {
+export function platformAiFromEnv(): PlatformAiConfig | null {
   const provider = env('PLATFORM_AI_PROVIDER')
   if (!provider || !isValidProvider(provider)) return null
 
@@ -60,6 +62,48 @@ export function platformAiConfig(): PlatformAiConfig | null {
   if (config.needsKey && !apiKey) return null
 
   return { provider, model: env('PLATFORM_AI_MODEL') || undefined, apiKey }
+}
+
+const StoredPlatformAiSchema = z.object({
+  provider: z.string(),
+  model: z.string().default(''),
+  /** "saved": encryptedKey holds the key. "server": the provider's own env var, such as GEMINI_API_KEY, is used. */
+  keySource: z.enum(['saved', 'server']),
+  encryptedKey: z.string().optional(),
+  /** The saved key's last four characters, so the owner can tell which key is in use. */
+  keyHint: z.string().optional(),
+})
+
+/** ResMod AI as the owner saved it in AI settings. The key is encrypted (lib/secrets.ts). */
+export type StoredPlatformAi = z.infer<typeof StoredPlatformAiSchema>
+
+export function parseStoredPlatformAi(value: unknown): StoredPlatformAi | null {
+  const parsed = StoredPlatformAiSchema.safeParse(value)
+  return parsed.success ? parsed.data : null
+}
+
+/**
+ * The model and key a saved setting points at, or null when it can't run: an
+ * unknown or browser-only provider, or a key that is missing or can't be decrypted.
+ */
+export function resolveStoredPlatformAi(
+  stored: StoredPlatformAi | null,
+  environment: Record<string, string | undefined>,
+  decrypt: (sealed: string) => string | null
+): PlatformAiConfig | null {
+  if (!stored || !isValidProvider(stored.provider)) return null
+  const config = getProvider(stored.provider)
+  if (config.clientSide) return null
+
+  let apiKey = ''
+  if (config.needsKey) {
+    apiKey =
+      stored.keySource === 'saved'
+        ? (stored.encryptedKey && decrypt(stored.encryptedKey)) || ''
+        : (config.envVar && environment[config.envVar]?.trim()) || ''
+    if (!apiKey) return null
+  }
+  return { provider: stored.provider, model: stored.model.trim() || undefined, apiKey }
 }
 
 export function freeRunsPerMonth(): number {

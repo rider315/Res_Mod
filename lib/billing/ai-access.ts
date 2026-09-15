@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { AIProvider } from '@/types/resume'
 import type { Role } from '@/lib/access'
 import { resolveApiKey } from '@/lib/ai-provider'
-import { PlatformAiConfig, platformAiConfig } from '@/lib/billing/config'
+import type { PlatformAiConfig } from '@/lib/billing/config'
+import { getPlatformAi } from '@/lib/billing/platform-ai'
 import { DAILY_AI_REQUESTS } from '@/lib/billing/quota'
 import { releaseReservation, Reservation, reserveImport, reserveRun, takeDailyAiRequest } from '@/lib/billing/store'
 import { BILLING_CODES } from '@/lib/billing/types'
@@ -55,7 +56,7 @@ export async function chooseAi(account: Account, request: AiRequest, meter: 'run
   let own: { provider: AIProvider; apiKey: string } | null = null
 
   if (request.usePlatform) {
-    platform = platformAiConfig()
+    platform = await getPlatformAi()
     if (!platform) {
       return refuse(
         503,

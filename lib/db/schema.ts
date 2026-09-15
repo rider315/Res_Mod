@@ -215,3 +215,19 @@ export const webhookEvents = pgTable('webhook_events', {
   event: text('event').notNull(),
   receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
 })
+
+// ─── Settings ────────────────────────────────────────────────────────────────
+
+/**
+ * Settings the owner changes from the app instead of the environment, such as
+ * ResMod AI (lib/billing/platform-ai.ts). One row per setting; secrets inside a
+ * value are encrypted (lib/secrets.ts).
+ */
+export const appSettings = pgTable('app_settings', {
+  /** For example "platform_ai@production". */
+  key: text('key').primaryKey(),
+  value: jsonb('value').notNull(),
+  /** The account that last changed it. */
+  updatedBy: text('updated_by'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})

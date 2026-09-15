@@ -4,6 +4,7 @@ import { AIProvider } from '@/types/resume'
 import { AISettings } from '@/lib/settings-storage'
 import { getProvider, PROVIDER_ORDER } from '@/lib/providers'
 import { ensurePuterSignedIn } from '@/lib/puter'
+import PlatformAiSection from '@/components/PlatformAiSection'
 
 interface CatalogModel {
   id: string
@@ -30,6 +31,11 @@ interface SettingsModalProps {
    * app the server can't reach a model running on the user's own machine.
    */
   serverKeys?: boolean
+  /**
+   * The owner's dialog also chooses ResMod AI: the provider, model and key that
+   * regular accounts run on with their included runs.
+   */
+  platformAdmin?: boolean
 }
 
 function formatContext(tokens: number): string {
@@ -45,7 +51,13 @@ function formatPrice(model: CatalogModel): string {
   return `$${price < 1 ? price.toFixed(2) : price.toFixed(1)}/M in`
 }
 
-export default function SettingsModal({ settings, onSave, onClose, serverKeys = true }: SettingsModalProps) {
+export default function SettingsModal({
+  settings,
+  onSave,
+  onClose,
+  serverKeys = true,
+  platformAdmin = false,
+}: SettingsModalProps) {
   const [provider, setProvider] = useState<AIProvider>(settings.provider)
   const [apiKeys, setApiKeys] = useState<Record<AIProvider, string>>({ ...settings.apiKeys })
   const [models, setModels] = useState<Record<AIProvider, string>>({ ...settings.models })
@@ -453,6 +465,8 @@ export default function SettingsModal({ settings, onSave, onClose, serverKeys = 
             </button>
           </div>
         </div>
+
+        {platformAdmin && <PlatformAiSection provider={provider} model={model} apiKey={apiKeys[provider] ?? ''} />}
       </div>
     </div>
   )

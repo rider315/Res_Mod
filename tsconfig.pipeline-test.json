@@ -15,6 +15,7 @@
     "lib/profiles/**/*.ts",
     "lib/access.ts",
     "lib/log.ts",
+    "lib/secrets.ts",
     "lib/coverage.ts",
     "lib/keyword-evidence.ts",
     "lib/normalize-changes.ts",

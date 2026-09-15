@@ -1,3 +1,4 @@
+import type { AIProvider } from '@/types/resume'
 import type { CreditPack } from '@/lib/billing/plans'
 import type { Allowance } from '@/lib/billing/quota'
 
@@ -53,3 +54,20 @@ interface Prefill {
 export type CheckoutStart =
   | { kind: 'order'; keyId: string; orderId: string; amount: number; currency: string; description: string; prefill: Prefill }
   | { kind: 'subscription'; keyId: string; subscriptionId: string; description: string; prefill: Prefill }
+
+/** /api/admin/platform-ai: ResMod AI as the owner set it in AI settings. The key is never included. */
+export interface PlatformAiStatus {
+  current: {
+    provider: AIProvider
+    model: string
+    /** "saved": a key saved from AI settings. "server": the provider's key in the server environment. */
+    keySource: 'saved' | 'server'
+    /** The saved key's last four characters. */
+    keyHint: string | null
+    updatedAt: string | null
+  } | null
+  /** The setting can run: its provider is usable and its key is present and readable. */
+  working: boolean
+  /** PLATFORM_AI_* environment variables are set on this server, and are used instead. */
+  overriddenByEnv: boolean
+}

@@ -1,10 +1,13 @@
 import Link from 'next/link'
-import { platformAiConfig } from '@/lib/billing/config'
+import { getPlatformAi } from '@/lib/billing/platform-ai'
 import { getProvider } from '@/lib/providers'
 
 export const metadata = {
   title: 'Privacy Policy | ResMod',
 }
+
+// The page names the provider ResMod AI runs on, which the owner can change at any time.
+export const dynamic = 'force-dynamic'
 
 const LAST_UPDATED = '15 September 2026'
 
@@ -17,8 +20,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
-export default function PrivacyPolicy() {
-  const platform = platformAiConfig()
+export default async function PrivacyPolicy() {
+  const platform = await getPlatformAi()
   const platformProvider = platform ? getProvider(platform.provider).label : null
 
   return (

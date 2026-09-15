@@ -35,6 +35,8 @@
  *                     webhook payloads, prices, and the environment switches
  *  13. history      — the keyword score kept with a tailored copy, the daily
  *                     AI cap's counter, and resume text kept out of production logs
+ *  14. settings     — ResMod AI chosen in AI settings: its key encrypted at rest,
+ *                     and which saved settings can actually run
  */
 const path = require('path')
 const fs = require('fs')
@@ -912,7 +914,7 @@ function billingTests() {
     for (const name of ['NODE_ENV', 'RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET', 'RAZORPAY_WEBHOOK_SECRET', 'RAZORPAY_PRO_PLAN_ID',
       'RAZORPAY_API_BASE', 'PLATFORM_AI_PROVIDER', 'PLATFORM_AI_MODEL', 'PLATFORM_AI_KEY', 'FREE_RUNS_PER_MONTH']) delete process.env[name]
     check('without Razorpay keys payments are off, and without a platform provider ResMod AI is off',
-      billingConfig.razorpayConfig() === null && billingConfig.platformAiConfig() === null)
+      billingConfig.razorpayConfig() === null && billingConfig.platformAiFromEnv() === null)
 
     Object.assign(process.env, { RAZORPAY_KEY_ID: 'rzp_test_abc', RAZORPAY_KEY_SECRET: 'secret', RAZORPAY_API_BASE: 'http://localhost:4010/v1/' })
     const local = billingConfig.razorpayConfig()
@@ -922,12 +924,12 @@ function billingTests() {
     check('a stand-in API is never used in production', billingConfig.razorpayConfig().apiBase === 'https://api.razorpay.com/v1')
 
     process.env.PLATFORM_AI_PROVIDER = 'gemini'
-    const keyless = billingConfig.platformAiConfig()
+    const keyless = billingConfig.platformAiFromEnv()
     Object.assign(process.env, { PLATFORM_AI_KEY: 'key', PLATFORM_AI_MODEL: 'gemini-2.5-flash' })
-    const keyed = billingConfig.platformAiConfig()
+    const keyed = billingConfig.platformAiFromEnv()
     process.env.PLATFORM_AI_PROVIDER = 'puter'
     check('ResMod AI needs a key for a keyed provider, and is never the browser-only Puter',
-      keyless === null && keyed !== null && keyed.model === 'gemini-2.5-flash' && billingConfig.platformAiConfig() === null)
+      keyless === null && keyed !== null && keyed.model === 'gemini-2.5-flash' && billingConfig.platformAiFromEnv() === null)
 
     process.env.FREE_RUNS_PER_MONTH = 'lots'
     const junk = billingConfig.freeRunsPerMonth()
@@ -984,10 +986,57 @@ function historyTests() {
   }
 }
 
+// ---------------------------------------------------------------- 14. settings
+const secrets = require(BUILD + '/lib/secrets')
+
+function settingsTests() {
+  console.log('\n=== ResMod AI chosen in AI settings ===')
+
+  const savedEnv = { ...process.env }
+  try {
+    process.env.NEXTAUTH_SECRET = 'test-nextauth-secret-one'
+    const sealed = secrets.encryptSecret('AIzaSy-test-key-1234')
+    check('a saved key is stored encrypted, and reads back',
+      !sealed.includes('AIzaSy') && secrets.decryptSecret(sealed) === 'AIzaSy-test-key-1234', sealed)
+    check('the same key encrypts differently every time', secrets.encryptSecret('AIzaSy-test-key-1234') !== sealed)
+    const [version, iv, tag, data] = sealed.split('.')
+    const flipped = Buffer.from(data, 'base64')
+    flipped[0] ^= 1
+    check('a tampered or malformed value is refused',
+      secrets.decryptSecret([version, iv, tag, flipped.toString('base64')].join('.')) === null &&
+      secrets.decryptSecret([version, iv, tag.slice(0, 8), data].join('.')) === null &&
+      secrets.decryptSecret('junk') === null)
+    process.env.NEXTAUTH_SECRET = 'a-different-secret'
+    check('a key saved under another NEXTAUTH_SECRET cannot be read', secrets.decryptSecret(sealed) === null)
+
+    const decrypt = (value) => (value === 'sealed-ok' ? 'saved-key' : null)
+    const resolve = (stored) => billingConfig.resolveStoredPlatformAi(stored, { GEMINI_API_KEY: 'server-gemini-key' }, decrypt)
+    const saved = resolve({ provider: 'gemini', model: 'gemini-2.5-flash', keySource: 'saved', encryptedKey: 'sealed-ok' })
+    check('a saved key powers ResMod AI',
+      saved !== null && saved.provider === 'gemini' && saved.apiKey === 'saved-key' && saved.model === 'gemini-2.5-flash', JSON.stringify(saved))
+    const server = resolve({ provider: 'gemini', model: ' ', keySource: 'server' })
+    check("with no saved key the server's own key is used, and a blank model means the default",
+      server !== null && server.apiKey === 'server-gemini-key' && server.model === undefined, JSON.stringify(server))
+    check('ResMod AI is off when its key is missing or unreadable',
+      resolve({ provider: 'groq', model: '', keySource: 'server' }) === null &&
+      resolve({ provider: 'gemini', model: '', keySource: 'saved', encryptedKey: 'sealed-bad' }) === null)
+    check('ResMod AI is never the browser-only Puter, nor an unknown provider',
+      resolve({ provider: 'puter', model: '', keySource: 'server' }) === null &&
+      resolve({ provider: 'nope', model: '', keySource: 'server' }) === null && resolve(null) === null)
+    check('junk in the database reads as no setting',
+      billingConfig.parseStoredPlatformAi({ provider: 1 }) === null && billingConfig.parseStoredPlatformAi(null) === null &&
+      billingConfig.parseStoredPlatformAi({ provider: 'gemini', keySource: 'server' }).model === '')
+  } finally {
+    for (const name of Object.keys(process.env)) if (!(name in savedEnv)) delete process.env[name]
+    Object.assign(process.env, savedEnv)
+  }
+}
+
 importTests()
   .then(tailorTests)
   .then(billingTests)
   .then(historyTests)
+  .then(settingsTests)
   .then(summary, (err) => {
     check('the async tests ran to completion', false, err && err.stack)
     summary()

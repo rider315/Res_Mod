@@ -876,6 +876,7 @@ export default function Dashboard() {
             }}
             onSave={handleSaveSettings}
             onClose={() => setState((s) => ({ ...s, showSettings: false }))}
+            platformAdmin
           />
         )}
       </main>

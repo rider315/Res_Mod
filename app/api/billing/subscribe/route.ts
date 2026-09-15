@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { billingFailure, requireCustomer } from '@/lib/billing/http'
-import { platformAiConfig, RazorpayConfig, razorpayConfig } from '@/lib/billing/config'
+import { RazorpayConfig, razorpayConfig } from '@/lib/billing/config'
+import { getPlatformAi } from '@/lib/billing/platform-ai'
 import { CURRENCY, PRO_PLAN } from '@/lib/billing/plans'
 import { subscriptionEntitles } from '@/lib/billing/quota'
 import { razorpay } from '@/lib/billing/razorpay'
@@ -23,7 +24,7 @@ export async function POST() {
   if (!auth.ok) return auth.response
 
   const config = razorpayConfig()
-  if (!config?.proPlanId || !platformAiConfig()) {
+  if (!config?.proPlanId || !(await getPlatformAi())) {
     return NextResponse.json({ error: "Pro isn't switched on yet." }, { status: 503 })
   }
 

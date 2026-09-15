@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { AIProvider } from '@/types/resume'
-import { getProvider, ProviderConfig } from '@/lib/providers'
+import { apiKeyName, getProvider, ProviderConfig } from '@/lib/providers'
 import { extractJSON, estimateTokens } from '@/lib/json-repair'
 import { generateClaude } from '@/lib/claude'
 import { logSnippet } from '@/lib/log'
@@ -45,9 +45,9 @@ export function resolveApiKey(
 
   throw new Error(
     allowServerKey
-      ? `No ${config.label} API key configured. Add one in Settings (gear icon), ` +
+      ? `No ${apiKeyName(config)} configured. Add one in Settings (gear icon), ` +
         `or set ${config.envVar} in .env.local.`
-      : `Add your ${config.label} API key in Settings (gear icon) to use this provider.`
+      : `Add your ${apiKeyName(config)} in Settings (gear icon) to use this provider.`
   )
 }
 

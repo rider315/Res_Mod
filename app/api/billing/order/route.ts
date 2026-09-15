@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { billingFailure, requireCustomer } from '@/lib/billing/http'
-import { platformAiConfig, razorpayConfig } from '@/lib/billing/config'
+import { razorpayConfig } from '@/lib/billing/config'
+import { getPlatformAi } from '@/lib/billing/platform-ai'
 import { CURRENCY, findPack } from '@/lib/billing/plans'
 import { razorpay } from '@/lib/billing/razorpay'
 import { recordOrder } from '@/lib/billing/store'
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest) {
 
   const config = razorpayConfig()
   // Selling runs the platform can't run would take money for nothing.
-  if (!config || !platformAiConfig()) {
+  if (!config || !(await getPlatformAi())) {
     return NextResponse.json({ error: "Payments aren't switched on yet." }, { status: 503 })
   }
 

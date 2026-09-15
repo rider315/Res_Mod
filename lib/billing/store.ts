@@ -12,7 +12,8 @@ import {
   runsLeft,
   subscriptionEntitles,
 } from '@/lib/billing/quota'
-import { freeRunsPerMonth, platformAiConfig, RazorpayConfig, razorpayConfig } from '@/lib/billing/config'
+import { freeRunsPerMonth, RazorpayConfig, razorpayConfig } from '@/lib/billing/config'
+import { getPlatformAi } from '@/lib/billing/platform-ai'
 import { razorpay } from '@/lib/billing/razorpay'
 import { PaymentFacts, SubscriptionFacts, subscriptionFacts } from '@/lib/billing/events'
 import type { BillingStatus } from '@/lib/billing/types'
@@ -406,7 +407,7 @@ export async function getBillingStatus(userId: string): Promise<BillingStatus> {
       .limit(10),
   ])
   const config = razorpayConfig()
-  const platformAi = platformAiConfig() !== null
+  const platformAi = (await getPlatformAi()) !== null
   const resetsAt = nextMonthStart(quota.now).toISOString()
   const { subscription } = quota
 
