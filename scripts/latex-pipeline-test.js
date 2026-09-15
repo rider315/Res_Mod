@@ -1030,6 +1030,14 @@ function settingsTests() {
     for (const name of Object.keys(process.env)) if (!(name in savedEnv)) delete process.env[name]
     Object.assign(process.env, savedEnv)
   }
+
+  const { planProblem } = require(BUILD + '/lib/billing/plan-check')
+  const monthly = (amount, extra = {}) => ({ period: 'monthly', interval: 1, item: { amount, currency: 'INR' }, ...extra })
+  check('the Razorpay Pro plan must bill monthly at the price the billing page sells',
+    planProblem(monthly(plans.PRO_PLAN.pricePaise)) === null &&
+    /every 1 month/.test(planProblem(monthly(plans.PRO_PLAN.pricePaise, { period: 'weekly' })) ?? '') &&
+    /₹299/.test(planProblem(monthly(29900)) ?? ''),
+    planProblem(monthly(29900)))
 }
 
 importTests()

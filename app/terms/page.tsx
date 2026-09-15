@@ -53,6 +53,7 @@ export default function TermsOfService() {
               <li>If you are charged twice, or a purchase does not reach your account, the payment is refunded in full. An unused credit pack can be refunded within 7 days of purchase. A Pro payment for a billing period that has already started is not refunded.</li>
               <li>Prices are in Indian rupees and may change. A price change never affects a payment already made.</li>
             </ul>
+            <p>Current prices are on the <Link href="/pricing" className="text-[var(--color-primary)] hover:underline">Pricing</Link> page, and the full details of cancelling and refunds are in the <Link href="/refunds" className="text-[var(--color-primary)] hover:underline">Cancellation and Refund Policy</Link>.</p>
           </section>
 
           <section className="space-y-3">

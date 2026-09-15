@@ -5,6 +5,7 @@ import DiffViewer from './DiffViewer'
 import StepIndicator from './StepIndicator'
 import SettingsModal from './SettingsModal'
 import LatexPreview from './LatexPreview'
+import OwnerNav from './OwnerNav'
 import { AppState, OptimizationResult } from '@/types/resume'
 import { AISettings, DEFAULT_AI_SETTINGS, loadAISettings, saveAISettings } from '@/lib/settings-storage'
 import { getProvider } from '@/lib/providers'
@@ -547,6 +548,7 @@ export default function Dashboard() {
         </div>
         <StepIndicator currentStep={state.step} />
         <div className="flex items-center gap-3">
+          <OwnerNav />
           <button
             onClick={() => setState((s) => ({ ...s, showSettings: true }))}
             className="h-8 px-2 flex items-center gap-1.5 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-offset)] transition-all"

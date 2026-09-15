@@ -97,13 +97,20 @@ export default function LoginPage({ freeRuns, accountDeleted }: LoginPageProps) 
           Google is used for sign-in only; no Docs or Drive access is requested.
         </p>
 
-        <div className="flex items-center justify-center gap-4 text-xs text-[var(--color-text-muted)] pt-4">
-          <Link href="/privacy" className="hover:text-[var(--color-primary)] hover:underline">Privacy Policy</Link>
-          <span>•</span>
-          <Link href="/terms" className="hover:text-[var(--color-primary)] hover:underline">Terms of Service</Link>
-          <span>•</span>
-          <Link href="/contact" className="hover:text-[var(--color-primary)] hover:underline">Contact</Link>
-        </div>
+        <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-[var(--color-text-muted)] pt-4">
+          {[
+            ['/pricing', 'Pricing'],
+            ['/terms', 'Terms'],
+            ['/privacy', 'Privacy'],
+            ['/refunds', 'Refunds'],
+            ['/shipping', 'Shipping'],
+            ['/contact', 'Contact'],
+          ].map(([href, label]) => (
+            <Link key={href} href={href} className="hover:text-[var(--color-primary)] hover:underline">
+              {label}
+            </Link>
+          ))}
+        </nav>
       </div>
     </main>
   )

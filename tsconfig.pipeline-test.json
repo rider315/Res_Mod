@@ -29,6 +29,7 @@
     "lib/billing/signatures.ts",
     "lib/billing/events.ts",
     "lib/billing/config.ts",
+    "lib/billing/plan-check.ts",
     "types/resume.ts"
   ]
 }

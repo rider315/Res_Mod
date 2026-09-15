@@ -43,6 +43,8 @@ interface Applied {
 interface TailorPanelProps {
   resumeId: string
   resumeTitle: string
+  /** A job description already pasted on the dashboard. */
+  initialJobDescription?: string
   settings: AISettings
   aiSource: AiSource
   onAiSourceChange: (source: AiSource) => void
@@ -61,6 +63,7 @@ const errorText = (err: unknown) => (err instanceof Error ? err.message : String
 export default function TailorPanel({
   resumeId,
   resumeTitle,
+  initialJobDescription,
   settings,
   aiSource,
   onAiSourceChange,
@@ -73,7 +76,7 @@ export default function TailorPanel({
   onBack,
 }: TailorPanelProps) {
   const [step, setStep] = useState<Step>('form')
-  const [jobDescription, setJobDescription] = useState('')
+  const [jobDescription, setJobDescription] = useState(initialJobDescription ?? '')
   const [level, setLevel] = useState<TailorLevel>('hard')
   const [instructions, setInstructions] = useState('')
   const [error, setError] = useState<string | null>(null)

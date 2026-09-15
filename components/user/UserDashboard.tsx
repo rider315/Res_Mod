@@ -1,6 +1,7 @@
 'use client'
 import { useCallback, useEffect, useState } from 'react'
 import { signOut } from 'next-auth/react'
+import OwnerNav from '@/components/OwnerNav'
 import SettingsModal from '@/components/SettingsModal'
 import AccountPanel from '@/components/user/AccountPanel'
 import BillingPanel from '@/components/user/BillingPanel'
@@ -15,6 +16,7 @@ import {
   downloadBlob,
   downloadResumePdf,
   errorBox,
+  inputClass,
   primaryButton,
   resumeFileBase,
   ResumeSummary,
@@ -33,15 +35,15 @@ import type { BillingStatus } from '@/lib/billing/types'
 import { ResumeDoc, SourceFormat } from '@/lib/resume-doc'
 
 /**
- * The dashboard for every account that isn't the owner: import a resume, check
- * it, keep it, tailor it and download it, on ResMod AI's included runs or the
- * account's own AI. Nothing owner-specific is loaded here.
+ * The workspace for importing, keeping and tailoring resumes: every account that
+ * isn't the owner lands here, and the owner can open it from the profile
+ * dashboard. Runs go on ResMod AI's included runs or the account's own AI.
  */
 
 type View =
   | { kind: 'list' }
   | { kind: 'import' }
-  | { kind: 'tailor'; resumeId: string; title: string }
+  | { kind: 'tailor'; resumeId: string; title: string; jobDescription?: string }
   | {
       kind: 'edit'
       resumeId: string | null
@@ -60,13 +62,26 @@ type Overlay = 'billing' | 'history' | 'account' | null
 const FORMAT_LABEL: Record<string, string> = { pdf: 'PDF', docx: 'Word', latex: 'LaTeX', text: 'text' }
 const headerButton = 'text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors'
 
+const STEPS: Array<[string, string]> = [
+  ['Import your resume', 'A PDF, Word, LaTeX or text file becomes a clean LaTeX resume you can check and edit.'],
+  ['Paste a job description', 'Choose Soft, Hard or Hardest, and the AI tailors your resume to that job.'],
+  ['Review and download', 'Approve each change, then download a PDF or .tex, or open it in Overleaf.'],
+]
+
 interface LoadedResume {
   resume: ResumeSummary
   doc: ResumeDoc
   latex: string
 }
 
-export default function UserDashboard({ name, email }: { name: string; email: string }) {
+interface UserDashboardProps {
+  name: string
+  email: string
+  /** The owner, visiting this workspace from the profile dashboard. */
+  isOwner?: boolean
+}
+
+export default function UserDashboard({ name, email, isOwner = false }: UserDashboardProps) {
   const [view, setView] = useState<View>({ kind: 'list' })
   const [overlay, setOverlay] = useState<Overlay>(null)
   const [resumes, setResumes] = useState<ResumeSummary[] | null>(null)
@@ -74,7 +89,7 @@ export default function UserDashboard({ name, email }: { name: string; email: st
   const [busyId, setBusyId] = useState<string | null>(null)
   const [settings, setSettings] = useState<AISettings>(DEFAULT_AI_SETTINGS)
   const [showSettings, setShowSettings] = useState(false)
-  /** undefined while loading; null when it couldn't be loaded. */
+  /** undefined while loading; null when it couldn't be loaded, or for the owner, who has no limits. */
   const [billing, setBilling] = useState<BillingStatus | null | undefined>(undefined)
   const [aiSource, setAiSource] = useState<AiSource>('platform')
   const [quotaDialog, setQuotaDialog] = useState<'run' | 'import' | null>(null)
@@ -198,11 +213,20 @@ export default function UserDashboard({ name, email }: { name: string; email: st
           ResMod
         </button>
         <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1">
-          {billing?.platformAi && (
-            <button onClick={() => openOverlay('billing')} className={headerButton}>
-              <span className="font-semibold text-[var(--color-text)] tabular-nums">{billing.runs.left}</span>{' '}
-              {billing.runs.left === 1 ? 'run' : 'runs'} left
-            </button>
+          {isOwner ? (
+            <OwnerNav inUserWorkspace />
+          ) : (
+            <>
+              {billing?.platformAi && (
+                <button onClick={() => openOverlay('billing')} className={headerButton}>
+                  <span className="font-semibold text-[var(--color-text)] tabular-nums">{billing.runs.left}</span>{' '}
+                  {billing.runs.left === 1 ? 'run' : 'runs'} left
+                </button>
+              )}
+              <button onClick={() => openOverlay('billing')} className={headerButton}>
+                Plans
+              </button>
+            </>
           )}
           <button onClick={() => openOverlay('history')} className={headerButton}>
             History
@@ -210,9 +234,11 @@ export default function UserDashboard({ name, email }: { name: string; email: st
           <button onClick={() => setShowSettings(true)} className={headerButton}>
             AI settings
           </button>
-          <button onClick={() => openOverlay('account')} title={email || name} className={headerButton}>
-            Account
-          </button>
+          {!isOwner && (
+            <button onClick={() => openOverlay('account')} title={email || name} className={headerButton}>
+              Account
+            </button>
+          )}
           <button
             onClick={() => signOut({ callbackUrl: '/' })}
             className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-error)] transition-colors"
@@ -232,12 +258,12 @@ export default function UserDashboard({ name, email }: { name: string; email: st
                     {firstName ? `Welcome, ${firstName}` : 'Your resumes'}
                   </h1>
                   <p className="text-sm text-[var(--color-text-muted)] mt-1">
-                    Import a resume once and check it, then tailor it to any job description.
+                    Import a resume once, then tailor it to any job description.
                   </p>
                 </div>
                 {resumes && resumes.length > 0 && (
-                  <button onClick={() => setView({ kind: 'import' })} className={primaryButton}>
-                    + Import a resume
+                  <button onClick={() => setView({ kind: 'import' })} className={secondaryButton}>
+                    + Import another resume
                   </button>
                 )}
               </div>
@@ -247,54 +273,81 @@ export default function UserDashboard({ name, email }: { name: string; email: st
               {resumes === null ? (
                 <p className="text-sm text-[var(--color-text-muted)]">Loading your resumes…</p>
               ) : resumes.length === 0 ? (
-                <div className="bg-[var(--color-surface)] rounded-2xl border border-dashed border-[var(--color-border)] p-10 text-center space-y-3">
-                  <p className="text-base font-semibold text-[var(--color-text)]">No resumes yet</p>
-                  <p className="text-sm text-[var(--color-text-muted)] max-w-md mx-auto">
-                    Upload your resume as a PDF, Word, LaTeX or text file. It becomes a clean, ATS-friendly LaTeX
-                    resume you can edit and download.
-                  </p>
-                  <button onClick={() => setView({ kind: 'import' })} className={primaryButton}>
-                    Import your first resume
-                  </button>
+                <div className="bg-[var(--color-surface)] rounded-2xl border border-dashed border-[var(--color-border)] p-8 space-y-5">
+                  <div className="text-center space-y-1">
+                    <p className="text-base font-semibold text-[var(--color-text)]">Tailor your resume in three steps</p>
+                    <p className="text-sm text-[var(--color-text-muted)]">Start by importing the resume you already have.</p>
+                  </div>
+                  <ol className="max-w-md mx-auto space-y-3">
+                    {STEPS.map(([title, detail], i) => (
+                      <li key={title} className="flex items-start gap-3">
+                        <span className="w-6 h-6 rounded-full bg-[var(--color-primary-highlight)] text-[var(--color-primary)] text-xs font-bold flex items-center justify-center flex-shrink-0">
+                          {i + 1}
+                        </span>
+                        <div>
+                          <p className="text-sm font-semibold text-[var(--color-text)]">{title}</p>
+                          <p className="text-xs text-[var(--color-text-muted)]">{detail}</p>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                  <div className="text-center">
+                    <button onClick={() => setView({ kind: 'import' })} className={primaryButton}>
+                      Import your resume →
+                    </button>
+                  </div>
                 </div>
               ) : (
-                <ul className="space-y-3">
-                  {resumes.map((resume) => (
-                    <li
-                      key={resume.id}
-                      className="bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] p-4 flex flex-wrap items-center justify-between gap-3"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-[var(--color-text)] truncate">{resume.title}</p>
-                        <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-                          Imported from {FORMAT_LABEL[resume.sourceFormat] ?? resume.sourceFormat} · updated{' '}
-                          {new Date(resume.updatedAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          onClick={() => setView({ kind: 'tailor', resumeId: resume.id, title: resume.title })}
-                          disabled={busyId !== null}
-                          className={primaryButton}
+                <>
+                  <TailorStart
+                    resumes={resumes}
+                    disabled={busyId !== null}
+                    onStart={(resume, jobDescription) =>
+                      setView({ kind: 'tailor', resumeId: resume.id, title: resume.title, jobDescription })
+                    }
+                  />
+
+                  <div className="space-y-3">
+                    <h2 className="text-sm font-semibold text-[var(--color-text)]">Your resumes</h2>
+                    <ul className="space-y-3">
+                      {resumes.map((resume) => (
+                        <li
+                          key={resume.id}
+                          className="bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] p-4 flex flex-wrap items-center justify-between gap-3"
                         >
-                          Tailor
-                        </button>
-                        <button onClick={() => openResume(resume.id)} disabled={busyId !== null} className={secondaryButton}>
-                          Edit
-                        </button>
-                        <button onClick={() => downloadTex(resume.id)} disabled={busyId !== null} className={secondaryButton}>
-                          .tex
-                        </button>
-                        <button onClick={() => downloadPdf(resume)} disabled={busyId !== null} className={secondaryButton}>
-                          {busyId === resume.id ? 'Working…' : 'PDF'}
-                        </button>
-                        <button onClick={() => remove(resume)} disabled={busyId !== null} className={dangerButton}>
-                          Delete
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-[var(--color-text)] truncate">{resume.title}</p>
+                            <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+                              Imported from {FORMAT_LABEL[resume.sourceFormat] ?? resume.sourceFormat} · updated{' '}
+                              {new Date(resume.updatedAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              onClick={() => setView({ kind: 'tailor', resumeId: resume.id, title: resume.title })}
+                              disabled={busyId !== null}
+                              className={primaryButton}
+                            >
+                              Tailor
+                            </button>
+                            <button onClick={() => openResume(resume.id)} disabled={busyId !== null} className={secondaryButton}>
+                              Edit
+                            </button>
+                            <button onClick={() => downloadTex(resume.id)} disabled={busyId !== null} className={secondaryButton}>
+                              .tex
+                            </button>
+                            <button onClick={() => downloadPdf(resume)} disabled={busyId !== null} className={secondaryButton}>
+                              {busyId === resume.id ? 'Working…' : 'PDF'}
+                            </button>
+                            <button onClick={() => remove(resume)} disabled={busyId !== null} className={dangerButton}>
+                              Delete
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </>
               )}
             </div>
           )}
@@ -332,6 +385,7 @@ export default function UserDashboard({ name, email }: { name: string; email: st
               key={view.resumeId}
               resumeId={view.resumeId}
               resumeTitle={view.title}
+              initialJobDescription={view.jobDescription}
               {...aiProps}
               onQuotaExhausted={() => setQuotaDialog('run')}
               onOpenHistory={() => openOverlay('history')}
@@ -342,7 +396,7 @@ export default function UserDashboard({ name, email }: { name: string; email: st
 
         {overlay === 'billing' && <BillingPanel billing={billing} onBillingChange={setBilling} onBack={() => setOverlay(null)} />}
         {overlay === 'history' && <HistoryPanel onBack={() => setOverlay(null)} />}
-        {overlay === 'account' && (
+        {overlay === 'account' && !isOwner && (
           <AccountPanel email={email} onBack={() => setOverlay(null)} onOpenHistory={() => openOverlay('history')} />
         )}
       </main>
@@ -350,7 +404,8 @@ export default function UserDashboard({ name, email }: { name: string; email: st
       {showSettings && (
         <SettingsModal
           settings={settings}
-          serverKeys={false}
+          serverKeys={isOwner}
+          platformAdmin={isOwner}
           onSave={(next) => {
             saveAISettings(next)
             setSettings(next)
@@ -374,5 +429,65 @@ export default function UserDashboard({ name, email }: { name: string; email: st
         />
       )}
     </div>
+  )
+}
+
+/** The job description box on the dashboard itself: pick a resume, paste the job, go on to choose the level. */
+function TailorStart({
+  resumes,
+  disabled,
+  onStart,
+}: {
+  resumes: ResumeSummary[]
+  disabled: boolean
+  onStart: (resume: ResumeSummary, jobDescription: string) => void
+}) {
+  const [resumeId, setResumeId] = useState(resumes[0].id)
+  const [jobDescription, setJobDescription] = useState('')
+  const resume = resumes.find((entry) => entry.id === resumeId) ?? resumes[0]
+  const length = jobDescription.trim().length
+
+  return (
+    <section className="bg-[var(--color-surface)] rounded-2xl border border-[var(--color-primary)] p-5 space-y-3">
+      <div>
+        <h2 className="text-base font-semibold text-[var(--color-text)]">Tailor a resume to a job</h2>
+        <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+          Paste the job description. Next you choose how much should change, and nothing is applied until you approve it.
+        </p>
+      </div>
+      {resumes.length > 1 && (
+        <label className="block">
+          <span className="block text-xs font-medium text-[var(--color-text-muted)] mb-1">Resume</span>
+          <select value={resume.id} onChange={(e) => setResumeId(e.target.value)} disabled={disabled} className={inputClass}>
+            {resumes.map((entry) => (
+              <option key={entry.id} value={entry.id}>
+                {entry.title}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <textarea
+        rows={5}
+        value={jobDescription}
+        onChange={(e) => setJobDescription(e.target.value)}
+        disabled={disabled}
+        placeholder="Paste the job description…"
+        aria-label="Job description"
+        className={`${inputClass} resize-y leading-relaxed`}
+      />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[11px] text-[var(--color-text-muted)]">
+          {length > 0 && length < 80
+            ? 'Paste the whole job description: at least 80 characters.'
+            : resumes.length === 1
+              ? `Tailors ${resume.title}.`
+              : ''}
+        </p>
+        <button onClick={() => onStart(resume, jobDescription)} disabled={disabled || length < 80} className={primaryButton}>
+          Next: choose how much to change →
+        </button>
+      </div>
+    </section>
   )
 }

@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 import { billingFailure, requireCustomer } from '@/lib/billing/http'
-import { RazorpayConfig, razorpayConfig } from '@/lib/billing/config'
+import { razorpayConfig } from '@/lib/billing/config'
+import { checkProPlan } from '@/lib/billing/plan-check'
 import { getPlatformAi } from '@/lib/billing/platform-ai'
-import { CURRENCY, PRO_PLAN } from '@/lib/billing/plans'
+import { PRO_PLAN } from '@/lib/billing/plans'
 import { subscriptionEntitles } from '@/lib/billing/quota'
 import { razorpay } from '@/lib/billing/razorpay'
 import { currentSubscription, recentUnpaidSubscription, recordSubscription } from '@/lib/billing/store'
@@ -48,7 +49,9 @@ export async function POST() {
       )
     }
 
-    if (!(await proPlanMatches(config, config.proPlanId))) {
+    const plan = await checkProPlan(config)
+    if (!plan.ok) {
+      console.error(`[billing/subscribe] ${plan.problem}`)
       return NextResponse.json({ error: "Pro isn't set up correctly yet." }, { status: 503 })
     }
 
@@ -76,29 +79,4 @@ export async function POST() {
   } catch (err) {
     return billingFailure('billing/subscribe', err)
   }
-}
-
-let checkedPlan: { id: string; ok: boolean; at: number } | null = null
-
-/**
- * The plan in the Razorpay Dashboard must charge what the billing page shows,
- * monthly. Checked at most every ten minutes per server instance.
- */
-async function proPlanMatches(config: RazorpayConfig, planId: string): Promise<boolean> {
-  if (checkedPlan?.id === planId && Date.now() - checkedPlan.at < 10 * 60 * 1000) return checkedPlan.ok
-
-  const plan = await razorpay.fetchPlan(config, planId)
-  const ok =
-    plan.period === 'monthly' &&
-    plan.interval === 1 &&
-    plan.item?.amount === PRO_PLAN.pricePaise &&
-    plan.item?.currency === CURRENCY
-  if (!ok) {
-    console.error(
-      `[billing/subscribe] RAZORPAY_PRO_PLAN_ID charges ${plan.item?.amount} ${plan.item?.currency} every ` +
-        `${plan.interval} ${plan.period}, but lib/billing/plans.ts says ${PRO_PLAN.pricePaise} ${CURRENCY} monthly.`
-    )
-  }
-  checkedPlan = { id: planId, ok, at: Date.now() }
-  return ok
 }
