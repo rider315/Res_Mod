@@ -41,12 +41,25 @@ export default function TermsOfService() {
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-xl font-semibold text-[var(--color-text)]">5. Disclaimer of Warranties</h2>
+            <h2 className="text-xl font-semibold text-[var(--color-text)]">5. Included Runs, Payments and Refunds</h2>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>Every account gets a number of free tailoring runs on ResMod AI each month. Unused free runs do not carry over to the next month.</li>
+              <li>Credit packs are one-time purchases. Credits do not expire, and are used after free runs and Pro runs.</li>
+              <li>Pro is a monthly subscription that renews automatically until you cancel it on the billing page. Cancelling stops the next renewal; you keep Pro&apos;s runs until the end of the period you have already paid for.</li>
+              <li>A run that fails without producing any changes is not counted. Runs that use your own AI provider key, or Puter, are never counted.</li>
+              <li>Payments are processed by Razorpay. ResMod does not receive or store your card, UPI or bank details.</li>
+              <li>If you are charged twice, or a purchase does not reach your account, the payment is refunded in full. An unused credit pack can be refunded within 7 days of purchase. A Pro payment for a billing period that has already started is not refunded.</li>
+              <li>Prices are in Indian rupees and may change. A price change never affects a payment already made.</li>
+            </ul>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-xl font-semibold text-[var(--color-text)]">6. Disclaimer of Warranties</h2>
             <p>ResMod is provided &quot;as is&quot; without any warranties, expressed or implied. We do not warrant that the service will be uninterrupted, secure, or error-free.</p>
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-xl font-semibold text-[var(--color-text)]">6. Limitation of Liability</h2>
+            <h2 className="text-xl font-semibold text-[var(--color-text)]">7. Limitation of Liability</h2>
             <p>In no event shall ResMod or its developers be liable for any indirect, incidental, special, or consequential damages arising out of or in connection with your use of the service, including but not limited to loss of employment opportunities or data loss.</p>
           </section>
         </div>

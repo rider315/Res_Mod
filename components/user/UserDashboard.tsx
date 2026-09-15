@@ -2,9 +2,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { signOut } from 'next-auth/react'
 import SettingsModal from '@/components/SettingsModal'
+import BillingPanel from '@/components/user/BillingPanel'
 import ImportPanel from '@/components/user/ImportPanel'
+import QuotaDialog from '@/components/user/QuotaDialog'
 import ResumeEditor from '@/components/user/ResumeEditor'
 import TailorPanel from '@/components/user/TailorPanel'
+import { fetchBilling } from '@/components/user/billing-client'
 import {
   dangerButton,
   downloadBlob,
@@ -15,12 +18,22 @@ import {
   ResumeSummary,
   secondaryButton,
 } from '@/components/user/shared'
-import { AISettings, DEFAULT_AI_SETTINGS, loadAISettings, saveAISettings } from '@/lib/settings-storage'
+import {
+  AISettings,
+  AiSource,
+  DEFAULT_AI_SETTINGS,
+  loadAISettings,
+  loadAiSource,
+  saveAISettings,
+  saveAiSource,
+} from '@/lib/settings-storage'
+import type { BillingStatus } from '@/lib/billing/types'
 import { ResumeDoc, SourceFormat } from '@/lib/resume-doc'
 
 /**
  * The dashboard for every account that isn't the owner: import a resume, check
- * it, keep it, and download it. Nothing owner-specific is loaded here.
+ * it, keep it, tailor it and download it, on ResMod AI's included runs or the
+ * account's own AI. Nothing owner-specific is loaded here.
  */
 
 type View =
@@ -51,6 +64,13 @@ export default function UserDashboard({ name }: { name: string }) {
   const [busyId, setBusyId] = useState<string | null>(null)
   const [settings, setSettings] = useState<AISettings>(DEFAULT_AI_SETTINGS)
   const [showSettings, setShowSettings] = useState(false)
+  /** undefined while loading; null when it couldn't be loaded. */
+  const [billing, setBilling] = useState<BillingStatus | null | undefined>(undefined)
+  // Billing opens over the current view, which stays mounted underneath, so a
+  // pasted job description survives a trip to buy more runs.
+  const [showBilling, setShowBilling] = useState(false)
+  const [aiSource, setAiSource] = useState<AiSource>('platform')
+  const [quotaDialog, setQuotaDialog] = useState<'run' | 'import' | null>(null)
 
   const firstName = name.trim().split(/\s+/)[0]
 
@@ -58,6 +78,7 @@ export default function UserDashboard({ name }: { name: string }) {
     const theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
     document.documentElement.setAttribute('data-theme', theme)
     setSettings(loadAISettings())
+    setAiSource(loadAiSource() ?? 'platform')
   }, [])
 
   const refresh = useCallback(async () => {
@@ -73,9 +94,39 @@ export default function UserDashboard({ name }: { name: string }) {
     }
   }, [])
 
+  const refreshBilling = useCallback(async () => {
+    try {
+      const status = await fetchBilling()
+      setBilling(status.role === 'user' ? status : null)
+    } catch {
+      setBilling((current) => current ?? null)
+    }
+  }, [])
+
   useEffect(() => {
     refresh()
-  }, [refresh])
+    refreshBilling()
+  }, [refresh, refreshBilling])
+
+  function changeAiSource(source: AiSource) {
+    setAiSource(source)
+    saveAiSource(source)
+  }
+
+  function openBilling() {
+    setQuotaDialog(null)
+    setShowBilling(true)
+  }
+
+  const aiProps = {
+    settings,
+    aiSource,
+    onAiSourceChange: changeAiSource,
+    billing,
+    onOpenSettings: () => setShowSettings(true),
+    onOpenBilling: openBilling,
+    onBillingChanged: refreshBilling,
+  }
 
   async function withResume(id: string, action: (loaded: LoadedResume) => void) {
     setBusyId(id)
@@ -137,6 +188,15 @@ export default function UserDashboard({ name }: { name: string }) {
       <header className="sticky top-0 z-10 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-6 py-3 flex items-center justify-between gap-4">
         <span className="font-semibold text-[var(--color-text)] text-base">ResMod</span>
         <div className="flex items-center gap-4">
+          {billing?.platformAi && (
+            <button
+              onClick={openBilling}
+              className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+            >
+              <span className="font-semibold text-[var(--color-text)] tabular-nums">{billing.runs.left}</span>{' '}
+              {billing.runs.left === 1 ? 'run' : 'runs'} left
+            </button>
+          )}
           <button
             onClick={() => setShowSettings(true)}
             className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
@@ -153,120 +213,124 @@ export default function UserDashboard({ name }: { name: string }) {
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-4 py-8 space-y-6">
-        {view.kind === 'list' && (
-          <div className="space-y-6 anim-page-enter">
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <h1 className="text-2xl font-bold text-[var(--color-text)]">
-                  {firstName ? `Welcome, ${firstName}` : 'Your resumes'}
-                </h1>
-                <p className="text-sm text-[var(--color-text-muted)] mt-1">
-                  Import a resume once and check it, then tailor it to any job description.
-                </p>
+      <main className="max-w-3xl mx-auto px-4 py-8">
+        <div hidden={showBilling} className="space-y-6">
+          {view.kind === 'list' && (
+            <div className="space-y-6 anim-page-enter">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <h1 className="text-2xl font-bold text-[var(--color-text)]">
+                    {firstName ? `Welcome, ${firstName}` : 'Your resumes'}
+                  </h1>
+                  <p className="text-sm text-[var(--color-text-muted)] mt-1">
+                    Import a resume once and check it, then tailor it to any job description.
+                  </p>
+                </div>
+                {resumes && resumes.length > 0 && (
+                  <button onClick={() => setView({ kind: 'import' })} className={primaryButton}>
+                    + Import a resume
+                  </button>
+                )}
               </div>
-              {resumes && resumes.length > 0 && (
-                <button onClick={() => setView({ kind: 'import' })} className={primaryButton}>
-                  + Import a resume
-                </button>
+
+              {listError && <div className={errorBox}>{listError}</div>}
+
+              {resumes === null ? (
+                <p className="text-sm text-[var(--color-text-muted)]">Loading your resumes…</p>
+              ) : resumes.length === 0 ? (
+                <div className="bg-[var(--color-surface)] rounded-2xl border border-dashed border-[var(--color-border)] p-10 text-center space-y-3">
+                  <p className="text-base font-semibold text-[var(--color-text)]">No resumes yet</p>
+                  <p className="text-sm text-[var(--color-text-muted)] max-w-md mx-auto">
+                    Upload your resume as a PDF, Word, LaTeX or text file. It becomes a clean, ATS-friendly LaTeX
+                    resume you can edit and download.
+                  </p>
+                  <button onClick={() => setView({ kind: 'import' })} className={primaryButton}>
+                    Import your first resume
+                  </button>
+                </div>
+              ) : (
+                <ul className="space-y-3">
+                  {resumes.map((resume) => (
+                    <li
+                      key={resume.id}
+                      className="bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] p-4 flex flex-wrap items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-[var(--color-text)] truncate">{resume.title}</p>
+                        <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+                          Imported from {FORMAT_LABEL[resume.sourceFormat] ?? resume.sourceFormat} · updated{' '}
+                          {new Date(resume.updatedAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={() => setView({ kind: 'tailor', resumeId: resume.id, title: resume.title })}
+                          disabled={busyId !== null}
+                          className={primaryButton}
+                        >
+                          Tailor
+                        </button>
+                        <button onClick={() => openResume(resume.id)} disabled={busyId !== null} className={secondaryButton}>
+                          Edit
+                        </button>
+                        <button onClick={() => downloadTex(resume.id)} disabled={busyId !== null} className={secondaryButton}>
+                          .tex
+                        </button>
+                        <button onClick={() => downloadPdf(resume)} disabled={busyId !== null} className={secondaryButton}>
+                          {busyId === resume.id ? 'Working…' : 'PDF'}
+                        </button>
+                        <button onClick={() => remove(resume)} disabled={busyId !== null} className={dangerButton}>
+                          Delete
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
+          )}
 
-            {listError && <div className={errorBox}>{listError}</div>}
+          {view.kind === 'import' && (
+            <ImportPanel
+              {...aiProps}
+              onQuotaExhausted={() => setQuotaDialog('import')}
+              onImported={(doc, sourceFormat) =>
+                setView({ kind: 'edit', resumeId: null, sourceFormat, doc, title: doc.name, latex: null })
+              }
+              onCancel={() => setView({ kind: 'list' })}
+            />
+          )}
 
-            {resumes === null ? (
-              <p className="text-sm text-[var(--color-text-muted)]">Loading your resumes…</p>
-            ) : resumes.length === 0 ? (
-              <div className="bg-[var(--color-surface)] rounded-2xl border border-dashed border-[var(--color-border)] p-10 text-center space-y-3">
-                <p className="text-base font-semibold text-[var(--color-text)]">No resumes yet</p>
-                <p className="text-sm text-[var(--color-text-muted)] max-w-md mx-auto">
-                  Upload your resume as a PDF, Word, LaTeX or text file. It becomes a clean, ATS-friendly LaTeX
-                  resume you can edit and download.
-                </p>
-                <button onClick={() => setView({ kind: 'import' })} className={primaryButton}>
-                  Import your first resume
-                </button>
-              </div>
-            ) : (
-              <ul className="space-y-3">
-                {resumes.map((resume) => (
-                  <li
-                    key={resume.id}
-                    className="bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] p-4 flex flex-wrap items-center justify-between gap-3"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-[var(--color-text)] truncate">{resume.title}</p>
-                      <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-                        Imported from {FORMAT_LABEL[resume.sourceFormat] ?? resume.sourceFormat} · updated{' '}
-                        {new Date(resume.updatedAt).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        onClick={() => setView({ kind: 'tailor', resumeId: resume.id, title: resume.title })}
-                        disabled={busyId !== null}
-                        className={primaryButton}
-                      >
-                        Tailor
-                      </button>
-                      <button onClick={() => openResume(resume.id)} disabled={busyId !== null} className={secondaryButton}>
-                        Edit
-                      </button>
-                      <button onClick={() => downloadTex(resume.id)} disabled={busyId !== null} className={secondaryButton}>
-                        .tex
-                      </button>
-                      <button onClick={() => downloadPdf(resume)} disabled={busyId !== null} className={secondaryButton}>
-                        {busyId === resume.id ? 'Working…' : 'PDF'}
-                      </button>
-                      <button onClick={() => remove(resume)} disabled={busyId !== null} className={dangerButton}>
-                        Delete
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
+          {view.kind === 'edit' && (
+            <ResumeEditor
+              key={view.resumeId ?? 'new'}
+              resumeId={view.resumeId}
+              sourceFormat={view.sourceFormat}
+              initialDoc={view.doc}
+              initialTitle={view.title}
+              initialLatex={view.latex}
+              onSaved={() => refresh()}
+              onBack={() => {
+                setView({ kind: 'list' })
+                refresh()
+              }}
+              onTailor={(resumeId, title) => setView({ kind: 'tailor', resumeId, title })}
+            />
+          )}
 
-        {view.kind === 'import' && (
-          <ImportPanel
-            settings={settings}
-            onOpenSettings={() => setShowSettings(true)}
-            onImported={(doc, sourceFormat) =>
-              setView({ kind: 'edit', resumeId: null, sourceFormat, doc, title: doc.name, latex: null })
-            }
-            onCancel={() => setView({ kind: 'list' })}
-          />
-        )}
+          {view.kind === 'tailor' && (
+            <TailorPanel
+              key={view.resumeId}
+              resumeId={view.resumeId}
+              resumeTitle={view.title}
+              {...aiProps}
+              onQuotaExhausted={() => setQuotaDialog('run')}
+              onBack={() => setView({ kind: 'list' })}
+            />
+          )}
+        </div>
 
-        {view.kind === 'edit' && (
-          <ResumeEditor
-            key={view.resumeId ?? 'new'}
-            resumeId={view.resumeId}
-            sourceFormat={view.sourceFormat}
-            initialDoc={view.doc}
-            initialTitle={view.title}
-            initialLatex={view.latex}
-            onSaved={() => refresh()}
-            onBack={() => {
-              setView({ kind: 'list' })
-              refresh()
-            }}
-            onTailor={(resumeId, title) => setView({ kind: 'tailor', resumeId, title })}
-          />
-        )}
-
-        {view.kind === 'tailor' && (
-          <TailorPanel
-            key={view.resumeId}
-            resumeId={view.resumeId}
-            resumeTitle={view.title}
-            settings={settings}
-            onOpenSettings={() => setShowSettings(true)}
-            onBack={() => setView({ kind: 'list' })}
-          />
-        )}
+        {showBilling && <BillingPanel billing={billing} onBillingChange={setBilling} onBack={() => setShowBilling(false)} />}
       </main>
 
       {showSettings && (
@@ -279,6 +343,20 @@ export default function UserDashboard({ name }: { name: string }) {
             setShowSettings(false)
           }}
           onClose={() => setShowSettings(false)}
+        />
+      )}
+
+      {quotaDialog && (
+        <QuotaDialog
+          kind={quotaDialog}
+          billing={billing}
+          onOpenBilling={openBilling}
+          onUseOwnAi={() => {
+            setQuotaDialog(null)
+            changeAiSource('own')
+            setShowSettings(true)
+          }}
+          onClose={() => setQuotaDialog(null)}
         />
       )}
     </div>

@@ -2,9 +2,12 @@
 import { useState } from 'react'
 import DiffViewer from '@/components/DiffViewer'
 import LatexPreview from '@/components/LatexPreview'
+import AiSourcePicker from '@/components/user/AiSourcePicker'
 import KeywordCoverage from '@/components/user/KeywordCoverage'
-import { AISettings } from '@/lib/settings-storage'
+import { ApiError, readApiError } from '@/components/user/billing-client'
+import { AISettings, AiSource } from '@/lib/settings-storage'
 import { getProvider } from '@/lib/providers'
+import { BILLING_CODES, BillingStatus } from '@/lib/billing/types'
 import { LEVELS, TAILOR_LEVELS, TailorLevel } from '@/lib/tailor/levels'
 import { OptimizationResult, ParsedResume, ResumeChange } from '@/types/resume'
 import {
@@ -39,13 +42,32 @@ interface TailorPanelProps {
   resumeId: string
   resumeTitle: string
   settings: AISettings
+  aiSource: AiSource
+  onAiSourceChange: (source: AiSource) => void
+  /** undefined while loading; null when it couldn't be loaded. */
+  billing: BillingStatus | null | undefined
   onOpenSettings: () => void
+  onOpenBilling: () => void
+  onBillingChanged: () => void
+  onQuotaExhausted: () => void
   onBack: () => void
 }
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err))
 
-export default function TailorPanel({ resumeId, resumeTitle, settings, onOpenSettings, onBack }: TailorPanelProps) {
+export default function TailorPanel({
+  resumeId,
+  resumeTitle,
+  settings,
+  aiSource,
+  onAiSourceChange,
+  billing,
+  onOpenSettings,
+  onOpenBilling,
+  onBillingChanged,
+  onQuotaExhausted,
+  onBack,
+}: TailorPanelProps) {
   const [step, setStep] = useState<Step>('form')
   const [jobDescription, setJobDescription] = useState('')
   const [level, setLevel] = useState<TailorLevel>('hard')
@@ -59,7 +81,9 @@ export default function TailorPanel({ resumeId, resumeTitle, settings, onOpenSet
 
   const provider = getProvider(settings.provider)
   const model = settings.models[settings.provider]
-  const needsKey = provider.needsKey && !settings.apiKeys[settings.provider]?.trim()
+  const usePlatform = aiSource === 'platform' && Boolean(billing?.platformAi)
+  const checkingRuns = aiSource === 'platform' && billing === undefined
+  const needsKey = !usePlatform && !checkingRuns && provider.needsKey && !settings.apiKeys[settings.provider]?.trim()
   const jdReady = jobDescription.trim().length >= 80
   const busy = step === 'running' || step === 'applying'
   const approvedCount = changes.filter((c) => c.approved === true).length
@@ -106,29 +130,30 @@ export default function TailorPanel({ resumeId, resumeTitle, settings, onOpenSet
     return { result: tailored, resume: rendered.parsed.resume }
   }
 
-  async function tailorOnServer(): Promise<{ result: OptimizationResult; resume: ParsedResume }> {
+  async function tailorOnServer(platform: boolean): Promise<{ result: OptimizationResult; resume: ParsedResume }> {
+    const ai = platform
+      ? { usePlatform: true }
+      : { provider: settings.provider, apiKey: settings.apiKeys[settings.provider], model }
     const res = await fetch(`/api/resumes/${resumeId}/tailor`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jobDescription,
-        level,
-        instructions,
-        provider: settings.provider,
-        apiKey: settings.apiKeys[settings.provider],
-        model,
-      }),
+      body: JSON.stringify({ jobDescription, level, instructions, ...ai }),
     })
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.error ?? 'Tailoring failed.')
+    if (!res.ok) throw await readApiError(res, 'Tailoring failed.')
+    const data = await res.json()
     return { result: data.result, resume: data.resume }
   }
 
   async function tailor() {
     setError(null)
     setStep('running')
+    const onPlatform = usePlatform
     try {
-      const outcome = provider.clientSide ? await tailorInBrowser() : await tailorOnServer()
+      const outcome = onPlatform
+        ? await tailorOnServer(true)
+        : provider.clientSide
+          ? await tailorInBrowser()
+          : await tailorOnServer(false)
       setResume(outcome.resume)
       setResult(outcome.result)
       setChanges(outcome.result.changes.map((change) => ({ ...change, approved: null })))
@@ -136,6 +161,9 @@ export default function TailorPanel({ resumeId, resumeTitle, settings, onOpenSet
     } catch (err) {
       setError(errorText(err))
       setStep('form')
+      if (err instanceof ApiError && err.code === BILLING_CODES.quotaExhausted) onQuotaExhausted()
+    } finally {
+      if (onPlatform) onBillingChanged()
     }
   }
 
@@ -258,28 +286,24 @@ export default function TailorPanel({ resumeId, resumeTitle, settings, onOpenSet
             />
           </label>
 
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--color-text-muted)]">
-            <span>
-              AI: {provider.emoji} {provider.label}
-              {model ? ` · ${model.split('/').pop()}` : ''}
-            </span>
-            <button onClick={onOpenSettings} disabled={busy} className="text-[var(--color-primary)] hover:underline disabled:opacity-50">
-              Change AI settings
-            </button>
-          </div>
-          {needsKey && (
-            <p className="text-xs text-[var(--color-warning)]">
-              {provider.label} needs your own API key.{' '}
-              <button onClick={onOpenSettings} className="underline font-medium">
-                Add it in AI settings
-              </button>
-              , or choose Puter, which needs no key.
-            </p>
-          )}
+          <AiSourcePicker
+            kind="run"
+            source={aiSource}
+            onSourceChange={onAiSourceChange}
+            settings={settings}
+            billing={billing}
+            onOpenSettings={onOpenSettings}
+            onOpenBilling={onOpenBilling}
+            disabled={busy}
+          />
 
           {error && <div className={errorBox}>{error}</div>}
 
-          <button onClick={tailor} disabled={busy || !jdReady || needsKey} className={`w-full ${primaryButton}`}>
+          <button
+            onClick={tailor}
+            disabled={busy || !jdReady || needsKey || checkingRuns}
+            className={`w-full ${primaryButton}`}
+          >
             {step === 'running' ? 'Tailoring… this usually takes a minute or two' : 'Tailor resume →'}
           </button>
           {!jdReady && jobDescription.trim().length > 0 && (
