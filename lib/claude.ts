@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { CallUsage, reportedCall } from '@/lib/ai-usage'
 
 /**
  * Claude API transport through the official Anthropic SDK.
@@ -44,8 +45,10 @@ export async function generateClaude(options: {
   model: string
   /** Upper bound for max_tokens; lowered to the model's own output cap. */
   maxOutputTokens: number
+  /** Told what the call cost, so a run can meter itself. */
+  onUsage?: (usage: CallUsage | null) => void
 }): Promise<string> {
-  const { apiKey, systemInstruction, prompt, model, maxOutputTokens } = options
+  const { apiKey, systemInstruction, prompt, model, maxOutputTokens, onUsage } = options
   const client = new Anthropic({ apiKey })
   const fail = (err: unknown): never => {
     throw new Error(claudeErrorMessage(err, model))
@@ -66,6 +69,8 @@ export async function generateClaude(options: {
     })
     .finalMessage()
     .catch(fail)
+
+  onUsage?.(reportedCall(message.usage.input_tokens, message.usage.output_tokens))
 
   if (message.stop_reason === 'refusal') {
     const category = message.stop_details?.category

@@ -37,6 +37,8 @@
  *                     AI cap's counter, and resume text kept out of production logs
  *  14. settings     — ResMod AI chosen in AI settings: its key encrypted at rest,
  *                     and which saved settings can actually run
+ *  16. usage       — the meter: calls add up, a provider's own token counts reach
+ *                     it, and a provider that reports none is estimated and says so
  *  15. resolving   — the last step of a run: every change points at a real line,
  *                     a rewrite of a rewrite folds into one, and a proposal the
  *                     sanitizer refuses is repaired or dropped before the user sees it
@@ -1161,12 +1163,77 @@ async function resolveTests() {
     JSON.stringify(run.changes.map((c) => [c.original.slice(0, 24), c.proposed.slice(0, 48)])))
 }
 
+// ------------------------------------------------------------------- 16. usage
+const usageLib = require(BUILD + '/lib/ai-usage')
+const { generateAIResponse } = require(BUILD + '/lib/ai-provider')
+const http = require('http')
+
+async function usageTests() {
+  console.log('\n=== the AI usage meter ===')
+
+  const { addCall, describeUsage, emptyUsage, estimateCall, formatTokens, isEstimated, reportedCall, totalTokens } = usageLib
+  let total = addCall(addCall(emptyUsage(), { inputTokens: 1200, outputTokens: 300, reported: true }),
+    { inputTokens: 800, outputTokens: 100, reported: true })
+  check('calls add up into one total',
+    total.calls === 2 && total.inputTokens === 2000 && total.outputTokens === 400 && totalTokens(total) === 2400 && !isEstimated(total),
+    JSON.stringify(total))
+  total = addCall(total, estimateCall('a'.repeat(400), 'b'.repeat(40)))
+  check('a call the provider said nothing about is estimated from the text, and marks the total',
+    total.calls === 3 && total.inputTokens === 2100 && total.outputTokens === 410 && isEstimated(total), JSON.stringify(total))
+  check('nonsense from a provider is not counted as a report',
+    reportedCall(undefined, 10) === null && reportedCall('x', 'y') === null && reportedCall(0, 0) === null &&
+    reportedCall('120', 4).reported === true, JSON.stringify(reportedCall('120', 4)))
+  check('token counts read as sizes, not digits',
+    [formatTokens(940), formatTokens(1234), formatTokens(42_318), formatTokens(2_500_000)].join(' ') === '940 1.2k 42k 2.5M',
+    [formatTokens(940), formatTokens(1234), formatTokens(42_318), formatTokens(2_500_000)].join(' '))
+  check('the one-line summary says "about" only when something was estimated',
+    /^3 model calls · about /.test(describeUsage(total)) &&
+    describeUsage(addCall(emptyUsage(), { inputTokens: 10, outputTokens: 2, reported: true })) === '1 model call · 10 in / 2 out',
+    describeUsage(total))
+
+  // A stand-in for any OpenAI-compatible provider, to prove the plumbing from the
+  // provider's own numbers through to the meter.
+  let sendUsage = true
+  const server = http.createServer((req, res) => {
+    const body = {
+      choices: [{ message: { content: '{"changes":[]}' }, finish_reason: 'stop' }],
+      ...(sendUsage ? { usage: { prompt_tokens: 1234, completion_tokens: 56 } } : {}),
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(body))
+  })
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const savedBase = process.env.OLLAMA_BASE_URL
+  process.env.OLLAMA_BASE_URL = `http://127.0.0.1:${server.address().port}/v1`
+  try {
+    const calls = []
+    const ask = () => generateAIResponse({
+      provider: 'ollama', apiKey: '', systemInstruction: 'sys', prompt: 'p'.repeat(399), temperature: 0,
+      model: 'test-model', onUsage: (usage) => calls.push(usage),
+    })
+    await ask()
+    check("a provider's own token counts reach the meter",
+      calls.length === 1 && calls[0].inputTokens === 1234 && calls[0].outputTokens === 56 && calls[0].reported === true,
+      JSON.stringify(calls[0]))
+    sendUsage = false
+    await ask()
+    check('a provider that reports nothing is estimated from the text, and says so',
+      calls.length === 2 && calls[1].reported === false && calls[1].inputTokens === Math.ceil(402 / 4) && calls[1].outputTokens === 4,
+      JSON.stringify(calls[1]))
+  } finally {
+    if (savedBase === undefined) delete process.env.OLLAMA_BASE_URL
+    else process.env.OLLAMA_BASE_URL = savedBase
+    await new Promise((resolve) => server.close(resolve))
+  }
+}
+
 importTests()
   .then(tailorTests)
   .then(billingTests)
   .then(historyTests)
   .then(settingsTests)
   .then(resolveTests)
+  .then(usageTests)
   .then(summary, (err) => {
     check('the async tests ran to completion', false, err && err.stack)
     summary()

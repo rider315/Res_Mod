@@ -4,7 +4,11 @@ import DiffViewer from '@/components/DiffViewer'
 import LatexPreview from '@/components/LatexPreview'
 import AiSourcePicker from '@/components/user/AiSourcePicker'
 import KeywordCoverage from '@/components/user/KeywordCoverage'
-import { ApiError, readApiError } from '@/components/user/billing-client'
+import UsageMeter, { UsageLine } from '@/components/user/UsageMeter'
+import { readTailorStream, RunUpdate } from '@/components/user/tailor-stream'
+import { ApiError } from '@/components/user/billing-client'
+import { addCall, AiUsage, emptyUsage } from '@/lib/ai-usage'
+import { RunStage } from '@/lib/run-optimization'
 import { AISettings, AiSource } from '@/lib/settings-storage'
 import { getProvider } from '@/lib/providers'
 import { BILLING_CODES, BillingStatus } from '@/lib/billing/types'
@@ -85,6 +89,11 @@ export default function TailorPanel({
   const [changes, setChanges] = useState<ResumeChange[]>([])
   const [applied, setApplied] = useState<Applied | null>(null)
   const [compiling, setCompiling] = useState(false)
+  // What the run is spending, updated as each model call reports back.
+  const [usage, setUsage] = useState<AiUsage>(emptyUsage)
+  const [progress, setProgress] = useState<{ stage: RunStage; label: string }>({ stage: 'jd', label: 'Starting' })
+  const [startedAt, setStartedAt] = useState<number | undefined>(undefined)
+  const [tookMs, setTookMs] = useState<number | undefined>(undefined)
 
   const provider = getProvider(settings.provider)
   const model = settings.models[settings.provider]
@@ -97,6 +106,7 @@ export default function TailorPanel({
   const company = result?.companyName && result.companyName !== 'Company' ? result.companyName : ''
   const exportName = `${resumeTitle} ${company}`.trim()
   const approvalList = changes.map(({ original, proposed, approved }) => ({ original, proposed, approved }))
+  const meterSource = usePlatform ? 'platform' : provider.clientSide ? 'puter' : 'own'
 
   /** Puter bills the user's own Puter account and only runs in the browser, so the whole run happens here. */
   async function tailorInBrowser(): Promise<{ result: OptimizationResult; resume: ParsedResume }> {
@@ -119,7 +129,13 @@ export default function TailorPanel({
     if (!rendered.ok) throw new Error(rendered.problems.join(' '))
 
     const generate = ({ systemInstruction, prompt, temperature }: { systemInstruction: string; prompt: string; temperature: number }) =>
-      generatePuterResponse({ systemInstruction, prompt, temperature, model })
+      generatePuterResponse({
+        systemInstruction,
+        prompt,
+        temperature,
+        model,
+        onUsage: (call) => setUsage((total) => addCall(total, call)),
+      })
     const keywords = await extractJdKeywords({ jobDescription, generate })
     const tailored = await runOptimization({
       mode: 'optimize',
@@ -133,6 +149,7 @@ export default function TailorPanel({
       provider: settings.provider,
       model,
       generate,
+      onProgress: setProgress,
     })
     return { result: tailored, resume: rendered.parsed.resume }
   }
@@ -146,14 +163,23 @@ export default function TailorPanel({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ jobDescription, level, instructions, ...ai }),
     })
-    if (!res.ok) throw await readApiError(res, 'Tailoring failed.')
-    const data = await res.json()
-    return { result: data.result, resume: data.resume }
+    // The run reports each pass and what it has spent as it goes.
+    const onUpdate = (update: RunUpdate) => {
+      setProgress({ stage: update.stage, label: update.label })
+      setUsage(update.usage)
+    }
+    const outcome = await readTailorStream(res, onUpdate)
+    return { result: outcome.result, resume: outcome.resume }
   }
 
   async function tailor() {
     setError(null)
     setStep('running')
+    setUsage(emptyUsage())
+    setProgress({ stage: 'jd', label: 'Reading the job description' })
+    const began = Date.now()
+    setStartedAt(began)
+    setTookMs(undefined)
     const onPlatform = usePlatform
     try {
       const outcome = onPlatform
@@ -164,6 +190,7 @@ export default function TailorPanel({
       setResume(outcome.resume)
       setResult(outcome.result)
       setChanges(outcome.result.changes.map((change) => ({ ...change, approved: null })))
+      setTookMs(Date.now() - began)
       setStep('review')
     } catch (err) {
       setError(errorText(err))
@@ -314,6 +341,17 @@ export default function TailorPanel({
             disabled={busy}
           />
 
+          {step === 'running' && (
+            <UsageMeter
+              usage={usage}
+              stage={progress.stage}
+              label={progress.label}
+              startedAt={startedAt}
+              source={meterSource}
+              runsLeft={usePlatform && billing ? Math.max(0, billing.runs.left - 1) : null}
+            />
+          )}
+
           {error && <div className={errorBox}>{error}</div>}
 
           <button
@@ -349,6 +387,9 @@ export default function TailorPanel({
             {LEVELS[level].label} tailoring of {resumeTitle}. Only the changes you approve go into the tailored copy;
             your saved resume stays as it is.
           </p>
+          <div className="mt-2">
+            <UsageLine usage={usage} elapsedMs={tookMs} />
+          </div>
         </div>
 
         {result.summary && (

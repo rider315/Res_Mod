@@ -73,7 +73,32 @@ export interface RunOptions {
   provider: AIProvider
   model?: string
   generate: GenerateFn
+  /** Told which pass is running, so a screen can show the run as it happens. */
+  onProgress?: (progress: RunProgress) => void
 }
+
+/** The passes a run goes through, in the order a user sees them. */
+export type RunStage = 'jd' | 'first' | 'coverage' | 'evidence' | 'keywords' | 'check' | 'done'
+
+export interface RunProgress {
+  stage: RunStage
+  /** What that pass is doing, in the user's words. */
+  label: string
+}
+
+export const RUN_STAGES: Array<{ stage: RunStage; label: string }> = [
+  { stage: 'jd', label: 'Reading the job description' },
+  { stage: 'first', label: 'Rewriting the resume for the job' },
+  { stage: 'coverage', label: 'Filling the gaps under each role' },
+  { stage: 'evidence', label: 'Backing new skills with real bullets' },
+  { stage: 'keywords', label: 'Placing every required keyword' },
+  { stage: 'check', label: 'Checking every change applies' },
+]
+
+const stageLabel = (stage: RunStage): string =>
+  RUN_STAGES.find((entry) => entry.stage === stage)?.label ?? 'Working'
+
+const report = (opts: RunOptions, stage: RunStage) => opts.onProgress?.({ stage, label: stageLabel(stage) })
 
 type ParseFn = (
   text: string,
@@ -134,6 +159,7 @@ export async function runOptimization(opts: RunOptions): Promise<OptimizationRes
     guard: level ? tailoringGuard(opts, label, level) : (changes) => changes,
   }
 
+  report(opts, 'first')
   const firstPass = parse(
     await generate({ systemInstruction, prompt, temperature }),
     provider,
@@ -154,7 +180,11 @@ export async function runOptimization(opts: RunOptions): Promise<OptimizationRes
   const covered = await coveragePass(baseline, ctx)
   const evidenced = await evidencePass(covered, ctx)
   const finished = level ? await keywordPass(evidenced, ctx) : evidenced
-  return { ...finished, changes: reconcile(finished.changes, ctx) }
+
+  report(opts, 'check')
+  const result = { ...finished, changes: reconcile(finished.changes, ctx) }
+  report(opts, 'done')
+  return result
 }
 
 /**
@@ -206,6 +236,7 @@ async function coveragePass(baseline: OptimizationResult, ctx: PassContext): Pro
     ? findGroupGaps(resume, baseline.changes, profile.coverage, LEVELS[level].bulletsOwed)
     : findCoverageGaps(resume, baseline.changes, profile.coverage)
   if (gaps.length === 0) return baseline
+  report(opts, 'coverage')
 
   console.log(
     `[${label}] Coverage gaps in ${gaps.length} section(s): ` +
@@ -262,6 +293,7 @@ async function evidencePass(result: OptimizationResult, ctx: PassContext): Promi
 
   const gaps = findUnevidencedSkills(resume, result.changes, profile.coverage)
   if (gaps.length === 0) return result
+  report(opts, 'evidence')
 
   console.log(
     `[${label}] ${gaps.length} claimed skill(s) with no supporting bullet: ` +
@@ -319,6 +351,7 @@ async function keywordPass(result: OptimizationResult, ctx: PassContext): Promis
       .statuses.filter((entry) => entry.status === 'missing' && entry.keyword.required)
       .map((entry) => entry.keyword)
 
+  report(opts, 'keywords')
   // What is still missing is judged on changes that will really apply.
   let changes = reconcile(result.changes, ctx)
   let keywordsAdded = result.keywordsAdded

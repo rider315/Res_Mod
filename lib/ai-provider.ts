@@ -2,6 +2,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 import { AIProvider } from '@/types/resume'
 import { apiKeyName, getProvider, ProviderConfig } from '@/lib/providers'
 import { extractJSON, estimateTokens } from '@/lib/json-repair'
+import { CallUsage, estimateCall, reportedCall } from '@/lib/ai-usage'
 import { generateClaude } from '@/lib/claude'
 import { logSnippet } from '@/lib/log'
 
@@ -22,7 +23,12 @@ interface AIRequestOptions {
   prompt: string
   temperature: number
   model?: string
+  /** Told what this one call cost, so a run can meter itself. */
+  onUsage?: (usage: CallUsage) => void
 }
+
+/** Where a provider's own token counts are handed back, when it reports any. */
+type UsageSink = (usage: CallUsage | null) => void
 
 /**
  * Pick the API key to use: the one the user typed in Settings wins. Only when
@@ -77,15 +83,29 @@ export function resolveBaseUrl(config: ProviderConfig): string {
  * Returns the raw text response (expected to be valid JSON).
  */
 export async function generateAIResponse(options: AIRequestOptions): Promise<string> {
-  const { provider, apiKey, systemInstruction, prompt, temperature, model } = options
+  const { provider, systemInstruction, prompt, model, onUsage } = options
   const config = getProvider(provider)
 
   if (config.transport === 'puter') {
     throw new Error('Puter runs in the browser and cannot be called from the server.')
   }
 
+  // Whatever the provider says it used; estimated from the text when it says nothing.
+  const counted: { usage: CallUsage | null } = { usage: null }
+  const sink: UsageSink = (usage) => {
+    if (usage) counted.usage = usage
+  }
+
+  const text = await runProvider(config, { ...options, model }, sink)
+  onUsage?.(counted.usage ?? estimateCall(systemInstruction + prompt, text))
+  return text
+}
+
+async function runProvider(config: ProviderConfig, options: AIRequestOptions, sink: UsageSink): Promise<string> {
+  const { provider, apiKey, systemInstruction, prompt, temperature, model } = options
+
   if (config.transport === 'gemini') {
-    return generateGemini(apiKey, systemInstruction, prompt, temperature, resolveModel(provider, model))
+    return generateGemini(apiKey, systemInstruction, prompt, temperature, resolveModel(provider, model), sink)
   }
 
   if (config.transport === 'anthropic') {
@@ -96,11 +116,12 @@ export async function generateAIResponse(options: AIRequestOptions): Promise<str
       prompt,
       model: resolveModel(provider, model),
       maxOutputTokens: config.maxOutputTokens ?? 64000,
+      onUsage: sink,
     })
     return extractJSON(text) ?? text.trim()
   }
 
-  return generateOpenAICompatible(config, apiKey, systemInstruction, prompt, temperature, model)
+  return generateOpenAICompatible(config, apiKey, systemInstruction, prompt, temperature, model, sink)
 }
 
 // ─── Gemini ──────────────────────────────────────────────────────────────────
@@ -110,7 +131,8 @@ async function generateGemini(
   systemInstruction: string,
   prompt: string,
   temperature: number,
-  model: string
+  model: string,
+  sink: UsageSink
 ): Promise<string> {
   const genAI = new GoogleGenerativeAI(apiKey)
   const generativeModel = genAI.getGenerativeModel({
@@ -123,6 +145,8 @@ async function generateGemini(
   })
 
   const result = await generativeModel.generateContent(prompt)
+  const meta = result.response.usageMetadata as { promptTokenCount?: number; candidatesTokenCount?: number } | undefined
+  sink(reportedCall(meta?.promptTokenCount, meta?.candidatesTokenCount))
   return result.response.text()
 }
 
@@ -246,7 +270,7 @@ async function callChatCompletions(
   userContent: string,
   temperature: number,
   opts: CallOptions
-): Promise<{ rawText: string; finishReason: string }> {
+): Promise<{ rawText: string; finishReason: string; usage: CallUsage | null }> {
   const baseUrl = resolveBaseUrl(config)
   let lastError: Error | null = null
 
@@ -300,6 +324,7 @@ async function callChatCompletions(
       return {
         rawText: readMessageContent(data.choices?.[0]?.message),
         finishReason: data.choices?.[0]?.finish_reason ?? 'unknown',
+        usage: reportedCall(data.usage?.prompt_tokens, data.usage?.completion_tokens),
       }
     }
 
@@ -355,7 +380,8 @@ async function generateOpenAICompatible(
   systemInstruction: string,
   prompt: string,
   temperature: number,
-  model?: string
+  model: string | undefined,
+  sink: UsageSink
 ): Promise<string> {
   const targetModel = config.compressPrompt
     ? (model?.trim() || (await pickCerebrasModel(config, apiKey)))
@@ -385,6 +411,7 @@ async function generateOpenAICompatible(
     temperature,
     { useJsonMode: true, useMaxTokens: true }
   )
+  sink(result.usage)
 
   if (!result.rawText.trim()) {
     console.error(`[${config.id}] Empty response. finish_reason:`, result.finishReason)

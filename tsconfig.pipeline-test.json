@@ -23,6 +23,8 @@
     "lib/import/**/*.ts",
     "lib/tailor/**/*.ts",
     "lib/run-optimization.ts",
+    "lib/ai-usage.ts",
+    "lib/ai-provider.ts",
     "lib/billing/plans.ts",
     "lib/billing/quota.ts",
     "lib/billing/types.ts",

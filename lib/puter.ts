@@ -1,4 +1,5 @@
 import { extractJSON } from '@/lib/json-repair'
+import { CallUsage, estimateCall, reportedCall } from '@/lib/ai-usage'
 
 /**
  * Browser-side Puter provider.
@@ -25,6 +26,8 @@ interface PuterChatOptions {
 
 interface PuterChatResponse {
   message?: { role?: string; content?: unknown }
+  /** Token counts, when the model behind Puter reports any. Shape varies by model. */
+  usage?: unknown
 }
 
 interface PuterGlobal {
@@ -143,6 +146,29 @@ function readPuterContent(response: PuterChatResponse): string {
 }
 
 /**
+ * What the call cost, however this model chose to report it: a list of
+ * {type, amount} entries, an object of counts, or nothing at all.
+ */
+function readPuterUsage(response: PuterChatResponse, input: string, output: string): CallUsage {
+  const counts = new Map<string, number>()
+  const raw = response?.usage
+  if (Array.isArray(raw)) {
+    for (const entry of raw) {
+      const { type, amount } = (entry ?? {}) as { type?: unknown; amount?: unknown }
+      if (typeof type === 'string') counts.set(type, Number(amount))
+    }
+  } else if (raw && typeof raw === 'object') {
+    for (const [key, value] of Object.entries(raw as Record<string, unknown>)) counts.set(key, Number(value))
+  }
+
+  const pick = (...names: string[]) => names.map((name) => counts.get(name)).find((value) => Number.isFinite(value))
+  return (
+    reportedCall(pick('input_tokens', 'prompt_tokens'), pick('output_tokens', 'completion_tokens')) ??
+    estimateCall(input, output)
+  )
+}
+
+/**
  * Run one chat completion through Puter and return the raw JSON text.
  * Mirrors the contract of generateAIResponse on the server side.
  */
@@ -151,8 +177,10 @@ export async function generatePuterResponse(options: {
   prompt: string
   temperature: number
   model?: string
+  /** Told what the call cost, so a run can meter itself. */
+  onUsage?: (usage: CallUsage) => void
 }): Promise<string> {
-  const { systemInstruction, prompt, temperature, model } = options
+  const { systemInstruction, prompt, temperature, model, onUsage } = options
   const puter = await loadPuter()
   await ensurePuterSignedIn()
 
@@ -183,5 +211,6 @@ export async function generatePuterResponse(options: {
     )
   }
 
+  onUsage?.(readPuterUsage(response, systemInstruction + prompt, rawText))
   return extractJSON(rawText) ?? rawText.trim()
 }
