@@ -87,6 +87,7 @@ export default function UserDashboard({ name, email, isOwner = false }: UserDash
   const [busyId, setBusyId] = useState<string | null>(null)
   const [settings, setSettings] = useState<AISettings>(DEFAULT_AI_SETTINGS)
   const [showSettings, setShowSettings] = useState(false)
+  const [focusPlatformAi, setFocusPlatformAi] = useState(false)
   /** undefined while loading; null when it couldn't be loaded, or for the owner, who has no limits. */
   const [billing, setBilling] = useState<BillingStatus | null | undefined>(undefined)
   const [quotaDialog, setQuotaDialog] = useState<'run' | 'import' | null>(null)
@@ -205,7 +206,13 @@ export default function UserDashboard({ name, email, isOwner = false }: UserDash
         </button>
         <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1">
           {isOwner ? (
-            <OwnerNav inUserWorkspace />
+            <OwnerNav
+              inUserWorkspace
+              onOpenAiSettings={() => {
+                setFocusPlatformAi(true)
+                setShowSettings(true)
+              }}
+            />
           ) : (
             <>
               {billing?.platformAi && (
@@ -403,12 +410,17 @@ export default function UserDashboard({ name, email, isOwner = false }: UserDash
           settings={settings}
           serverKeys={isOwner}
           platformAdmin={isOwner}
+          focusPlatformAi={focusPlatformAi}
           onSave={(next) => {
             saveAISettings(next)
             setSettings(next)
             setShowSettings(false)
+            setFocusPlatformAi(false)
           }}
-          onClose={() => setShowSettings(false)}
+          onClose={() => {
+            setShowSettings(false)
+            setFocusPlatformAi(false)
+          }}
         />
       )}
 

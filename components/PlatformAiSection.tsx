@@ -1,31 +1,61 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AIProvider } from '@/types/resume'
 import { getProvider } from '@/lib/providers'
 import type { PlatformAiStatus } from '@/lib/billing/types'
 
 /**
  * The owner's control for ResMod AI, inside AI settings: make the provider, model
- * and key picked above the AI that regular accounts run on with their included
- * runs, or switch it off. A key goes to the server once, is checked, is stored
- * encrypted, and is never sent back.
+ * and key picked above the AI that every regular account runs on, or switch it
+ * off. A key goes to the server once, is checked, is stored encrypted, and is
+ * never sent back.
  */
+
+/** Fired on the window when ResMod AI is switched on, changed or turned off, so the owner's header can update. */
+export const PLATFORM_AI_CHANGED = 'resmod:platform-ai-changed'
 
 interface PlatformAiSectionProps {
   provider: AIProvider
   model: string
   apiKey: string
+  /** Scroll to this section and mark it, when AI settings were opened to set it up. */
+  focus?: boolean
 }
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err))
 
-export default function PlatformAiSection({ provider, model, apiKey }: PlatformAiSectionProps) {
+export default function PlatformAiSection({ provider, model, apiKey, focus = false }: PlatformAiSectionProps) {
+  const sectionRef = useRef<HTMLElement>(null)
   const [status, setStatus] = useState<PlatformAiStatus | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [busy, setBusy] = useState<'save' | 'off' | null>(null)
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
   const config = getProvider(provider)
   const modelLabel = model ? ` · ${model.split('/').pop()}` : ''
+
+  useEffect(() => {
+    const section = sectionRef.current
+    if (!focus || !section) return
+    const show = () => section.scrollIntoView({ block: 'start' })
+    show()
+
+    // The model list above this can finish loading after the dialog opens and push this section out of
+    // view, so follow it for a moment, and stop as soon as the owner scrolls for themselves.
+    const above = section.previousElementSibling
+    const scroller = section.parentElement
+    const observer = new ResizeObserver(show)
+    if (above) observer.observe(above)
+    const stop = () => observer.disconnect()
+    const timer = setTimeout(stop, 4000)
+    scroller?.addEventListener('wheel', stop, { once: true })
+    scroller?.addEventListener('touchstart', stop, { once: true })
+    return () => {
+      clearTimeout(timer)
+      stop()
+      scroller?.removeEventListener('wheel', stop)
+      scroller?.removeEventListener('touchstart', stop)
+    }
+  }, [focus])
 
   useEffect(() => {
     let cancelled = false
@@ -61,6 +91,7 @@ export default function PlatformAiSection({ provider, model, apiKey }: PlatformA
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error ?? 'That did not work.')
       setStatus(data)
+      window.dispatchEvent(new Event(PLATFORM_AI_CHANGED))
       setMessage({
         ok: true,
         text:
@@ -79,7 +110,12 @@ export default function PlatformAiSection({ provider, model, apiKey }: PlatformA
   const currentProvider = current ? getProvider(current.provider) : null
 
   return (
-    <section className="mt-6 pt-5 border-t border-[var(--color-border)] space-y-3">
+    <section
+      ref={sectionRef}
+      className={`mt-6 pt-5 border-t border-[var(--color-border)] space-y-3 ${
+        focus ? 'rounded-xl ring-2 ring-[var(--color-warning)] ring-offset-4 ring-offset-[var(--color-surface)] px-1' : ''
+      }`}
+    >
       <div>
         <h3 className="text-sm font-semibold text-[var(--color-text)]">ResMod AI for your users</h3>
         <p className="text-xs text-[var(--color-text-muted)] mt-1">

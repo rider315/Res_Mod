@@ -36,6 +36,8 @@ interface SettingsModalProps {
    * every regular account runs on.
    */
   platformAdmin?: boolean
+  /** Opened to set ResMod AI up: scroll straight to that section. */
+  focusPlatformAi?: boolean
 }
 
 function formatContext(tokens: number): string {
@@ -57,6 +59,7 @@ export default function SettingsModal({
   onClose,
   serverKeys = true,
   platformAdmin = false,
+  focusPlatformAi = false,
 }: SettingsModalProps) {
   const [provider, setProvider] = useState<AIProvider>(settings.provider)
   const [apiKeys, setApiKeys] = useState<Record<AIProvider, string>>({ ...settings.apiKeys })
@@ -466,7 +469,9 @@ export default function SettingsModal({
           </div>
         </div>
 
-        {platformAdmin && <PlatformAiSection provider={provider} model={model} apiKey={apiKeys[provider] ?? ''} />}
+        {platformAdmin && (
+          <PlatformAiSection provider={provider} model={model} apiKey={apiKeys[provider] ?? ''} focus={focusPlatformAi} />
+        )}
       </div>
     </div>
   )

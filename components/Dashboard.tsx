@@ -232,6 +232,8 @@ export default function Dashboard() {
   const [compiling, setCompiling] = useState(false)
   const [compileHost, setCompileHost] = useState('texlive.net')
   const [themeMode, setThemeMode] = useState<'light' | 'dark'>('light')
+  // AI settings opened from the "Set up ResMod AI" warning go straight to that section.
+  const [focusPlatformAi, setFocusPlatformAi] = useState(false)
 
   useEffect(() => {
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -548,7 +550,12 @@ export default function Dashboard() {
         </div>
         <StepIndicator currentStep={state.step} />
         <div className="flex items-center gap-3">
-          <OwnerNav />
+          <OwnerNav
+            onOpenAiSettings={() => {
+              setFocusPlatformAi(true)
+              setState((s) => ({ ...s, showSettings: true }))
+            }}
+          />
           <button
             onClick={() => setState((s) => ({ ...s, showSettings: true }))}
             className="h-8 px-2 flex items-center gap-1.5 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-offset)] transition-all"
@@ -876,9 +883,16 @@ export default function Dashboard() {
               apiKeys: state.aiApiKeys,
               models: state.aiModels,
             }}
-            onSave={handleSaveSettings}
-            onClose={() => setState((s) => ({ ...s, showSettings: false }))}
+            onSave={(next) => {
+              setFocusPlatformAi(false)
+              handleSaveSettings(next)
+            }}
+            onClose={() => {
+              setFocusPlatformAi(false)
+              setState((s) => ({ ...s, showSettings: false }))
+            }}
             platformAdmin
+            focusPlatformAi={focusPlatformAi}
           />
         )}
       </main>
