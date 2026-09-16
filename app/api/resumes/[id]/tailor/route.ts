@@ -52,6 +52,7 @@ type Params = { params: { id: string } }
  * left — is still a plain JSON error with its status code.
  */
 export async function POST(req: NextRequest, { params }: Params) {
+  const startedAt = Date.now()
   const auth = await requireAuth()
   if (!auth.ok) return auth.response
   if (!auth.userId) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
@@ -87,9 +88,34 @@ export async function POST(req: NextRequest, { params }: Params) {
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       let closed = false
+      let settled = false
       const send = (event: Record<string, unknown>) => {
         if (!closed) controller.enqueue(encoder.encode(JSON.stringify(event) + '\n'))
       }
+      const close = () => {
+        if (closed) return
+        closed = true
+        controller.close()
+      }
+      // A run that produced nothing isn't charged, however it ends.
+      const fail = async (message: string) => {
+        if (settled) return
+        settled = true
+        if (ai.reservation) await releaseReservation(ai.reservation)
+        console.error('[resumes/:id/tailor]', message)
+        send({ type: 'error', error: aiFailureMessage(auth.role, message), rateLimited: /429|rate limit/i.test(message) })
+        close()
+      }
+      // The platform ends the request at maxDuration with no chance to give the run back, so stop just before.
+      // TAILOR_TIME_LIMIT_S shortens the limit, for the local checks.
+      const limitS = Number(process.env.TAILOR_TIME_LIMIT_S) || maxDuration
+      const stopAt = startedAt + (limitS - 10) * 1000
+      const watchdog = setTimeout(() => {
+        void fail(
+          `Stopped after ${Math.round((Date.now() - startedAt) / 1000)} s: the AI is too slow to finish within ` +
+            `this server's ${limitS} s limit. Try a lighter level or a faster model.`
+        )
+      }, stopAt - Date.now())
 
       let usage: AiUsage = emptyUsage()
       let progress: RunProgress = { stage: 'jd', label: 'Reading the job description' }
@@ -128,19 +154,20 @@ export async function POST(req: NextRequest, { params }: Params) {
             progress = next
             tell()
           },
+          // Leave room for one last model call to finish before the watchdog.
+          deadline: stopAt - 5_000,
         })
 
-        console.log(`[resumes/:id/tailor] ${level} run on ${ai.provider}: ${describeUsage(usage)}`)
-        send({ type: 'result', result, resume: rendered.parsed.resume, usage })
+        if (!settled) {
+          settled = true
+          console.log(`[resumes/:id/tailor] ${level} run on ${ai.provider}: ${describeUsage(usage)}`)
+          send({ type: 'result', result, resume: rendered.parsed.resume, usage })
+        }
       } catch (err) {
-        // A run that produced nothing isn't charged.
-        if (ai.reservation) await releaseReservation(ai.reservation)
-        const message = err instanceof Error ? err.message : String(err)
-        console.error('[resumes/:id/tailor]', message)
-        send({ type: 'error', error: aiFailureMessage(auth.role, message), rateLimited: /429|rate limit/i.test(message) })
+        await fail(err instanceof Error ? err.message : String(err))
       } finally {
-        closed = true
-        controller.close()
+        clearTimeout(watchdog)
+        close()
       }
     },
   })

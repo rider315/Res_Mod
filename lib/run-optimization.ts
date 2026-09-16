@@ -75,7 +75,19 @@ export interface RunOptions {
   generate: GenerateFn
   /** Told which pass is running, so a screen can show the run as it happens. */
   onProgress?: (progress: RunProgress) => void
+  /**
+   * When the run must be finished by (epoch ms), because the server stops the
+   * request then. The follow-up passes only improve on the first one, so they are
+   * skipped rather than started with too little time left for a model call.
+   */
+  deadline?: number
 }
+
+/**
+ * How long one model call can take, thinking included, on the slower models. A
+ * follow-up pass isn't started with less time than this before the deadline.
+ */
+export const PASS_TIME_MS = 75_000
 
 /** The passes a run goes through, in the order a user sees them. */
 export type RunStage = 'jd' | 'first' | 'coverage' | 'evidence' | 'keywords' | 'check' | 'done'
@@ -99,6 +111,14 @@ const stageLabel = (stage: RunStage): string =>
   RUN_STAGES.find((entry) => entry.stage === stage)?.label ?? 'Working'
 
 const report = (opts: RunOptions, stage: RunStage) => opts.onProgress?.({ stage, label: stageLabel(stage) })
+
+/** Whether there is still time for another model call before the deadline. */
+function timeFor(ctx: PassContext, pass: string): boolean {
+  const { deadline } = ctx.opts
+  if (deadline === undefined || deadline - Date.now() >= PASS_TIME_MS) return true
+  console.warn(`[${ctx.label}] Skipping the ${pass}: ${Math.max(0, Math.round((deadline - Date.now()) / 1000))} s left`)
+  return false
+}
 
 type ParseFn = (
   text: string,
@@ -235,7 +255,7 @@ async function coveragePass(baseline: OptimizationResult, ctx: PassContext): Pro
   const gaps = level
     ? findGroupGaps(resume, baseline.changes, profile.coverage, LEVELS[level].bulletsOwed)
     : findCoverageGaps(resume, baseline.changes, profile.coverage)
-  if (gaps.length === 0) return baseline
+  if (gaps.length === 0 || !timeFor(ctx, 'coverage top-up')) return baseline
   report(opts, 'coverage')
 
   console.log(
@@ -293,6 +313,8 @@ async function evidencePass(result: OptimizationResult, ctx: PassContext): Promi
 
   const gaps = findUnevidencedSkills(resume, result.changes, profile.coverage)
   if (gaps.length === 0) return result
+  // Skipped for time: the skills are still reported as having no bullet behind them.
+  if (!timeFor(ctx, 'evidence pass')) return { ...result, unevidencedSkills: gaps.map((g) => g.term) }
   report(opts, 'evidence')
 
   console.log(
@@ -357,7 +379,7 @@ async function keywordPass(result: OptimizationResult, ctx: PassContext): Promis
   let keywordsAdded = result.keywordsAdded
   let missing = missingRequired(changes)
 
-  if (missing.length > 0) {
+  if (missing.length > 0 && timeFor(ctx, 'keyword pass')) {
     console.log(
       `[${label}] Required keywords still missing: ${missing.map((k) => k.term).join(', ')} — running a keyword pass`
     )

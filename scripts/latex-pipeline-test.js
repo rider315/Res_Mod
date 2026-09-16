@@ -1166,6 +1166,29 @@ async function resolveTests() {
   check('the evidence rewrite survives, on the line it really belongs to',
     run.changes.some((c) => c.original === platform && /LangChain/.test(c.proposed)),
     JSON.stringify(run.changes.map((c) => [c.original.slice(0, 24), c.proposed.slice(0, 48)])))
+
+  // A slow model near the server's time limit: only the first pass may call it.
+  const rushedCalls = []
+  const rushed = await runOptimization({
+    mode: 'optimize', level: 'hard', profile, resume,
+    keywords: { jobTitle: 'AI Engineer', company: '', keywords: [
+      { term: 'LangChain', kind: 'tool', required: true, aliases: [] },
+      { term: 'Kubernetes', kind: 'tool', required: true, aliases: [] },
+    ] },
+    jobDescription: 'AI engineer: LangChain pipelines on Kubernetes.',
+    hardInstructions: '', softInstructions: '', provider: 'anthropic',
+    generate: async (args) => { rushedCalls.push(args.prompt.slice(0, 40)); return scripted(args) },
+    deadline: Date.now() + 10_000,
+  })
+  const rushedCoverage = keywordCoverage(resume, [
+    { term: 'LangChain', kind: 'tool', required: true, aliases: [] },
+    { term: 'Kubernetes', kind: 'tool', required: true, aliases: [] },
+  ], rushed.changes)
+  check('with too little time left, only the first pass calls the model',
+    rushedCalls.length === 1, JSON.stringify(rushedCalls))
+  check('...and the required keywords are still all placed, and unbacked skills still reported',
+    rushedCoverage.statuses.every((s) => s.status !== 'missing') && rushed.unevidencedSkills.includes('LangChain'),
+    JSON.stringify({ statuses: rushedCoverage.statuses.map((s) => [s.keyword.term, s.status]), unevidenced: rushed.unevidencedSkills }))
 }
 
 // ------------------------------------------------------------------- 16. usage

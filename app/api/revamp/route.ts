@@ -35,6 +35,7 @@ const schema = z.object({
 })
 
 export async function POST(req: NextRequest) {
+  const startedAt = Date.now()
   // Tailoring still runs on the owner's resume profiles, so it is owner-only
   // until regular users have resumes of their own to tailor.
   const auth = await requireOwner()
@@ -62,6 +63,8 @@ export async function POST(req: NextRequest) {
       model: resolveModel(provider, model),
       generate: ({ systemInstruction, prompt, temperature }) =>
         generateAIResponse({ provider, apiKey: key, systemInstruction, prompt, temperature, model }),
+      // Skip the follow-up passes rather than run past the server's limit.
+      deadline: startedAt + (maxDuration - 15) * 1000,
     })
 
     return NextResponse.json({ result })
