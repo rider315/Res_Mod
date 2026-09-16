@@ -9,13 +9,17 @@
 
 export const CURRENCY = 'INR'
 
-/** Runs on ResMod AI every account gets each calendar month (UTC). FREE_RUNS_PER_MONTH overrides it. */
-export const DEFAULT_FREE_RUNS_PER_MONTH = 5
+/**
+ * Tailorings every account gets free, once. After those, tailoring needs Pro or
+ * a credit pack, and either can be bought at any time before that too.
+ * FREE_TAILORINGS overrides it, for the local checks.
+ */
+export const DEFAULT_FREE_TAILORINGS = 3
 
 export const PRO_PLAN = {
   label: 'Pro',
   pricePaise: 19_900,
-  /** Runs included in each monthly billing cycle. */
+  /** Tailorings included in each monthly billing cycle. */
   runsPerCycle: 100,
 } as const
 
@@ -25,7 +29,7 @@ export interface CreditPack {
   pricePaise: number
 }
 
-/** One-time packs of runs. Credits never expire. */
+/** One-time packs of tailorings. Credits never expire. */
 export const CREDIT_PACKS: readonly CreditPack[] = [
   { id: 'runs_20', runs: 20, pricePaise: 9_900 },
   { id: 'runs_60', runs: 60, pricePaise: 24_900 },

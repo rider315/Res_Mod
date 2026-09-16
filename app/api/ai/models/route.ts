@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { requireAuth } from '@/lib/require-auth'
+import { requireOwner } from '@/lib/require-auth'
 import { AIProvider } from '@/types/resume'
 import { getProvider, PROVIDER_ORDER, ProviderConfig } from '@/lib/providers'
 import { resolveApiKey, resolveBaseUrl, readProviderJson } from '@/lib/ai-provider'
@@ -30,7 +30,8 @@ const schema = z.object({
  * has no business sitting in a query string.
  */
 export async function POST(req: NextRequest) {
-  const auth = await requireAuth()
+  // AI settings belong to the owner: everyone else runs on the AI the owner chose.
+  const auth = await requireOwner()
   if (!auth.ok) return auth.response
 
   const parsed = schema.safeParse(await req.json())
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const apiKey = config.catalogNeedsKey ? resolveApiKey(config.id, parsed.data.apiKey, { allowServerKey: auth.role === 'owner' }) : ''
+    const apiKey = config.catalogNeedsKey ? resolveApiKey(config.id, parsed.data.apiKey, { allowServerKey: true }) : ''
     const models =
       config.transport === 'gemini'
         ? await fetchGeminiModels(apiKey)

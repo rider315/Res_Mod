@@ -63,7 +63,6 @@ export default function AccountPanel({ email, onBack, onOpenHistory }: AccountPa
             </button>{' '}
             are stored with your account.
           </li>
-          <li>API keys you add in AI settings stay in this browser. ResMod&apos;s servers never store them.</li>
           <li>Payments are handled by Razorpay; ResMod keeps only the payment records.</li>
         </ul>
         <p className="text-xs text-[var(--color-text-muted)] mt-3">
@@ -84,7 +83,7 @@ export default function AccountPanel({ email, onBack, onOpenHistory }: AccountPa
         <ul className="text-sm text-[var(--color-text-muted)] list-disc pl-5 space-y-1">
           <li>Unused credits are lost.</li>
           <li>A Pro plan is cancelled and won&apos;t renew. The current month isn&apos;t refunded.</li>
-          <li>Payment records are kept for accounting, and so are usage counts, so deleting doesn&apos;t reset free runs.</li>
+          <li>Payment records are kept for accounting, and so are usage counts, so deleting doesn&apos;t give you free tailorings again.</li>
         </ul>
         <label className="block">
           <span className="block text-xs text-[var(--color-text-muted)] mb-1.5">Type {CONFIRM_WORD} to confirm</span>

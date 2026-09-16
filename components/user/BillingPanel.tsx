@@ -2,13 +2,21 @@
 import { useEffect, useState } from 'react'
 import { formatPrice } from '@/lib/billing/plans'
 import type { BillingStatus, CheckoutStart } from '@/lib/billing/types'
-import { fetchBilling, formatDate, formatDay, payWithCheckout, postBilling } from '@/components/user/billing-client'
+import {
+  fetchBilling,
+  formatDate,
+  formatDay,
+  payWithCheckout,
+  postBilling,
+  tailorings,
+} from '@/components/user/billing-client'
 import { errorBox, primaryButton, secondaryButton } from '@/components/user/shared'
 
 /**
- * Included runs, credits and Pro for a regular account. Payments open Razorpay
- * Checkout; the server verifies each one and answers with the new balances, so
- * this screen only ever shows what the server reports.
+ * Plans for a regular account: the free tailorings every account gets once, Pro
+ * and credit packs, both of which can be bought at any time. Payments open
+ * Razorpay Checkout; the server verifies each one and answers with the new
+ * balances, so this screen only ever shows what the server reports.
  */
 
 interface BillingPanelProps {
@@ -76,7 +84,7 @@ export default function BillingPanel({ billing, onBillingChange, onBack }: Billi
     checkout(
       { kind: 'pack', id: packId },
       () => postBilling<CheckoutStart>('/api/billing/order', { packId }),
-      () => setNotice(`${runs} runs added. Thank you!`)
+      () => setNotice(`${tailorings(runs)} added. Thank you!`)
     )
 
   const subscribe = () =>
@@ -116,7 +124,7 @@ export default function BillingPanel({ billing, onBillingChange, onBack }: Billi
         ← Back
       </button>
       <div className="flex flex-wrap items-center gap-2 mt-2">
-        <h1 className="text-2xl font-bold text-[var(--color-text)]">Runs and billing</h1>
+        <h1 className="text-2xl font-bold text-[var(--color-text)]">Plans</h1>
         {billing?.checkout.testMode && (
           <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-[var(--color-warning-highlight)] text-[var(--color-warning)]">
             Test mode
@@ -124,7 +132,8 @@ export default function BillingPanel({ billing, onBillingChange, onBack }: Billi
         )}
       </div>
       <p className="text-sm text-[var(--color-text-muted)] mt-1">
-        Each tailoring run on ResMod AI uses one run. Runs with your own AI key, or with Puter, are never counted.
+        Every account gets {billing ? billing.runs.free.limit : 'a few'} free tailorings. After that, keep
+        tailoring with Pro or a credit pack, and you can get either at any time.
       </p>
     </div>
   )
@@ -176,28 +185,23 @@ export default function BillingPanel({ billing, onBillingChange, onBack }: Billi
 
       {!billing.platformAi ? (
         <div className={card}>
-          <p className="text-sm font-semibold text-[var(--color-text)]">ResMod AI isn&apos;t switched on yet</p>
+          <p className="text-sm font-semibold text-[var(--color-text)]">Tailoring isn&apos;t available yet</p>
           <p className="text-sm text-[var(--color-text-muted)] mt-1">
-            Included runs can&apos;t be used or bought for now. You can still import and tailor resumes with your own AI
-            key, or with Puter, from AI settings.
+            Importing and tailoring resumes aren&apos;t switched on right now, so plans can&apos;t be bought yet. Please
+            check back soon.
           </p>
         </div>
       ) : (
         <>
           <section className={card}>
             <div className="flex items-baseline justify-between gap-3">
-              <h2 className="text-sm font-semibold text-[var(--color-text)]">Runs left</h2>
+              <h2 className="text-sm font-semibold text-[var(--color-text)]">Tailorings left</h2>
               <p className="text-3xl font-bold text-[var(--color-text)] tabular-nums">{runs.left}</p>
             </div>
             <div className="mt-3 divide-y divide-[var(--color-divider)]">
-              <Row
-                label="Free this month"
-                value={`${Math.max(0, runs.free.limit - runs.free.used)} of ${runs.free.limit}`}
-                note={`Back to ${runs.free.limit} on ${formatDay(runs.free.resetsAt)}`}
-              />
               {runs.subscription && (
                 <Row
-                  label="Pro this cycle"
+                  label="Pro this month"
                   value={`${Math.max(0, runs.subscription.limit - runs.subscription.used)} of ${runs.subscription.limit}`}
                   note={
                     subscription?.currentEnd
@@ -206,9 +210,14 @@ export default function BillingPanel({ billing, onBillingChange, onBack }: Billi
                   }
                 />
               )}
-              <Row label="Credits" value={String(runs.credits)} note="Never expire · used after free and Pro runs" />
               <Row
-                label="Imports on ResMod AI"
+                label="Free tailorings"
+                value={`${Math.max(0, runs.free.limit - runs.free.used)} of ${runs.free.limit}`}
+                note="Given once to every account"
+              />
+              <Row label="Credits" value={String(runs.credits)} note="Never expire · used after Pro and free tailorings" />
+              <Row
+                label="Resume imports this month"
                 value={`${importsLeft} of ${imports.limit}`}
                 note={`Free · starts again on ${formatDay(imports.resetsAt)}`}
               />
@@ -220,7 +229,8 @@ export default function BillingPanel({ billing, onBillingChange, onBack }: Billi
               <div>
                 <h2 className="text-sm font-semibold text-[var(--color-text)]">{billing.pro.label}</h2>
                 <p className="text-sm text-[var(--color-text-muted)] mt-0.5">
-                  {billing.pro.runsPerCycle} runs every month, on top of your free runs. Cancel any time.
+                  {billing.pro.runsPerCycle} tailorings every month. Get it now or once your free tailorings are used; cancel
+                  any time.
                 </p>
               </div>
               <p className="text-lg font-bold text-[var(--color-text)]">
@@ -241,14 +251,14 @@ export default function BillingPanel({ billing, onBillingChange, onBack }: Billi
             )}
             {proState === 'ending' && subscription && (
               <p className="text-sm text-[var(--color-text-muted)]">
-                Cancelled. Your Pro runs last{subscription.currentEnd ? ` until ${formatDate(subscription.currentEnd)}` : ' until this cycle ends'}, and it
+                Cancelled. Your Pro tailorings last{subscription.currentEnd ? ` until ${formatDate(subscription.currentEnd)}` : ' until this month ends'}, and it
                 won&apos;t renew.
               </p>
             )}
             {proState === 'retrying' && (
               <div className="space-y-3">
                 <p className={warningBox}>
-                  Your renewal payment didn&apos;t go through. Razorpay is retrying it, and your Pro runs stay meanwhile.
+                  Your renewal payment didn&apos;t go through. Razorpay is retrying it, and your Pro tailorings stay meanwhile.
                 </p>
                 <button onClick={cancel} disabled={busy !== null} className={secondaryButton}>
                   {busy?.kind === 'cancel' ? 'Cancelling…' : 'Cancel Pro'}
@@ -273,7 +283,9 @@ export default function BillingPanel({ billing, onBillingChange, onBack }: Billi
 
           <section className={card}>
             <h2 className="text-sm font-semibold text-[var(--color-text)]">Credit packs</h2>
-            <p className="text-sm text-[var(--color-text-muted)] mt-0.5">A one-time payment. Credits never expire.</p>
+            <p className="text-sm text-[var(--color-text-muted)] mt-0.5">
+              A one-time payment, if you&apos;d rather not subscribe. Credits never expire.
+            </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
               {billing.packs.map((pack) => (
                 <div
@@ -281,9 +293,9 @@ export default function BillingPanel({ billing, onBillingChange, onBack }: Billi
                   className="rounded-xl border border-[var(--color-border)] p-4 flex items-center justify-between gap-3"
                 >
                   <div>
-                    <p className="text-sm font-semibold text-[var(--color-text)]">{pack.runs} runs</p>
+                    <p className="text-sm font-semibold text-[var(--color-text)]">{tailorings(pack.runs)}</p>
                     <p className="text-[11px] text-[var(--color-text-muted)]">
-                      {formatPrice(Math.round(pack.pricePaise / pack.runs))} a run
+                      {formatPrice(Math.round(pack.pricePaise / pack.runs))} a tailoring
                     </p>
                   </div>
                   <button

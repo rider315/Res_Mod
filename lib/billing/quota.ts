@@ -1,15 +1,16 @@
 import { IMPORTS_PER_MONTH } from '@/lib/billing/plans'
 
 /**
- * The arithmetic of included runs, kept apart from the database so it can be
- * tested on its own.
+ * The arithmetic of tailorings, kept apart from the database so it can be tested
+ * on its own.
  *
- * A tailoring run on ResMod AI spends one run from the first source that has one
- * left:
+ * Every tailoring by a regular account runs on ResMod AI and spends one run from
+ * the first source that has one left:
  *   1. the Pro plan's runs for the current cycle, which lapse when the cycle ends
- *   2. this month's free runs, which lapse when the month ends
- *   3. purchased credits, which never expire, so they are spent last
- * Runs on the user's own key or Puter touch none of these.
+ *   2. the account's free tailorings, given once and never renewed
+ *   3. purchased credits, which never expire and were paid for, so they go last
+ * Pro comes first so that someone who subscribes before trying the free ones
+ * keeps them for later. The owner is never counted.
  */
 
 export type RunSource = 'subscription' | 'free' | 'credits'
@@ -56,15 +57,16 @@ export function nextMonthStart(now: Date): Date {
 }
 
 /**
- * AI requests a regular account can make in a UTC day, on ResMod AI or its own
- * key: a guard against runaway use of the servers, well above what a person
- * tailoring resumes by hand gets through.
+ * AI requests a regular account can make in a UTC day: a guard against runaway
+ * use of the servers, well above what a person tailoring resumes by hand gets
+ * through.
  */
 export const DAILY_AI_REQUESTS = 40
 
 /** Counter names: one row per account per bucket, so a new month or cycle is simply a new row. */
 export const buckets = {
-  freeRuns: (now: Date) => `runs:${monthKey(now)}`,
+  /** One row per account for life: the free tailorings never come back. */
+  freeTailorings: () => 'runs:free',
   imports: (now: Date) => `imports:${monthKey(now)}`,
   dailyAi: (now: Date) => `ai:${now.toISOString().slice(0, 10)}`,
   /** Keyed by the cycle's start, so a renewal starts a fresh count with no reset job. */

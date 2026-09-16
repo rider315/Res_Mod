@@ -9,7 +9,7 @@ export const metadata = {
 // The page names the provider ResMod AI runs on, which the owner can change at any time.
 export const dynamic = 'force-dynamic'
 
-const LAST_UPDATED = '15 September 2026'
+const LAST_UPDATED = '16 September 2026'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -61,21 +61,16 @@ export default async function PrivacyPolicy() {
                 can download it again. Your latest 50 are kept.
               </li>
               <li>
-                <strong className="text-[var(--color-text)]">Usage and payments.</strong> How many runs and imports you
+                <strong className="text-[var(--color-text)]">Usage and payments.</strong> How many tailorings and imports you
                 have used, your credits and plan, and for each payment the Razorpay order, payment or subscription ID,
                 amount and status.
-              </li>
-              <li>
-                <strong className="text-[var(--color-text)]">AI keys you add in AI settings.</strong> They are stored
-                only in your browser. Each request that uses one sends it to our server, which passes it to that provider
-                and never stores it.
               </li>
             </ul>
           </Section>
 
           <Section title="3. How we use it">
             <p>
-              Only to run ResMod: to show and tailor your resumes, count your included runs, take payments and prevent
+              Only to run ResMod: to show and tailor your resumes, count your tailorings, take payments and prevent
               abuse. ResMod does not sell your data, show advertising, or use your resumes to train AI models.
             </p>
           </Section>
@@ -83,11 +78,9 @@ export default async function PrivacyPolicy() {
           <Section title="4. Who else handles it">
             <ul className="list-disc pl-5 space-y-2">
               <li>
-                <strong className="text-[var(--color-text)]">AI providers.</strong> Resume text and job descriptions go
-                to the AI provider that runs your request.{' '}
-                {platformProvider ? `ResMod AI currently runs on ${platformProvider}. ` : ''}
-                With your own key it is the provider you chose, and Puter runs in your browser under your own Puter
-                account. Each provider handles that data under its own terms.
+                <strong className="text-[var(--color-text)]">An AI provider.</strong> Resume text and job descriptions
+                go to the AI provider ResMod AI runs on{platformProvider ? `, currently ${platformProvider}` : ''}, to
+                import and tailor your resumes. It handles that data under its own terms.
               </li>
               <li>
                 <strong className="text-[var(--color-text)]">Razorpay</strong> processes payments. Your card, UPI or bank
@@ -115,15 +108,14 @@ export default async function PrivacyPolicy() {
             <p>
               Deleting your account deletes your resumes, your tailoring history, and your name and email, and forfeits
               unused credits. We keep payment records, which accounting requires, and your anonymous account ID with its
-              usage counts, so that deleting an account cannot be used to reset free runs.
+              usage counts, so that deleting an account cannot be used to get free tailorings again.
             </p>
           </Section>
 
           <Section title="6. Cookies and browser storage">
             <p>
-              ResMod sets a cookie to keep you signed in, and keeps your AI settings in your browser&apos;s local
-              storage. Razorpay Checkout sets its own cookies when you pay. ResMod uses no advertising or analytics
-              cookies.
+              ResMod sets a cookie to keep you signed in. Razorpay Checkout sets its own cookies when you pay. ResMod
+              uses no advertising or analytics cookies.
             </p>
           </Section>
 

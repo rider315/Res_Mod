@@ -11,7 +11,7 @@ export default function TermsOfService() {
         <div className="space-y-2">
           <Link href="/" className="text-[var(--color-primary)] hover:underline text-sm font-medium">← Back to home</Link>
           <h1 className="text-3xl font-bold">Terms of Service</h1>
-          <p className="text-[var(--color-text-muted)]">Last updated: 15 September 2026</p>
+          <p className="text-[var(--color-text-muted)]">Last updated: 16 September 2026</p>
         </div>
 
         <div className="space-y-6 text-sm leading-relaxed text-[var(--color-text-muted)]">
@@ -22,7 +22,7 @@ export default function TermsOfService() {
 
           <section className="space-y-3">
             <h2 className="text-xl font-semibold text-[var(--color-text)]">2. Description of Service</h2>
-            <p>ResMod turns a resume you upload (PDF, Word, LaTeX or text) into a structured LaTeX resume, and tailors it to job descriptions with AI. The AI proposes changes, you approve or reject each one, and the approved changes go into a tailored copy you can download, typeset or open in Overleaf. Requests run on ResMod AI, using included runs, or on an AI provider account of your own.</p>
+            <p>ResMod turns a resume you upload (PDF, Word, LaTeX or text) into a structured LaTeX resume, and tailors it to job descriptions with AI. The AI proposes changes, you approve or reject each one, and the approved changes go into a tailored copy you can download, typeset or open in Overleaf. The AI requests run on ResMod AI: a model from a third-party AI provider, chosen by ResMod.</p>
           </section>
 
           <section className="space-y-3">
@@ -33,7 +33,6 @@ export default function TermsOfService() {
               <li>You are responsible for verifying that the optimized resume remains truthful before you send it to an employer.</li>
               <li>You agree not to use the service for any illegal or unauthorized purpose.</li>
               <li>You agree not to get around usage limits, for example by using several accounts.</li>
-              <li>Usage on your own AI provider key is billed to you by that provider.</li>
             </ul>
           </section>
 
@@ -43,12 +42,12 @@ export default function TermsOfService() {
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-xl font-semibold text-[var(--color-text)]">5. Included Runs, Payments and Refunds</h2>
+            <h2 className="text-xl font-semibold text-[var(--color-text)]">5. Free Tailorings, Payments and Refunds</h2>
             <ul className="list-disc pl-5 space-y-1">
-              <li>Every account gets a number of free tailoring runs on ResMod AI each month. Unused free runs do not carry over to the next month.</li>
-              <li>Credit packs are one-time purchases. Credits do not expire, and are used after free runs and Pro runs.</li>
-              <li>Pro is a monthly subscription that renews automatically until you cancel it on the billing page. Cancelling stops the next renewal; you keep Pro&apos;s runs until the end of the period you have already paid for.</li>
-              <li>A run that fails without producing any changes is not counted. Runs that use your own AI provider key, or Puter, are never counted.</li>
+              <li>Every account gets a number of free tailorings, once. They do not renew. After they are used, tailoring needs Pro or a credit pack, and either can be bought at any time.</li>
+              <li>Pro is a monthly subscription with a number of tailorings each month. It renews automatically until you cancel it on the Plans page. Cancelling stops the next renewal; you keep Pro&apos;s tailorings until the end of the period you have already paid for. Tailorings left at the end of a month do not carry over.</li>
+              <li>Credit packs are one-time purchases. Credits do not expire, and are used after Pro&apos;s tailorings and your free ones.</li>
+              <li>A tailoring that fails without producing any changes is not counted.</li>
               <li>Payments are processed by Razorpay. ResMod does not receive or store your card, UPI or bank details.</li>
               <li>If you are charged twice, or a purchase does not reach your account, the payment is refunded in full. An unused credit pack can be refunded within 7 days of purchase. A Pro payment for a billing period that has already started is not refunded.</li>
               <li>Prices are in Indian rupees and may change. A price change never affects a payment already made.</li>

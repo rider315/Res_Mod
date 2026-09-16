@@ -33,7 +33,7 @@ interface SettingsModalProps {
   serverKeys?: boolean
   /**
    * The owner's dialog also chooses ResMod AI: the provider, model and key that
-   * regular accounts run on with their included runs.
+   * every regular account runs on.
    */
   platformAdmin?: boolean
 }

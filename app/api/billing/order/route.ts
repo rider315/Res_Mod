@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
       orderId: order.id,
       amount: pack.pricePaise,
       currency: CURRENCY,
-      description: `${pack.runs} tailoring runs`,
+      description: `${pack.runs} tailorings`,
       prefill: { name: auth.userName, email: auth.email },
     }
     return NextResponse.json(start)

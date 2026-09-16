@@ -1,8 +1,8 @@
 'use client'
 import { useRef, useState } from 'react'
-import AiSourcePicker from '@/components/user/AiSourcePicker'
+import AiAllowance from '@/components/user/AiAllowance'
 import { ApiError, readApiError } from '@/components/user/billing-client'
-import { AISettings, AiSource } from '@/lib/settings-storage'
+import { AISettings } from '@/lib/settings-storage'
 import { getProvider } from '@/lib/providers'
 import { BILLING_CODES, BillingStatus } from '@/lib/billing/types'
 import { MAX_UPLOAD_BYTES, ResumeDoc, SourceFormat } from '@/lib/resume-doc'
@@ -11,17 +11,17 @@ import { errorBox, inputClass, primaryButton } from '@/components/user/shared'
 /**
  * Importing a resume: a file or pasted text, turned into a structured resume.
  *
- * Text extraction always runs on the server. Structuring runs on ResMod AI (free,
- * within a monthly import limit) or with the user's own AI settings: through
- * /api/import/structure for key-based providers, or entirely in the browser for
- * Puter, which bills the user's Puter account.
+ * Text extraction always runs on the server. Structuring runs on ResMod AI, free
+ * within a monthly import limit. The owner uses their own AI settings instead:
+ * through /api/import/structure for key-based providers, or entirely in the
+ * browser for Puter.
  */
 
 interface ImportPanelProps {
+  /** The owner runs on their own AI settings; everyone else on ResMod AI. */
+  isOwner: boolean
   settings: AISettings
-  aiSource: AiSource
-  onAiSourceChange: (source: AiSource) => void
-  /** undefined while loading; null when it couldn't be loaded. */
+  /** undefined while loading; null when it couldn't be loaded, and always for the owner. */
   billing: BillingStatus | null | undefined
   onOpenSettings: () => void
   onOpenBilling: () => void
@@ -34,9 +34,8 @@ interface ImportPanelProps {
 type Phase = 'idle' | 'reading' | 'structuring'
 
 export default function ImportPanel({
+  isOwner,
   settings,
-  aiSource,
-  onAiSourceChange,
   billing,
   onOpenSettings,
   onOpenBilling,
@@ -55,9 +54,9 @@ export default function ImportPanel({
 
   const provider = getProvider(settings.provider)
   const model = settings.models[settings.provider]
-  const usePlatform = aiSource === 'platform' && Boolean(billing?.platformAi)
-  const checkingRuns = aiSource === 'platform' && billing === undefined
-  const needsKey = !usePlatform && !checkingRuns && provider.needsKey && !settings.apiKeys[settings.provider]?.trim()
+  const checkingRuns = !isOwner && billing === undefined
+  const needsKey = isOwner && provider.needsKey && !settings.apiKeys[settings.provider]?.trim()
+  const aiOff = !isOwner && Boolean(billing) && !billing?.platformAi
   const busy = phase !== 'idle'
   const ready = mode === 'file' ? Boolean(file) : pasted.trim().length > 0
 
@@ -87,8 +86,8 @@ export default function ImportPanel({
     return { text: data.text, sourceFormat: data.sourceFormat }
   }
 
-  async function structure(text: string, onPlatform: boolean): Promise<ResumeDoc> {
-    if (!onPlatform && provider.clientSide) {
+  async function structure(text: string): Promise<ResumeDoc> {
+    if (isOwner && provider.clientSide) {
       const [{ generatePuterResponse }, { structureResume }] = await Promise.all([
         import('@/lib/puter'),
         import('@/lib/import/structure'),
@@ -100,9 +99,8 @@ export default function ImportPanel({
       })
     }
 
-    const ai = onPlatform
-      ? { usePlatform: true }
-      : { provider: settings.provider, apiKey: settings.apiKeys[settings.provider], model }
+    // Regular accounts always run on ResMod AI, so only the owner sends AI settings.
+    const ai = isOwner ? { provider: settings.provider, apiKey: settings.apiKeys[settings.provider], model } : {}
     const res = await fetch('/api/import/structure', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -115,19 +113,18 @@ export default function ImportPanel({
 
   async function run() {
     setError(null)
-    const onPlatform = usePlatform
     try {
       setPhase('reading')
       const { text, sourceFormat } = await readText()
       setPhase('structuring')
-      const doc = await structure(text, onPlatform)
+      const doc = await structure(text)
       onImported(doc, sourceFormat)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
       if (err instanceof ApiError && err.code === BILLING_CODES.importLimit) onQuotaExhausted()
     } finally {
       setPhase('idle')
-      if (onPlatform) onBillingChanged()
+      if (!isOwner) onBillingChanged()
     }
   }
 
@@ -227,10 +224,9 @@ export default function ImportPanel({
           />
         )}
 
-        <AiSourcePicker
+        <AiAllowance
           kind="import"
-          source={aiSource}
-          onSourceChange={onAiSourceChange}
+          isOwner={isOwner}
           settings={settings}
           billing={billing}
           onOpenSettings={onOpenSettings}
@@ -241,7 +237,7 @@ export default function ImportPanel({
         {error && (
           <div className={errorBox}>
             {error}
-            {/API key/i.test(error) && (
+            {isOwner && /API key/i.test(error) && (
               <>
                 {' '}
                 <button onClick={onOpenSettings} className="underline font-medium">
@@ -252,7 +248,7 @@ export default function ImportPanel({
           </div>
         )}
 
-        <button onClick={run} disabled={busy || !ready || needsKey || checkingRuns} className={`w-full ${primaryButton}`}>
+        <button onClick={run} disabled={busy || !ready || needsKey || checkingRuns || aiOff} className={`w-full ${primaryButton}`}>
           {phase === 'reading' ? 'Reading your resume…' : phase === 'structuring' ? 'Sorting it into sections…' : 'Import resume →'}
         </button>
       </div>

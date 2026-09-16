@@ -72,7 +72,7 @@ export async function POST() {
       kind: 'subscription',
       keyId: config.keyId,
       subscriptionId,
-      description: `${PRO_PLAN.label}: ${PRO_PLAN.runsPerCycle} runs a month`,
+      description: `${PRO_PLAN.label}: ${PRO_PLAN.runsPerCycle} tailorings a month`,
       prefill: { name: auth.userName, email: auth.email },
     }
     return NextResponse.json(start)

@@ -6,10 +6,10 @@ import { RUN_STAGES, RunStage } from '@/lib/run-optimization'
 /**
  * What the run is spending, while it spends it.
  *
- * A tailoring run is several model calls on the user's own key or on an included
- * run, and takes a minute or two with nothing to look at. This shows the passes
- * ticking by and the tokens adding up, so the cost of tailoring to this job is
- * visible at the time it is being incurred, not guessed at afterwards.
+ * A tailoring is several model calls and takes a minute or two with nothing to
+ * look at. This shows the passes ticking by and the tokens adding up, so the
+ * cost of tailoring to this job is visible at the time it is being incurred,
+ * not guessed at afterwards.
  */
 
 interface UsageMeterProps {
@@ -19,9 +19,9 @@ interface UsageMeterProps {
   label?: string
   /** When the run started, for the clock. */
   startedAt?: number
-  /** Whose AI is paying: an included run, the account's own key, or Puter. */
+  /** What it runs on: ResMod AI, or the owner's own key or Puter. */
   source: 'platform' | 'own' | 'puter'
-  /** Included runs left after this one, when it is running on ResMod AI. */
+  /** Tailorings left after this one, when it is running on ResMod AI. */
   runsLeft?: number | null
 }
 
@@ -119,14 +119,12 @@ export default function UsageMeter({ usage, stage, label, startedAt, source, run
 
       <p className="text-[11px] text-[var(--color-text-faint)]">
         {source === 'platform'
-          ? `Running on ResMod AI: this run uses one of your included runs${
-              typeof runsLeft === 'number' ? `, ${runsLeft} left after it` : ''
-            }.`
+          ? `This uses one of your tailorings${typeof runsLeft === 'number' ? `; ${runsLeft} left after it` : ''}.`
           : source === 'puter'
             ? 'Running in your browser on your own Puter account, which is what these tokens are billed to.'
             : 'Running on your own API key, which is what these tokens are billed to.'}
         {isEstimated(usage) && usage.calls > 0
-          ? ' Your provider does not report token counts, so these are estimated from the text.'
+          ? " The AI didn't report token counts, so these are estimated from the text."
           : ''}
       </p>
     </div>

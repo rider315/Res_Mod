@@ -7,11 +7,11 @@ export const metadata = {
 
 export default function Refunds() {
   return (
-    <PolicyPage title="Cancellation and Refund Policy" updated="15 September 2026">
+    <PolicyPage title="Cancellation and Refund Policy" updated="16 September 2026">
       <PolicySection title="Pro subscription">
         <ul className="list-disc pl-5 space-y-1">
-          <li>You can cancel Pro at any time from Runs and billing in your dashboard.</li>
-          <li>After you cancel, Pro stays active, with its runs, until the end of the month you have paid for, and it does not renew.</li>
+          <li>You can cancel Pro at any time from Plans in your dashboard.</li>
+          <li>After you cancel, Pro stays active, with its tailorings, until the end of the month you have paid for, and it does not renew.</li>
           <li>A payment for a month that has already started is not refunded.</li>
         </ul>
       </PolicySection>
@@ -24,11 +24,11 @@ export default function Refunds() {
       </PolicySection>
 
       <PolicySection title="Charges made in error">
-        <p>If you are charged twice, or a payment does not add runs or Pro to your account, the payment is refunded in full.</p>
+        <p>If you are charged twice, or a payment does not add tailorings or Pro to your account, the payment is refunded in full.</p>
       </PolicySection>
 
-      <PolicySection title="Failed runs">
-        <p>A tailoring run that fails without producing any changes is not counted, so there is nothing to refund.</p>
+      <PolicySection title="Failed tailorings">
+        <p>A tailoring that fails without producing any changes is not counted, so there is nothing to refund.</p>
       </PolicySection>
 
       <PolicySection title="Deleting your account">

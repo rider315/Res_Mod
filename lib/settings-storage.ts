@@ -61,22 +61,6 @@ export function loadAISettings(): AISettings {
   return { provider, apiKeys, models }
 }
 
-/** Whether a regular account runs AI on its included runs ("platform") or on its own settings. */
-export type AiSource = 'platform' | 'own'
-
-const AI_SOURCE_KEY = 'resmod_ai_source'
-
-export function loadAiSource(): AiSource | null {
-  if (typeof window === 'undefined') return null
-  const stored = localStorage.getItem(AI_SOURCE_KEY)
-  return stored === 'platform' || stored === 'own' ? stored : null
-}
-
-export function saveAiSource(source: AiSource): void {
-  if (typeof window === 'undefined') return
-  localStorage.setItem(AI_SOURCE_KEY, source)
-}
-
 /** Forget everything ResMod keeps in this browser: AI keys, models and choices. */
 export function clearLocalAppData(): void {
   if (typeof window === 'undefined') return

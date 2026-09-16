@@ -1,6 +1,6 @@
 import type { BillingResponse, CheckoutStart } from '@/lib/billing/types'
 
-/** Browser helpers for included runs and payments: API errors with codes, and Razorpay Checkout. */
+/** Browser helpers for tailorings and payments: API errors with codes, and Razorpay Checkout. */
 
 /** An API error, carrying the code billing errors come with (BILLING_CODES in lib/billing/types.ts). */
 export class ApiError extends Error {
@@ -34,6 +34,9 @@ export async function postBilling<T>(path: string, body?: unknown): Promise<T> {
   if (!res.ok) throw await readApiError(res, 'That did not work. Try again in a moment.')
   return res.json()
 }
+
+/** "1 tailoring", "3 tailorings". */
+export const tailorings = (count: number): string => `${count} tailoring${count === 1 ? '' : 's'}`
 
 export function formatDay(date: string | Date): string {
   return new Date(date).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })

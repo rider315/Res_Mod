@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
-import { freeRunsPerMonth, razorpayConfig } from '@/lib/billing/config'
+import { freeTailorings, razorpayConfig } from '@/lib/billing/config'
 import { checkProPlan } from '@/lib/billing/plan-check'
 import { getPlatformAiStatus } from '@/lib/billing/platform-ai'
 import { formatPrice, PRO_PLAN } from '@/lib/billing/plans'
@@ -33,12 +33,16 @@ async function setupChecks(): Promise<SetupCheck[]> {
     const provider = getProvider(ai.current.provider)
     checks.push({ label: 'ResMod AI', state: 'ok', detail: `Users run on ${provider.label}${ai.current.model ? ` · ${ai.current.model}` : ''}.` })
   } else if (ai.current) {
-    checks.push({ label: 'ResMod AI', state: 'missing', detail: "Saved, but it can't run. Save the key again in AI settings." })
+    checks.push({
+      label: 'ResMod AI',
+      state: 'missing',
+      detail: "Saved, but it can't run, so users can't import or tailor. Save the key again in AI settings.",
+    })
   } else {
     checks.push({
       label: 'ResMod AI',
       state: 'missing',
-      detail: 'Not set, so users have no included runs and nothing to buy. Open AI settings → "ResMod AI for your users".',
+      detail: `Not set, so users can't import or tailor, and nothing can be bought. Open AI settings → "ResMod AI for your users".`,
     })
   }
 
@@ -96,11 +100,16 @@ async function setupChecks(): Promise<SetupCheck[]> {
       ? { label: 'Contact email', state: 'ok', detail: `${contact} is shown on the Contact page.` }
       : { label: 'Contact email', state: 'missing', detail: 'CONTACT_EMAIL is not set in Vercel, so the Contact page has no address. Razorpay expects one.' }
   )
-  checks.push({ label: 'Free runs', state: 'ok', detail: `${freeRunsPerMonth()} a month for every account.` })
+  const free = freeTailorings()
+  checks.push({
+    label: 'Free tailorings',
+    state: 'ok',
+    detail: `${free} for every account, once. After that, Pro or a credit pack.`,
+  })
   return checks
 }
 
-export async function getAdminOverview(now = new Date()): Promise<AdminOverview> {
+export async function getAdminOverview(): Promise<AdminOverview> {
   const db = getDb()
   const [checks, totals, subscriptionRows, paymentRows] = await Promise.all([
     setupChecks(),
@@ -109,7 +118,9 @@ export async function getAdminOverview(now = new Date()): Promise<AdminOverview>
       (select count(*)::int from users where email not like 'deleted+%' and created_at >= date_trunc('month', now())) as new_users,
       (select count(*)::int from resumes where user_id is not null) as resumes,
       (select count(*)::int from tailorings) as tailorings,
-      (select coalesce(sum(used), 0)::int from usage_counters where bucket = ${buckets.freeRuns(now)}) as free_runs,
+      (select coalesce(sum(used), 0)::int from usage_counters where bucket = ${buckets.freeTailorings()}) as free_used,
+      (select count(*)::int from usage_counters
+        where bucket = ${buckets.freeTailorings()} and used >= ${Math.max(1, freeTailorings())}) as free_finished,
       (select coalesce(-sum(delta), 0)::int from credit_ledger
         where reason in ('run', 'refund') and created_at >= date_trunc('month', now())) as credits_spent,
       (select coalesce(sum(balance), 0)::int from credit_balances) as credits_outstanding,
@@ -136,7 +147,8 @@ export async function getAdminOverview(now = new Date()): Promise<AdminOverview>
       newUsersThisMonth: num(total.new_users),
       resumes: num(total.resumes),
       tailorings: num(total.tailorings),
-      freeRunsUsedThisMonth: num(total.free_runs),
+      freeTailoringsUsed: num(total.free_used),
+      accountsOutOfFree: num(total.free_finished),
       creditsSpentThisMonth: num(total.credits_spent),
       creditsOutstanding: num(total.credits_outstanding),
       activeSubscriptions: num(total.active_subscriptions),

@@ -14,7 +14,7 @@ import type { PlatformAiStatus } from '@/lib/billing/types'
 
 /**
  * ResMod AI as the owner chooses it in AI settings: the provider, model and key
- * regular accounts run on with their included runs.
+ * every regular account runs on: they have no AI settings of their own.
  *
  * The setting lives in the database, one row per deployment environment, so a
  * local dev server never changes the live site's AI even though both share one
@@ -45,7 +45,7 @@ async function readSetting(fresh = false): Promise<Setting> {
   return setting
 }
 
-/** The model regular accounts run on with included runs, or null while ResMod AI is off. */
+/** The model every regular account runs on, or null while ResMod AI is off. */
 export async function getPlatformAi(): Promise<PlatformAiConfig | null> {
   const fromEnv = platformAiFromEnv()
   if (fromEnv) return fromEnv

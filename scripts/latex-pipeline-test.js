@@ -852,17 +852,21 @@ function billingTests() {
     !signatures.verifyWebhook(hookBody, hookSignature, '') && !signatures.verifyOrderPayment({ ...order, signature: '' }, KEY))
 
   const state = (subscription, free, credits) => ({ subscription, free, credits })
-  check('a run spends Pro runs first, then free runs, then credits',
-    quota.runSources(state({ used: 0, limit: 100 }, { used: 0, limit: 5 }, 3)).join() === 'subscription,free,credits')
-  check('sources with nothing left are skipped',
-    quota.runSources(state({ used: 100, limit: 100 }, { used: 5, limit: 5 }, 2)).join() === 'credits' &&
-    quota.runSources(state(null, { used: 5, limit: 5 }, 0)).length === 0)
-  check('runs left adds every source up, and an overdrawn source counts as none',
-    quota.runsLeft(state({ used: 98, limit: 100 }, { used: 7, limit: 5 }, 4)) === 6)
+  check('every account gets 3 free tailorings', plans.DEFAULT_FREE_TAILORINGS === 3)
+  check('a tailoring spends Pro first, so subscribing early keeps the free ones; then the free ones; then credits',
+    quota.runSources(state({ used: 0, limit: 100 }, { used: 0, limit: 3 }, 3)).join() === 'subscription,free,credits')
+  check('sources with nothing left are skipped, and with all three empty nothing can run',
+    quota.runSources(state({ used: 100, limit: 100 }, { used: 3, limit: 3 }, 2)).join() === 'credits' &&
+    quota.runSources(state(null, { used: 3, limit: 3 }, 0)).length === 0 &&
+    quota.runsLeft(state(null, { used: 3, limit: 3 }, 0)) === 0)
+  check('tailorings left adds every source up, and an overdrawn source counts as none',
+    quota.runsLeft(state({ used: 98, limit: 100 }, { used: 7, limit: 3 }, 4)) === 6)
 
   const lateSeptember = new Date('2026-09-30T23:30:00Z')
-  check('counters are per UTC month and start again on the 1st',
-    quota.buckets.freeRuns(lateSeptember) === 'runs:2026-09' &&
+  check('the free tailorings are one counter for life: no month, so they never come back',
+    quota.buckets.freeTailorings() === 'runs:free' && !/\d/.test(quota.buckets.freeTailorings()))
+  check('imports are counted per UTC month and start again on the 1st',
+    quota.buckets.imports(lateSeptember) === 'imports:2026-09' &&
     quota.nextMonthStart(lateSeptember).toISOString() === '2026-10-01T00:00:00.000Z' &&
     quota.nextMonthStart(new Date('2026-12-15T12:00:00Z')).toISOString() === '2027-01-01T00:00:00.000Z')
   check('a renewal starts a fresh Pro counter',
@@ -917,7 +921,7 @@ function billingTests() {
   const saved = { ...process.env }
   try {
     for (const name of ['NODE_ENV', 'RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET', 'RAZORPAY_WEBHOOK_SECRET', 'RAZORPAY_PRO_PLAN_ID',
-      'RAZORPAY_API_BASE', 'PLATFORM_AI_PROVIDER', 'PLATFORM_AI_MODEL', 'PLATFORM_AI_KEY', 'FREE_RUNS_PER_MONTH']) delete process.env[name]
+      'RAZORPAY_API_BASE', 'PLATFORM_AI_PROVIDER', 'PLATFORM_AI_MODEL', 'PLATFORM_AI_KEY', 'FREE_TAILORINGS']) delete process.env[name]
     check('without Razorpay keys payments are off, and without a platform provider ResMod AI is off',
       billingConfig.razorpayConfig() === null && billingConfig.platformAiFromEnv() === null)
 
@@ -936,11 +940,12 @@ function billingTests() {
     check('ResMod AI needs a key for a keyed provider, and is never the browser-only Puter',
       keyless === null && keyed !== null && keyed.model === 'gemini-2.5-flash' && billingConfig.platformAiFromEnv() === null)
 
-    process.env.FREE_RUNS_PER_MONTH = 'lots'
-    const junk = billingConfig.freeRunsPerMonth()
-    process.env.FREE_RUNS_PER_MONTH = '0'
-    check('FREE_RUNS_PER_MONTH can be 0, and junk falls back to the default',
-      junk === plans.DEFAULT_FREE_RUNS_PER_MONTH && billingConfig.freeRunsPerMonth() === 0)
+    const unset = billingConfig.freeTailorings()
+    process.env.FREE_TAILORINGS = 'lots'
+    const junk = billingConfig.freeTailorings()
+    process.env.FREE_TAILORINGS = '0'
+    check('FREE_TAILORINGS can be 0, and unset or junk means 3',
+      unset === 3 && junk === 3 && billingConfig.freeTailorings() === 0)
   } finally {
     for (const name of Object.keys(process.env)) if (!(name in saved)) delete process.env[name]
     Object.assign(process.env, saved)

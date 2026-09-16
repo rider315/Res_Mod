@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { AIProvider } from '@/types/resume'
 import { getProvider, isValidProvider } from '@/lib/providers'
-import { DEFAULT_FREE_RUNS_PER_MONTH } from '@/lib/billing/plans'
+import { DEFAULT_FREE_TAILORINGS } from '@/lib/billing/plans'
 
 /**
  * Billing settings from the environment (see .env.example), and the rules for
@@ -106,9 +106,10 @@ export function resolveStoredPlatformAi(
   return { provider: stored.provider, model: stored.model.trim() || undefined, apiKey }
 }
 
-export function freeRunsPerMonth(): number {
-  const raw = env('FREE_RUNS_PER_MONTH')
-  if (!raw) return DEFAULT_FREE_RUNS_PER_MONTH
+/** How many free tailorings an account gets, once. */
+export function freeTailorings(): number {
+  const raw = env('FREE_TAILORINGS')
+  if (!raw) return DEFAULT_FREE_TAILORINGS
   const value = Number(raw)
-  return Number.isInteger(value) && value >= 0 ? value : DEFAULT_FREE_RUNS_PER_MONTH
+  return Number.isInteger(value) && value >= 0 ? value : DEFAULT_FREE_TAILORINGS
 }

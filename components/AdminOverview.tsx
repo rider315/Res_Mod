@@ -138,7 +138,11 @@ export default function AdminOverview({ onClose }: { onClose: () => void }) {
                 note={`${formatPrice(numbers.revenueTotalPaise)} in total`}
               />
               <Stat label="Unused credits" value={numbers.creditsOutstanding} note={`${numbers.creditsSpentThisMonth} spent this month`} />
-              <Stat label="Free runs used this month" value={numbers.freeRunsUsedThisMonth} />
+              <Stat
+                label="Free tailorings used"
+                value={numbers.freeTailoringsUsed}
+                note={`${numbers.accountsOutOfFree} account${numbers.accountsOutOfFree === 1 ? '' : 's'} used all of theirs`}
+              />
               <Stat label="Saved resumes" value={numbers.resumes} note={`${numbers.tailorings} tailored copies`} />
             </section>
 

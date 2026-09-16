@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { requireAuth } from '@/lib/require-auth'
+import { requireOwner } from '@/lib/require-auth'
 import { AIProvider } from '@/types/resume'
 import { getProvider, PROVIDER_ORDER } from '@/lib/providers'
 import { resolveApiKey, resolveModel } from '@/lib/ai-provider'
@@ -17,7 +17,8 @@ const schema = z.object({
  * burning a full optimization run. Powers the "Test connection" button in Settings.
  */
 export async function POST(req: NextRequest) {
-  const auth = await requireAuth()
+  // AI settings belong to the owner: everyone else runs on the AI the owner chose.
+  const auth = await requireOwner()
   if (!auth.ok) return auth.response
 
   const parsed = schema.safeParse(await req.json())
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const key = resolveApiKey(config.id, apiKey, { allowServerKey: auth.role === 'owner' })
+    const key = resolveApiKey(config.id, apiKey, { allowServerKey: true })
     const usingServerKey = config.needsKey && !apiKey?.trim()
     const detail = await checkConnection(config.id, key, resolveModel(config.id, model))
     return NextResponse.json({ ok: true, detail, usingServerKey })

@@ -10,7 +10,7 @@ import ImportPanel from '@/components/user/ImportPanel'
 import QuotaDialog from '@/components/user/QuotaDialog'
 import ResumeEditor from '@/components/user/ResumeEditor'
 import TailorPanel from '@/components/user/TailorPanel'
-import { fetchBilling } from '@/components/user/billing-client'
+import { fetchBilling, tailorings } from '@/components/user/billing-client'
 import {
   dangerButton,
   downloadBlob,
@@ -22,22 +22,20 @@ import {
   ResumeSummary,
   secondaryButton,
 } from '@/components/user/shared'
-import {
-  AISettings,
-  AiSource,
-  DEFAULT_AI_SETTINGS,
-  loadAISettings,
-  loadAiSource,
-  saveAISettings,
-  saveAiSource,
-} from '@/lib/settings-storage'
+import { AISettings, DEFAULT_AI_SETTINGS, loadAISettings, saveAISettings } from '@/lib/settings-storage'
+import { formatPrice } from '@/lib/billing/plans'
 import type { BillingStatus } from '@/lib/billing/types'
 import { ResumeDoc, SourceFormat } from '@/lib/resume-doc'
 
 /**
  * The workspace for importing, keeping and tailoring resumes: every account that
  * isn't the owner lands here, and the owner can open it from the profile
- * dashboard. Runs go on ResMod AI's included runs or the account's own AI.
+ * dashboard.
+ *
+ * Regular accounts always run on ResMod AI, the model the owner picks in AI
+ * settings, and have no AI settings of their own. Each gets a few free
+ * tailorings once, then Pro or a credit pack, which can be bought at any time.
+ * The owner runs on their own AI settings here and is never counted.
  */
 
 type View =
@@ -91,7 +89,6 @@ export default function UserDashboard({ name, email, isOwner = false }: UserDash
   const [showSettings, setShowSettings] = useState(false)
   /** undefined while loading; null when it couldn't be loaded, or for the owner, who has no limits. */
   const [billing, setBilling] = useState<BillingStatus | null | undefined>(undefined)
-  const [aiSource, setAiSource] = useState<AiSource>('platform')
   const [quotaDialog, setQuotaDialog] = useState<'run' | 'import' | null>(null)
 
   const firstName = name.trim().split(/\s+/)[0]
@@ -99,9 +96,9 @@ export default function UserDashboard({ name, email, isOwner = false }: UserDash
   useEffect(() => {
     const theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
     document.documentElement.setAttribute('data-theme', theme)
-    setSettings(loadAISettings())
-    setAiSource(loadAiSource() ?? 'platform')
-  }, [])
+    // Only the owner has AI settings; everyone else runs on ResMod AI.
+    if (isOwner) setSettings(loadAISettings())
+  }, [isOwner])
 
   const refresh = useCallback(async () => {
     try {
@@ -130,11 +127,6 @@ export default function UserDashboard({ name, email, isOwner = false }: UserDash
     refreshBilling()
   }, [refresh, refreshBilling])
 
-  function changeAiSource(source: AiSource) {
-    setAiSource(source)
-    saveAiSource(source)
-  }
-
   function openOverlay(next: Overlay) {
     setQuotaDialog(null)
     setOverlay(next)
@@ -142,9 +134,8 @@ export default function UserDashboard({ name, email, isOwner = false }: UserDash
   }
 
   const aiProps = {
+    isOwner,
     settings,
-    aiSource,
-    onAiSourceChange: changeAiSource,
     billing,
     onOpenSettings: () => setShowSettings(true),
     onOpenBilling: () => openOverlay('billing'),
@@ -220,7 +211,7 @@ export default function UserDashboard({ name, email, isOwner = false }: UserDash
               {billing?.platformAi && (
                 <button onClick={() => openOverlay('billing')} className={headerButton}>
                   <span className="font-semibold text-[var(--color-text)] tabular-nums">{billing.runs.left}</span>{' '}
-                  {billing.runs.left === 1 ? 'run' : 'runs'} left
+                  {billing.runs.left === 1 ? 'tailoring' : 'tailorings'} left
                 </button>
               )}
               <button onClick={() => openOverlay('billing')} className={headerButton}>
@@ -231,9 +222,11 @@ export default function UserDashboard({ name, email, isOwner = false }: UserDash
           <button onClick={() => openOverlay('history')} className={headerButton}>
             History
           </button>
-          <button onClick={() => setShowSettings(true)} className={headerButton}>
-            AI settings
-          </button>
+          {isOwner && (
+            <button onClick={() => setShowSettings(true)} className={headerButton}>
+              AI settings
+            </button>
+          )}
           {!isOwner && (
             <button onClick={() => openOverlay('account')} title={email || name} className={headerButton}>
               Account
@@ -267,6 +260,10 @@ export default function UserDashboard({ name, email, isOwner = false }: UserDash
                   </button>
                 )}
               </div>
+
+              {!isOwner && billing?.platformAi && (
+                <PlanStrip billing={billing} onOpenBilling={() => openOverlay('billing')} />
+              )}
 
               {listError && <div className={errorBox}>{listError}</div>}
 
@@ -401,7 +398,7 @@ export default function UserDashboard({ name, email, isOwner = false }: UserDash
         )}
       </main>
 
-      {showSettings && (
+      {showSettings && isOwner && (
         <SettingsModal
           settings={settings}
           serverKeys={isOwner}
@@ -420,14 +417,42 @@ export default function UserDashboard({ name, email, isOwner = false }: UserDash
           kind={quotaDialog}
           billing={billing}
           onOpenBilling={() => openOverlay('billing')}
-          onUseOwnAi={() => {
-            setQuotaDialog(null)
-            changeAiSource('own')
-            setShowSettings(true)
-          }}
           onClose={() => setQuotaDialog(null)}
         />
       )}
+    </div>
+  )
+}
+
+/**
+ * Where the account stands, and that Pro can be had at any time: before the free
+ * tailorings run out as much as after.
+ */
+function PlanStrip({ billing, onOpenBilling }: { billing: BillingStatus; onOpenBilling: () => void }) {
+  const { runs, subscription, pro } = billing
+  if (subscription?.entitled) return null
+
+  const freeLeft = Math.max(0, runs.free.limit - runs.free.used)
+  const offer = `Pro gives you ${pro.runsPerCycle} tailorings a month for ${formatPrice(pro.pricePaise)}.`
+  const [text, warn] =
+    runs.left === 0
+      ? [`You've used your ${runs.free.limit} free tailorings. Get Pro or a credit pack to keep tailoring.`, true]
+      : freeLeft > 0
+        ? [`${freeLeft} of your ${runs.free.limit} free tailorings left. ${offer} You can get it any time.`, false]
+        : [`You have ${tailorings(runs.left)} left from credits. ${offer}`, false]
+
+  return (
+    <div
+      className={`rounded-2xl border p-4 flex flex-wrap items-center justify-between gap-3 ${
+        warn
+          ? 'border-[var(--color-warning)] bg-[var(--color-warning-highlight)]'
+          : 'border-[var(--color-border)] bg-[var(--color-surface)]'
+      }`}
+    >
+      <p className={`text-sm ${warn ? 'text-[var(--color-warning)] font-medium' : 'text-[var(--color-text-muted)]'}`}>{text}</p>
+      <button onClick={onOpenBilling} className={warn ? primaryButton : secondaryButton}>
+        See plans
+      </button>
     </div>
   )
 }

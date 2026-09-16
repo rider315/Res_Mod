@@ -12,7 +12,7 @@ import { standardProfile } from '@/lib/profiles/standard'
 import { getResume } from '@/lib/db/resumes'
 import { ResumeDocSchema } from '@/lib/resume-doc'
 import { renderCheckedResume } from '@/lib/import/render'
-import { chooseAi } from '@/lib/billing/ai-access'
+import { aiFailureMessage, chooseAi } from '@/lib/billing/ai-access'
 import { releaseReservation } from '@/lib/billing/store'
 
 // Keyword extraction, the level's passes and the keyword pass are several model calls.
@@ -27,10 +27,11 @@ const schema = z.object({
   level: z.enum(TAILOR_LEVELS),
   /** What the candidate says must not change. */
   instructions: z.string().max(2_000).default(''),
+  /** The owner's own AI settings. Everyone else always runs on ResMod AI, and these are ignored. */
   provider: z.enum(PROVIDER_ORDER as [AIProvider, ...AIProvider[]]).optional(),
   apiKey: z.string().optional(),
   model: z.string().optional(),
-  /** Run on ResMod AI and spend one included run, instead of the account's own key. */
+  /** The owner only: run on ResMod AI instead. */
   usePlatform: z.boolean().optional(),
 })
 
@@ -61,7 +62,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   const { jobDescription, level, instructions, provider, usePlatform } = parsed.data
-  if (!usePlatform && provider && getProvider(provider).clientSide) {
+  if (auth.role === 'owner' && !usePlatform && provider && getProvider(provider).clientSide) {
     return NextResponse.json({ error: 'Puter runs in the browser, not through this route.' }, { status: 400 })
   }
 
@@ -136,7 +137,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         if (ai.reservation) await releaseReservation(ai.reservation)
         const message = err instanceof Error ? err.message : String(err)
         console.error('[resumes/:id/tailor]', message)
-        send({ type: 'error', error: message, rateLimited: /429|rate limit/i.test(message) })
+        send({ type: 'error', error: aiFailureMessage(auth.role, message), rateLimited: /429|rate limit/i.test(message) })
       } finally {
         closed = true
         controller.close()

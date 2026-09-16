@@ -4,8 +4,8 @@ import { signIn } from 'next-auth/react'
 import Link from 'next/link'
 
 interface LoginPageProps {
-  /** Free runs a month on ResMod AI; null while ResMod AI isn't switched on. */
-  freeRuns: number | null
+  /** Free tailorings every account gets; null while ResMod AI isn't switched on. */
+  freeTailorings: number | null
   /** Arrived here straight after deleting an account. */
   accountDeleted: boolean
 }
@@ -17,7 +17,7 @@ const FEATURES: Array<[string, string]> = [
   ['Still your resume', 'Employers, titles, dates and degrees never change, and nothing goes in until you approve it.'],
 ]
 
-export default function LoginPage({ freeRuns, accountDeleted }: LoginPageProps) {
+export default function LoginPage({ freeTailorings, accountDeleted }: LoginPageProps) {
   return (
     <main className="min-h-screen bg-[var(--color-bg)] flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-md space-y-8 text-center anim-page-enter">
@@ -91,9 +91,7 @@ export default function LoginPage({ freeRuns, accountDeleted }: LoginPageProps) 
         </button>
 
         <p className="text-xs text-[var(--color-text-faint)]">
-          {freeRuns
-            ? `Free to start: ${freeRuns} tailoring runs every month on ResMod AI, or use your own AI key.`
-            : 'Free to use with your own AI key, or with Puter.'}{' '}
+          {freeTailorings ? `Your first ${freeTailorings} tailorings are free; after that, Pro or a credit pack. ` : ''}
           Google is used for sign-in only; no Docs or Drive access is requested.
         </p>
 

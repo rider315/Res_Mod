@@ -16,7 +16,10 @@ export interface AdminOverview {
     newUsersThisMonth: number
     resumes: number
     tailorings: number
-    freeRunsUsedThisMonth: number
+    /** Free tailorings used, across every account, ever. */
+    freeTailoringsUsed: number
+    /** Accounts that have used all their free tailorings. */
+    accountsOutOfFree: number
     /** Credits spent on runs this month, less runs given back. */
     creditsSpentThisMonth: number
     creditsOutstanding: number

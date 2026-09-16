@@ -1,20 +1,20 @@
 'use client'
 import { useEffect } from 'react'
+import { formatPrice } from '@/lib/billing/plans'
 import type { BillingStatus } from '@/lib/billing/types'
 import { formatDay } from '@/components/user/billing-client'
-import { primaryButton, secondaryButton } from '@/components/user/shared'
+import { primaryButton } from '@/components/user/shared'
 
-/** Shown when a run or an import on ResMod AI is refused because the allowance is used up. */
+/** Shown when a tailoring or an import is refused because there is nothing left to spend. */
 
 interface QuotaDialogProps {
   kind: 'run' | 'import'
   billing: BillingStatus | null | undefined
   onOpenBilling: () => void
-  onUseOwnAi: () => void
   onClose: () => void
 }
 
-export default function QuotaDialog({ kind, billing, onOpenBilling, onUseOwnAi, onClose }: QuotaDialogProps) {
+export default function QuotaDialog({ kind, billing, onOpenBilling, onClose }: QuotaDialogProps) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', onKey)
@@ -22,14 +22,29 @@ export default function QuotaDialog({ kind, billing, onOpenBilling, onUseOwnAi, 
   }, [onClose])
 
   const canBuy = Boolean(billing && (billing.checkout.packs || billing.checkout.pro))
+  const onPro = Boolean(billing?.subscription?.entitled)
+
+  let title: string
   let detail = ''
-  if (billing && kind === 'run') {
-    const { limit, resetsAt } = billing.runs.free
-    detail = limit > 0 ? `Your ${limit} free runs come back on ${formatDay(resetsAt)}.` : ''
-    if (canBuy) detail += `${detail ? ' ' : ''}To keep going now, get a credit pack or Pro.`
-  } else if (billing) {
-    detail = `Imports on ResMod AI start again on ${formatDay(billing.imports.resetsAt)}.`
+  if (kind === 'run') {
+    title = onPro ? "You've used this month's Pro tailorings" : "You've used your free tailorings"
+    if (billing && onPro) {
+      detail = billing.subscription?.currentEnd
+        ? `They renew on ${formatDay(billing.subscription.currentEnd)}. A credit pack adds more right away.`
+        : 'They renew with your next Pro payment. A credit pack adds more right away.'
+    } else if (billing) {
+      detail =
+        `Every account gets ${billing.runs.free.limit} free tailorings. To keep tailoring, get Pro ` +
+        `(${billing.pro.runsPerCycle} tailorings a month for ${formatPrice(billing.pro.pricePaise)}) or a credit pack.`
+    }
+  } else {
+    title = "You've reached this month's import limit"
+    if (billing) {
+      detail = `Imports start again on ${formatDay(billing.imports.resetsAt)}.`
+      if (!onPro && billing.runs.credits === 0) detail += ' Pro and credit packs raise the limit.'
+    }
   }
+  if (!canBuy && kind === 'run') detail += `${detail ? ' ' : ''}Buying isn't available right now; please try again later.`
 
   return (
     <div
@@ -44,20 +59,15 @@ export default function QuotaDialog({ kind, billing, onOpenBilling, onUseOwnAi, 
         onClick={(e) => e.stopPropagation()}
       >
         <h2 id="quota-dialog-title" className="text-lg font-bold text-[var(--color-text)]">
-          {kind === 'run' ? "You've used all your included runs" : "You've reached this month's import limit"}
+          {title}
         </h2>
-        <p className="text-sm text-[var(--color-text-muted)]">
-          {detail} Runs with your own AI key, or with Puter, are never counted.
-        </p>
+        {detail && <p className="text-sm text-[var(--color-text-muted)]">{detail}</p>}
         <div className="flex flex-col sm:flex-row gap-2">
-          {kind === 'run' && canBuy && (
+          {canBuy && (
             <button onClick={onOpenBilling} className={primaryButton}>
-              Get more runs
+              {kind === 'run' ? 'Get Pro or a credit pack' : 'See plans'}
             </button>
           )}
-          <button onClick={onUseOwnAi} className={secondaryButton}>
-            Use my own AI
-          </button>
           <button
             onClick={onClose}
             className="py-2 px-3.5 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"

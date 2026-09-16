@@ -6,7 +6,7 @@ import { getProvider, PROVIDER_ORDER } from '@/lib/providers'
 import { generateAIResponse } from '@/lib/ai-provider'
 import { structureResume } from '@/lib/import/structure'
 import { MAX_RESUME_TEXT } from '@/lib/resume-doc'
-import { chooseAi } from '@/lib/billing/ai-access'
+import { aiFailureMessage, chooseAi } from '@/lib/billing/ai-access'
 import { releaseReservation } from '@/lib/billing/store'
 
 // A long resume plus a possible retry can take a while on a slower model.
@@ -14,16 +14,18 @@ export const maxDuration = 300
 
 const schema = z.object({
   text: z.string().trim().min(40, 'That is too little text to be a resume.').max(MAX_RESUME_TEXT),
+  /** The owner's own AI settings. Everyone else always runs on ResMod AI, and these are ignored. */
   provider: z.enum(PROVIDER_ORDER as [AIProvider, ...AIProvider[]]).optional(),
   apiKey: z.string().optional(),
   model: z.string().optional(),
-  /** Run on ResMod AI, counted against the month's import allowance, instead of the account's own key. */
+  /** The owner only: run on ResMod AI instead. */
   usePlatform: z.boolean().optional(),
 })
 
 /**
- * Turn a resume's text into a structured resume: on ResMod AI, or on the user's
- * own key. Only the owner falls back to the server's provider keys.
+ * Turn a resume's text into a structured resume. Regular accounts run on ResMod
+ * AI, counted against the month's import allowance; the owner uses their own AI
+ * settings.
  */
 export async function POST(req: NextRequest) {
   const auth = await requireAuth()
@@ -35,7 +37,7 @@ export async function POST(req: NextRequest) {
   }
 
   const { text, provider, usePlatform } = parsed.data
-  if (!usePlatform && provider && getProvider(provider).clientSide) {
+  if (auth.role === 'owner' && !usePlatform && provider && getProvider(provider).clientSide) {
     return NextResponse.json({ error: 'Puter runs in the browser, not through this route.' }, { status: 400 })
   }
 
@@ -53,6 +55,9 @@ export async function POST(req: NextRequest) {
     if (ai.reservation) await releaseReservation(ai.reservation)
     const message = err instanceof Error ? err.message : String(err)
     console.error('[import/structure]', message)
-    return NextResponse.json({ error: message }, { status: /429|rate limit/i.test(message) ? 429 : 400 })
+    return NextResponse.json(
+      { error: aiFailureMessage(auth.role, message) },
+      { status: /429|rate limit/i.test(message) ? 429 : 400 }
+    )
   }
 }

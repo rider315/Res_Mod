@@ -13,7 +13,7 @@ export const BILLING_CODES = {
 /** GET /api/billing for a regular account. */
 export interface BillingStatus {
   role: 'user'
-  /** ResMod AI is configured, so included runs can be used, and sold. */
+  /** ResMod AI is configured, so accounts can import and tailor, and plans can be sold. */
   platformAi: boolean
   checkout: {
     /** Credit packs can be bought. */
@@ -25,7 +25,8 @@ export interface BillingStatus {
   }
   runs: {
     left: number
-    free: Allowance & { resetsAt: string }
+    /** The free tailorings every account gets once. */
+    free: Allowance
     /** This Pro cycle's runs; null without a Pro plan in force. */
     subscription: Allowance | null
     credits: number

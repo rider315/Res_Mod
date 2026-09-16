@@ -2,14 +2,14 @@
 import { useState } from 'react'
 import DiffViewer from '@/components/DiffViewer'
 import LatexPreview from '@/components/LatexPreview'
-import AiSourcePicker from '@/components/user/AiSourcePicker'
+import AiAllowance from '@/components/user/AiAllowance'
 import KeywordCoverage from '@/components/user/KeywordCoverage'
 import UsageMeter, { UsageLine } from '@/components/user/UsageMeter'
 import { readTailorStream, RunUpdate } from '@/components/user/tailor-stream'
 import { ApiError } from '@/components/user/billing-client'
 import { addCall, AiUsage, emptyUsage } from '@/lib/ai-usage'
 import { RunStage } from '@/lib/run-optimization'
-import { AISettings, AiSource } from '@/lib/settings-storage'
+import { AISettings } from '@/lib/settings-storage'
 import { getProvider } from '@/lib/providers'
 import { BILLING_CODES, BillingStatus } from '@/lib/billing/types'
 import { LEVELS, TAILOR_LEVELS, TailorLevel } from '@/lib/tailor/levels'
@@ -49,10 +49,10 @@ interface TailorPanelProps {
   resumeTitle: string
   /** A job description already pasted on the dashboard. */
   initialJobDescription?: string
+  /** The owner runs on their own AI settings; everyone else on ResMod AI. */
+  isOwner: boolean
   settings: AISettings
-  aiSource: AiSource
-  onAiSourceChange: (source: AiSource) => void
-  /** undefined while loading; null when it couldn't be loaded. */
+  /** undefined while loading; null when it couldn't be loaded, and always for the owner. */
   billing: BillingStatus | null | undefined
   onOpenSettings: () => void
   onOpenBilling: () => void
@@ -68,9 +68,8 @@ export default function TailorPanel({
   resumeId,
   resumeTitle,
   initialJobDescription,
+  isOwner,
   settings,
-  aiSource,
-  onAiSourceChange,
   billing,
   onOpenSettings,
   onOpenBilling,
@@ -97,18 +96,20 @@ export default function TailorPanel({
 
   const provider = getProvider(settings.provider)
   const model = settings.models[settings.provider]
-  const usePlatform = aiSource === 'platform' && Boolean(billing?.platformAi)
-  const checkingRuns = aiSource === 'platform' && billing === undefined
-  const needsKey = !usePlatform && !checkingRuns && provider.needsKey && !settings.apiKeys[settings.provider]?.trim()
+  const checkingRuns = !isOwner && billing === undefined
+  const needsKey = isOwner && provider.needsKey && !settings.apiKeys[settings.provider]?.trim()
+  const aiOff = !isOwner && Boolean(billing) && !billing?.platformAi
+  // Nothing left to spend: the button explains where to get more instead of starting a run.
+  const outOfTailorings = !isOwner && Boolean(billing?.platformAi) && billing?.runs.left === 0
   const jdReady = jobDescription.trim().length >= 80
   const busy = step === 'running' || step === 'applying'
   const approvedCount = changes.filter((c) => c.approved === true).length
   const company = result?.companyName && result.companyName !== 'Company' ? result.companyName : ''
   const exportName = `${resumeTitle} ${company}`.trim()
   const approvalList = changes.map(({ original, proposed, approved }) => ({ original, proposed, approved }))
-  const meterSource = usePlatform ? 'platform' : provider.clientSide ? 'puter' : 'own'
+  const meterSource = !isOwner ? 'platform' : provider.clientSide ? 'puter' : 'own'
 
-  /** Puter bills the user's own Puter account and only runs in the browser, so the whole run happens here. */
+  /** The owner's Puter setting: Puter only runs in the browser, so the whole run happens here. */
   async function tailorInBrowser(): Promise<{ result: OptimizationResult; resume: ParsedResume }> {
     const [{ generatePuterResponse }, { runOptimization }, { extractJdKeywords }, { standardProfile }, { renderCheckedResume }, { ResumeDocSchema }] =
       await Promise.all([
@@ -154,10 +155,9 @@ export default function TailorPanel({
     return { result: tailored, resume: rendered.parsed.resume }
   }
 
-  async function tailorOnServer(platform: boolean): Promise<{ result: OptimizationResult; resume: ParsedResume }> {
-    const ai = platform
-      ? { usePlatform: true }
-      : { provider: settings.provider, apiKey: settings.apiKeys[settings.provider], model }
+  async function tailorOnServer(): Promise<{ result: OptimizationResult; resume: ParsedResume }> {
+    // Regular accounts always run on ResMod AI, so only the owner sends AI settings.
+    const ai = isOwner ? { provider: settings.provider, apiKey: settings.apiKeys[settings.provider], model } : {}
     const res = await fetch(`/api/resumes/${resumeId}/tailor`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -173,6 +173,10 @@ export default function TailorPanel({
   }
 
   async function tailor() {
+    if (outOfTailorings) {
+      onQuotaExhausted()
+      return
+    }
     setError(null)
     setStep('running')
     setUsage(emptyUsage())
@@ -180,13 +184,8 @@ export default function TailorPanel({
     const began = Date.now()
     setStartedAt(began)
     setTookMs(undefined)
-    const onPlatform = usePlatform
     try {
-      const outcome = onPlatform
-        ? await tailorOnServer(true)
-        : provider.clientSide
-          ? await tailorInBrowser()
-          : await tailorOnServer(false)
+      const outcome = isOwner && provider.clientSide ? await tailorInBrowser() : await tailorOnServer()
       setResume(outcome.resume)
       setResult(outcome.result)
       setChanges(outcome.result.changes.map((change) => ({ ...change, approved: null })))
@@ -197,7 +196,7 @@ export default function TailorPanel({
       setStep('form')
       if (err instanceof ApiError && err.code === BILLING_CODES.quotaExhausted) onQuotaExhausted()
     } finally {
-      if (onPlatform) onBillingChanged()
+      if (!isOwner) onBillingChanged()
     }
   }
 
@@ -330,10 +329,9 @@ export default function TailorPanel({
             />
           </label>
 
-          <AiSourcePicker
+          <AiAllowance
             kind="run"
-            source={aiSource}
-            onSourceChange={onAiSourceChange}
+            isOwner={isOwner}
             settings={settings}
             billing={billing}
             onOpenSettings={onOpenSettings}
@@ -348,7 +346,7 @@ export default function TailorPanel({
               label={progress.label}
               startedAt={startedAt}
               source={meterSource}
-              runsLeft={usePlatform && billing ? Math.max(0, billing.runs.left - 1) : null}
+              runsLeft={!isOwner && billing ? Math.max(0, billing.runs.left - 1) : null}
             />
           )}
 
@@ -356,10 +354,14 @@ export default function TailorPanel({
 
           <button
             onClick={tailor}
-            disabled={busy || !jdReady || needsKey || checkingRuns}
+            disabled={busy || (!jdReady && !outOfTailorings) || needsKey || checkingRuns || aiOff}
             className={`w-full ${primaryButton}`}
           >
-            {step === 'running' ? 'Tailoring… this usually takes a minute or two' : 'Tailor resume →'}
+            {step === 'running'
+              ? 'Tailoring… this usually takes a minute or two'
+              : outOfTailorings
+                ? 'No tailorings left: get Pro or a credit pack →'
+                : 'Tailor resume →'}
           </button>
           {!jdReady && jobDescription.trim().length > 0 && (
             <p className="text-[11px] text-[var(--color-text-muted)] text-center">

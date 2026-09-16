@@ -4,7 +4,7 @@ import { getBillingStatus } from '@/lib/billing/store'
 
 export const dynamic = 'force-dynamic'
 
-/** The signed-in account's included runs, credits, plan and payments. The owner has no limits. */
+/** The signed-in account's tailorings left, credits, plan and payments. The owner has no limits. */
 export async function GET() {
   const auth = await requireAuth()
   if (!auth.ok) return auth.response

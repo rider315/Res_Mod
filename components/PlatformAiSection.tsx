@@ -46,7 +46,7 @@ export default function PlatformAiSection({ provider, model, apiKey }: PlatformA
   async function send(method: 'PUT' | 'DELETE') {
     if (
       method === 'DELETE' &&
-      !window.confirm("Turn off ResMod AI? Users without their own key won't be able to run, and buying runs switches off.")
+      !window.confirm("Turn off ResMod AI? Users won't be able to import or tailor, and buying plans switches off.")
     ) {
       return
     }
@@ -63,7 +63,10 @@ export default function PlatformAiSection({ provider, model, apiKey }: PlatformA
       setStatus(data)
       setMessage({
         ok: true,
-        text: method === 'PUT' ? `Your users now run on ${config.label}${modelLabel}.` : 'ResMod AI is off, and so is buying runs.',
+        text:
+          method === 'PUT'
+            ? `Your users now run on ${config.label}${modelLabel}.`
+            : "ResMod AI is off: users can't import or tailor, and plans can't be bought.",
       })
     } catch (err) {
       setMessage({ ok: false, text: errorText(err) })
@@ -80,8 +83,9 @@ export default function PlatformAiSection({ provider, model, apiKey }: PlatformA
       <div>
         <h3 className="text-sm font-semibold text-[var(--color-text)]">ResMod AI for your users</h3>
         <p className="text-xs text-[var(--color-text-muted)] mt-1">
-          Signed-in users who haven&apos;t added their own key run on this, paid for with their free runs, credits or
-          Pro. Buying runs stays off until it&apos;s set.
+          Every other account imports and tailors on this model; they have no AI settings of their own. Their
+          tailorings come from their free ones, Pro or credits. Until it&apos;s set, they can&apos;t import or tailor, and
+          plans can&apos;t be bought.
         </p>
       </div>
 

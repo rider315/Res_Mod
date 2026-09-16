@@ -12,7 +12,7 @@ import {
   runsLeft,
   subscriptionEntitles,
 } from '@/lib/billing/quota'
-import { freeRunsPerMonth, RazorpayConfig, razorpayConfig } from '@/lib/billing/config'
+import { freeTailorings, RazorpayConfig, razorpayConfig } from '@/lib/billing/config'
 import { getPlatformAi } from '@/lib/billing/platform-ai'
 import { razorpay } from '@/lib/billing/razorpay'
 import { PaymentFacts, SubscriptionFacts, subscriptionFacts } from '@/lib/billing/events'
@@ -122,7 +122,13 @@ export async function recentUnpaidSubscription(userId: string, planId: string, s
 }
 
 export async function recordSubscription(input: { id: string; userId: string; planId: string; status: string }) {
-  await getDb().insert(schema.subscriptions).values(input).onConflictDoNothing()
+  // Never synced yet, so any state fetched from Razorpay afterwards is newer. Stamping it with
+  // the database's clock instead let a sync made a moment later by a server whose clock runs
+  // behind look older, and be dropped: Pro stayed off until the webhook arrived.
+  await getDb()
+    .insert(schema.subscriptions)
+    .values({ ...input, syncedAt: new Date(0) })
+    .onConflictDoNothing()
 }
 
 /** Razorpay statuses in which a subscription can still charge, or be brought back to charging. */
@@ -223,7 +229,7 @@ export async function loadQuota(userId: string, now = new Date()): Promise<Quota
   const entitled = subscription ? subscriptionEntitles(subscription, now) : false
   const subscriptionBucket =
     subscription && entitled ? buckets.subscriptionRuns(subscription.id, subscription.currentStart, now) : null
-  const freeBucket = buckets.freeRuns(now)
+  const freeBucket = buckets.freeTailorings()
   const importBucket = buckets.imports(now)
 
   const [counters, balances] = await Promise.all([
@@ -248,7 +254,7 @@ export async function loadQuota(userId: string, now = new Date()): Promise<Quota
     now,
     state: {
       subscription: subscriptionBucket ? { used: used(subscriptionBucket), limit: PRO_PLAN.runsPerCycle } : null,
-      free: { used: used(freeBucket), limit: freeRunsPerMonth() },
+      free: { used: used(freeBucket), limit: freeTailorings() },
       credits,
     },
     subscription,
@@ -275,7 +281,7 @@ export async function reserveRun(userId: string): Promise<Reservation | null> {
         return { userId, source, bucket: quota.subscriptionBucket }
       }
     } else if (source === 'free') {
-      const bucket = buckets.freeRuns(quota.now)
+      const bucket = buckets.freeTailorings()
       if (await takeFromCounter(userId, bucket, quota.state.free.limit)) return { userId, source, bucket }
     } else if (source === 'credits') {
       if (await spendCredit(userId)) return { userId, source, bucket: null }
@@ -408,7 +414,7 @@ export async function getBillingStatus(userId: string): Promise<BillingStatus> {
   ])
   const config = razorpayConfig()
   const platformAi = (await getPlatformAi()) !== null
-  const resetsAt = nextMonthStart(quota.now).toISOString()
+  const importsResetAt = nextMonthStart(quota.now).toISOString()
   const { subscription } = quota
 
   return {
@@ -421,11 +427,11 @@ export async function getBillingStatus(userId: string): Promise<BillingStatus> {
     },
     runs: {
       left: runsLeft(quota.state),
-      free: { ...quota.state.free, resetsAt },
+      free: quota.state.free,
       subscription: quota.state.subscription,
       credits: quota.state.credits,
     },
-    imports: { ...quota.imports, resetsAt },
+    imports: { ...quota.imports, resetsAt: importsResetAt },
     subscription: subscription
       ? {
           status: subscription.status,
