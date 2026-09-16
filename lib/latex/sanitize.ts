@@ -16,7 +16,7 @@
  */
 
 /** Macros a rewritten bullet may legitimately contain. */
-const ALLOWED_MACROS = new Set([
+export const ALLOWED_MACROS = new Set([
   // inline formatting
   'textbf', 'textit', 'emph', 'underline', 'texttt', 'textsc',
   // links

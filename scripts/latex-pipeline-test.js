@@ -37,6 +37,9 @@
  *                     AI cap's counter, and resume text kept out of production logs
  *  14. settings     — ResMod AI chosen in AI settings: its key encrypted at rest,
  *                     and which saved settings can actually run
+ *  15. resolving   — the last step of a run: every change points at a real line,
+ *                     a rewrite of a rewrite folds into one, and a proposal the
+ *                     sanitizer refuses is repaired or dropped before the user sees it
  */
 const path = require('path')
 const fs = require('fs')
@@ -1040,11 +1043,130 @@ function settingsTests() {
     planProblem(monthly(29900)))
 }
 
+// --------------------------------------------------------------- 15. resolving
+const { resolveChanges } = require(BUILD + '/lib/tailor/resolve')
+
+async function resolveTests() {
+  console.log('\n=== every change a run returns can be applied ===')
+
+  const doc = ResumeDocSchema.parse({
+    name: 'Riya Patel',
+    summary: 'Full-stack engineer building queue and messaging products.',
+    skills: [{ category: 'Languages:', items: ['Python', 'TypeScript'] }],
+    experience: [{
+      company: 'Qflow', role: 'Software Engineer', dates: '2022 – Present',
+      bullets: [
+        'Built and deployed a full-stack B2B SaaS queue-management platform now serving 100+ businesses',
+        'Designed and maintained the PostgreSQL database schema for streaming sensor data pipelines',
+        'Wrote integration tests that caught regressions before every release',
+      ],
+    }],
+    education: [{ school: 'State University', degree: 'B.Tech Computer Science', details: ['Graduated with distinction in distributed systems'] }],
+  })
+  const tex = renderResumeLatex(doc)
+  const resume = parseLatexResume(tex, doc.name).resume
+  const profile = standardProfile('hard')
+  const experience = resume.sections.find((s) => s.title === 'Experience').content
+  const platform = experience.find((l) => l.startsWith('Built and deployed'))
+  const schema = experience.find((l) => l.startsWith('Designed and maintained'))
+  const eduLine = resume.sections.find((s) => s.title === 'Education').content.find((l) => l.startsWith('Graduated'))
+  const skillLine = resume.sections.find((s) => /skills/i.test(s.title)).content[0]
+
+  const frozen = (section) => section.id === 'section_header' || profile.coverage.frozenSection.test(section.title)
+  const mk = (over) => ({ id: 'x', sectionId: '', sectionTitle: 'Experience', reason: 'r', type: 'rewrite', approved: null, ...over })
+  const resolve = (changes) => resolveChanges(resume, changes, profile.length, { frozen })
+  const splice = (changes) => applyLatexChanges(tex, changes.map((c) => ({ original: c.original, proposed: c.proposed })))
+
+  // The reported failure: a later pass quotes a bullet as an earlier change would
+  // leave it, with the bold markup moved, so the quote is in no version of the file.
+  const rewritten = 'Built and deployed a full-stack B2B \\textbf{SaaS} queue-management platform serving 120+ businesses'
+  const stale = 'Built and deployed a full-stack B2B SaaS queue-management platform serving 120+ businesses'
+  const chain = resolve([
+    mk({ id: 'a', original: platform, proposed: rewritten }),
+    mk({ id: 'b', original: stale, proposed: rewritten + ' with \\textbf{LangChain}' }),
+  ])
+  check('a rewrite of a rewrite folds into one change against the real line',
+    chain.changes.length === 1 && chain.changes[0].original === platform &&
+    chain.changes[0].proposed === rewritten + ' with \\textbf{LangChain}' && chain.dropped.length === 0,
+    JSON.stringify({ changes: chain.changes.map((c) => c.proposed), dropped: chain.dropped.map((d) => d.reason) }))
+  check('the folded change is labelled with the section its line is really in',
+    chain.changes[0].sectionTitle === 'Experience' && chain.changes[0].sectionId.length > 0, chain.changes[0].sectionTitle)
+  check('and it splices in cleanly', splice(chain.changes).applied === 1)
+
+  const dupes = resolve([
+    mk({ id: 'a', original: schema, proposed: schema.replace('PostgreSQL', '\\textbf{PostgreSQL}') }),
+    mk({ id: 'b', original: schema.replace('PostgreSQL', '\\textbf{PostgreSQL}'), proposed: schema.replace('streaming sensor', 'streaming \\textbf{Kafka}') }),
+  ])
+  const spliced = splice(dupes.changes)
+  check('two passes rewriting the same line leave one change, the newest wording, not an overlap',
+    dupes.changes.length === 1 && /Kafka/.test(dupes.changes[0].proposed) &&
+    spliced.applied === 1 && spliced.overlapping.length === 0,
+    JSON.stringify({ proposed: dupes.changes.map((c) => c.proposed), overlapping: spliced.overlapping }))
+
+  const repaired = resolve([mk({ original: schema, proposed: 'Designed the \\colorbox{red}{PostgreSQL} schema for streaming sensor data pipelines' })])
+  check('markup the sanitizer does not know is repaired, keeping the words',
+    repaired.changes.length === 1 && repaired.changes[0].proposed === 'Designed the PostgreSQL schema for streaming sensor data pipelines' &&
+    splice(repaired.changes).applied === 1,
+    JSON.stringify({ changes: repaired.changes.map((c) => c.proposed), dropped: repaired.dropped.map((d) => d.reason) }))
+
+  const brace = resolve([mk({ original: schema, proposed: 'Designed and maintained the \\textbf{PostgreSQL schema for streaming sensor data pipelines' })])
+  check('a brace the model forgot to close is repaired',
+    brace.changes.length === 1 && splice(brace.changes).applied === 1, JSON.stringify(brace.dropped.map((d) => d.reason)))
+
+  const dangerous = resolve([mk({ original: schema, proposed: 'Designed the schema \\input{/etc/passwd} for streaming sensor data pipelines' })])
+  check('a rewrite that could read a file at compile time is dropped, never repaired',
+    dangerous.changes.length === 0 && /not permitted/.test(dangerous.dropped[0].reason), JSON.stringify(dangerous.dropped.map((d) => d.reason)))
+
+  const ghost = resolve([mk({ original: 'Led a team of twelve engineers across three countries', proposed: 'Led a team of twelve \\textbf{engineers}' })])
+  check('a change quoting text the resume never had is dropped', ghost.changes.length === 0 && ghost.dropped.length === 1)
+
+  const facts = resolve([mk({ sectionTitle: 'Education', original: eduLine, proposed: 'Graduated with distinction in \\textbf{distributed systems} and Kubernetes' })])
+  check('a change is never moved onto the header or a section that holds facts', facts.changes.length === 0 && facts.dropped.length === 1)
+
+  // A whole run of the real thing: the evidence pass requotes the first pass's
+  // rewrite, which is what produced "2 changes could not be applied".
+  const scripted = async ({ prompt }) => {
+    if (prompt.includes('## THE PROBLEM')) {
+      return JSON.stringify({
+        changes: [{
+          sectionTitle: 'Experience', original: stale, type: 'rewrite', reason: 'evidence for LangChain',
+          proposed: rewritten + ' with a custom \\textbf{LangChain} pipeline',
+        }],
+      })
+    }
+    if (prompt.includes('under-delivered') || prompt.includes('## MISSING REQUIRED KEYWORDS')) {
+      return JSON.stringify({ changes: [] })
+    }
+    return JSON.stringify({
+      summary: 'Full-stack engineer for AI products', companyName: '', keywordsAdded: ['LangChain'], sectionsModified: ['Experience'],
+      changes: [
+        { sectionTitle: 'Experience', original: platform, proposed: rewritten, reason: 'tighter', type: 'rewrite' },
+        { sectionTitle: 'Skills', original: skillLine, proposed: skillLine + ', LangChain', reason: 'jd', type: 'add_keywords' },
+      ],
+    })
+  }
+  const run = await runOptimization({
+    mode: 'optimize', level: 'hard', profile, resume,
+    keywords: { jobTitle: 'AI Engineer', company: '', keywords: [{ term: 'LangChain', kind: 'tool', required: true, aliases: [] }] },
+    jobDescription: 'AI engineer: LangChain pipelines on streaming data.',
+    hardInstructions: '', softInstructions: '', provider: 'openrouter', generate: scripted,
+  })
+  const out = splice(run.changes)
+  check('a run whose evidence pass requotes a rewritten bullet returns only changes that apply',
+    out.applied === run.changes.length && out.unmatched.length === 0 && out.overlapping.length === 0 &&
+    out.rejected.length === 0 && validateLatexDocument(out.latex).length === 0,
+    JSON.stringify({ requested: out.requested, applied: out.applied, unmatched: out.unmatched.length, overlapping: out.overlapping.length, rejected: out.rejected }))
+  check('the evidence rewrite survives, on the line it really belongs to',
+    run.changes.some((c) => c.original === platform && /LangChain/.test(c.proposed)),
+    JSON.stringify(run.changes.map((c) => [c.original.slice(0, 24), c.proposed.slice(0, 48)])))
+}
+
 importTests()
   .then(tailorTests)
   .then(billingTests)
   .then(historyTests)
   .then(settingsTests)
+  .then(resolveTests)
   .then(summary, (err) => {
     check('the async tests ran to completion', false, err && err.stack)
     summary()

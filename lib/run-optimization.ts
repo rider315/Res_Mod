@@ -34,6 +34,7 @@ import {
   labelSections,
   snapToLines,
 } from '@/lib/tailor/guards'
+import { resolveChanges } from '@/lib/tailor/resolve'
 
 /**
  * Orchestrates a full optimization run: the first pass, the coverage top-up,
@@ -152,7 +153,28 @@ export async function runOptimization(opts: RunOptions): Promise<OptimizationRes
 
   const covered = await coveragePass(baseline, ctx)
   const evidenced = await evidencePass(covered, ctx)
-  return level ? keywordPass(evidenced, ctx) : evidenced
+  const finished = level ? await keywordPass(evidenced, ctx) : evidenced
+  return { ...finished, changes: reconcile(finished.changes, ctx) }
+}
+
+/**
+ * Every change, pointed back at a line that is really in the resume, so nothing
+ * reaches the review screen that would fail at splice time. Each pass reads the
+ * resume as the earlier changes leave it, so quotes of rewritten lines are
+ * expected here rather than exceptional.
+ */
+function reconcile(changes: ResumeChange[], ctx: PassContext): ResumeChange[] {
+  const { resume, profile } = ctx.opts
+  const resolved = resolveChanges(resume, changes, profile.length, {
+    frozen: (section) => section.id === 'section_header' || profile.coverage.frozenSection.test(section.title),
+  })
+  if (resolved.dropped.length > 0) {
+    console.warn(
+      `[${ctx.label}] Dropped ${resolved.dropped.length} change(s) that could not be applied: ` +
+      resolved.dropped.map((entry) => `${JSON.stringify(logSnippet(entry.change.original, 60))} — ${entry.reason}`).join(', ')
+    )
+  }
+  return resolved.changes
 }
 
 /** Sections that hold facts are never edited, and a level's per-role bullet cap holds. */
@@ -297,7 +319,8 @@ async function keywordPass(result: OptimizationResult, ctx: PassContext): Promis
       .statuses.filter((entry) => entry.status === 'missing' && entry.keyword.required)
       .map((entry) => entry.keyword)
 
-  let changes = result.changes
+  // What is still missing is judged on changes that will really apply.
+  let changes = reconcile(result.changes, ctx)
   let keywordsAdded = result.keywordsAdded
   let missing = missingRequired(changes)
 
