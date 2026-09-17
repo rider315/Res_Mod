@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import HeroTailoring from '@/components/brand/HeroTailoring'
+import HeroWorkflow from '@/components/brand/HeroWorkflow'
 import SiteFooter from '@/components/brand/SiteFooter'
 import SiteHeader from '@/components/brand/SiteHeader'
 import { StartButton } from '@/components/brand/SignInButton'
@@ -12,6 +13,7 @@ import {
   ChevronDown,
   FileText,
   KeyIcon,
+  Layers,
   Mail,
   Pencil,
   Reply,
@@ -20,7 +22,7 @@ import {
   Sliders,
   Upload,
 } from '@/components/brand/Icons'
-import { CREDIT_PACKS, EMAIL_DRAFTS_PER_MONTH, formatPrice, IMPORTS_PER_MONTH, PRO_PLAN } from '@/lib/billing/plans'
+import { CREDIT_PACKS, EMAIL_DRAFTS_PER_MONTH, formatPrice, IMPORTS_PER_MONTH, PREMIUM_PLAN, PRO_PLAN } from '@/lib/billing/plans'
 
 /**
  * The public home page: what ResMod does, how, reaching recruiters with the
@@ -66,6 +68,24 @@ const FEATURES: Array<{ icon: React.ReactNode; title: string; text: string }> = 
     icon: <FileText />,
     title: 'Any format in, a clean resume out',
     text: 'Import a PDF, Word, LaTeX or text file. You get a clean LaTeX resume that ATS software can read, as a PDF or .tex.',
+  },
+]
+
+const TOGETHER: Array<{ icon: React.ReactNode; title: string; text: string }> = [
+  {
+    icon: <Briefcase size={22} />,
+    title: 'The real posting, not a guess',
+    text: 'You point ResMod at the job the recruiter is hiring for and it reads that posting. It never asks a model what a company might want — that is how invented requirements end up in a real email.',
+  },
+  {
+    icon: <Layers size={22} />,
+    title: 'One reading behind both',
+    text: 'The resume and the email are built from the same reading of the role, so the skills you lead with in the email are the ones the recruiter finds in the resume attached to it.',
+  },
+  {
+    icon: <Send size={22} />,
+    title: 'Ready to send, never sent',
+    text: 'A run ends with the email in front of you, with the tailored PDF attached. Edit it, or bin it. ResMod has never emailed anyone without you pressing Send, and that does not change.',
   },
 ]
 
@@ -189,13 +209,13 @@ export default function LoginPage({ freeTailorings, accountDeleted }: LoginPageP
       <section className="px-4 sm:px-6 pt-14 sm:pt-20 pb-16 overflow-hidden">
         <div className="max-w-5xl mx-auto text-center">
           <h1 className="text-[2.6rem] leading-[1.15] sm:text-6xl sm:leading-[1.2] font-black tracking-tight">
-            <span className="nb-highlight">Tailor your resume</span>
+            <span className="nb-highlight">One run</span>
             <br />
-            to every job description
+            from the job post to the recruiter
           </h1>
           <p className="mt-7 text-lg sm:text-2xl text-[var(--color-text-muted)] max-w-3xl mx-auto leading-relaxed">
-            Paste a job description and get a version of your resume that speaks to it, with every required keyword in and nothing made
-            up.
+            Give ResMod a recruiter and the job they’re hiring for. It reads the posting, tailors your resume to it, and writes the
+            recruiter an email from that same resume — so the two say the same thing. You read it, then you press Send.
           </p>
           <div className="mt-9 flex flex-col items-center gap-3">
             <StartButton />
@@ -203,7 +223,34 @@ export default function LoginPage({ freeTailorings, accountDeleted }: LoginPageP
           </div>
         </div>
 
-        <HeroTailoring />
+        <HeroWorkflow />
+      </section>
+
+      {/* ── Why the two together ─────────────────────────── */}
+      <section className="bg-[var(--color-cream)] border-y-[1.6px] border-[var(--color-ink)] px-4 sm:px-6 py-20">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center max-w-3xl mx-auto">
+            <h2 className="text-3xl sm:text-4xl font-black">
+              A tailored resume nobody reads is <span className="nb-highlight">half a job done</span>
+            </h2>
+            <p className="mt-5 text-lg text-[var(--color-text-muted)]">
+              Most tools stop at the resume, and most outreach tools write emails that have never seen it. Doing both in one run is
+              what makes them agree.
+            </p>
+          </div>
+          <div className="mt-12 grid gap-6 md:grid-cols-3">
+            {TOGETHER.map((point) => (
+              <div key={point.title} className="nb-card p-6">
+                <span className="nb-badge w-11 h-11 bg-[var(--color-yellow)]">{point.icon}</span>
+                <h3 className="mt-4 text-xl font-extrabold leading-tight">{point.title}</h3>
+                <p className="mt-3 text-[var(--color-text-muted)] leading-relaxed">{point.text}</p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-10 text-center text-[var(--color-text-muted)]">
+            Prefer to do one half at a time? Tailoring and recruiter emails still work on their own, on every plan.
+          </p>
+        </div>
       </section>
 
       {/* ── How it works ─────────────────────────────────── */}
@@ -253,6 +300,7 @@ export default function LoginPage({ freeTailorings, accountDeleted }: LoginPageP
               </div>
             </Step>
           </div>
+          <HeroTailoring />
         </div>
       </section>
 
@@ -476,7 +524,7 @@ function OutreachVisual() {
 
 function PricingCards({ freeTailorings }: { freeTailorings: number | null }) {
   const free = freeTailorings ?? 3
-  const cards: Array<{ name: string; price: string; per?: string; points: string[]; highlight?: boolean }> = [
+  const cards: Array<{ name: string; price: string; per?: string; points: string[]; highlight?: boolean; note?: string }> = [
     {
       name: 'Free',
       price: '₹0',
@@ -493,12 +541,27 @@ function PricingCards({ freeTailorings }: { freeTailorings: number | null }) {
       name: PRO_PLAN.label,
       price: formatPrice(PRO_PLAN.pricePaise),
       per: '/month',
-      highlight: true,
       points: [
         `${PRO_PLAN.runsPerCycle} tailorings every month`,
         'A cover letter for each one',
         `${EMAIL_DRAFTS_PER_MONTH.paid} AI-written recruiter emails a month`,
         `${IMPORTS_PER_MONTH.paid} resume imports a month`,
+        'Tailoring and emails, each on their own',
+        'Cancel any time',
+      ],
+    },
+    {
+      name: PREMIUM_PLAN.label,
+      price: formatPrice(PREMIUM_PLAN.pricePaise),
+      per: '/month',
+      highlight: true,
+      note: 'The whole application in one run',
+      points: [
+        `${PREMIUM_PLAN.appliesPerCycle} complete applications a month`,
+        'ResMod reads the posting you point it at',
+        'Resume and recruiter email from that one reading',
+        `Everything in ${PRO_PLAN.label}, including ${PREMIUM_PLAN.runsPerCycle} tailorings`,
+        'Every email waits for you to send it',
         'Cancel any time',
       ],
     },
@@ -515,13 +578,14 @@ function PricingCards({ freeTailorings }: { freeTailorings: number | null }) {
   ]
 
   return (
-    <div className="mt-10 grid gap-6 md:grid-cols-3 items-stretch">
+    <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4 items-stretch">
       {cards.map((card) => (
         <div
           key={card.name}
           className={`nb-card p-7 flex flex-col ${card.highlight ? 'md:-translate-y-2 border-[3px] shadow-[6px_6px_0_0_#0a0a0a]' : ''}`}
         >
           <h3 className="text-xl font-extrabold">{card.name}</h3>
+          {card.note && <p className="mt-1 text-xs font-bold uppercase tracking-wide text-[var(--color-text-faint)]">{card.note}</p>}
           <p className="mt-3">
             <span className="text-4xl font-black">{card.price}</span>
             {card.per && <span className="text-[var(--color-text-muted)]">{card.per}</span>}
