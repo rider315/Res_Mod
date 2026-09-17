@@ -30,12 +30,12 @@ export default function StepIndicator({ currentStep }: { currentStep: AppStep })
           <div key={step.id} className="flex items-center">
             <div className="flex flex-col items-center gap-1">
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold border-2 transition-all duration-300 ${
+                className={`w-8 h-8 rounded-[8px] flex items-center justify-center text-sm font-black border-[1.6px] transition-all duration-300 ${
                   isCompleted
-                    ? 'bg-[var(--color-primary)] border-[var(--color-primary)] text-white'
+                    ? 'bg-[var(--color-accent)] border-[var(--color-ink)] text-[#0a0a0a] shadow-[2px_2px_0_0_var(--color-ink)]'
                     : isActive
-                    ? 'border-[var(--color-primary)] text-[var(--color-primary)] bg-[var(--color-primary-highlight)]'
-                    : 'border-[var(--color-border)] text-[var(--color-text-muted)] bg-[var(--color-surface)]'
+                    ? 'bg-[var(--color-yellow)] border-[var(--color-ink)] text-[#0a0a0a] shadow-[2px_2px_0_0_var(--color-ink)]'
+                    : 'border-[var(--color-border-soft)] text-[var(--color-text-faint)] bg-[var(--color-surface)]'
                 }`}
               >
                 {isCompleted ? (
@@ -47,12 +47,8 @@ export default function StepIndicator({ currentStep }: { currentStep: AppStep })
                 )}
               </div>
               <span
-                className={`text-xs font-medium whitespace-nowrap ${
-                  isActive
-                    ? 'text-[var(--color-primary)]'
-                    : isCompleted
-                    ? 'text-[var(--color-text)]'
-                    : 'text-[var(--color-text-muted)]'
+                className={`text-xs font-bold whitespace-nowrap ${
+                  isActive || isCompleted ? 'text-[var(--color-text)]' : 'text-[var(--color-text-muted)]'
                 }`}
               >
                 {step.label}
@@ -60,8 +56,8 @@ export default function StepIndicator({ currentStep }: { currentStep: AppStep })
             </div>
             {!isLast && (
               <div
-                className={`w-16 h-0.5 mb-5 transition-all duration-300 ${
-                  i < currentIdx ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'
+                className={`w-16 mb-5 border-t-2 transition-all duration-300 ${
+                  i < currentIdx ? 'border-solid border-[var(--color-ink)]' : 'border-dotted border-[var(--color-text-faint)]'
                 }`}
               />
             )}

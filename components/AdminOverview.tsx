@@ -26,7 +26,7 @@ function subscriptionState(sub: Overview['subscriptions'][number]): string {
 
 function Stat({ label, value, note }: { label: string; value: string | number; note?: string }) {
   return (
-    <div className="rounded-xl border border-[var(--color-border)] p-3">
+    <div className="rounded-[10px] border-[1.6px] border-[var(--color-ink)] p-3">
       <p className="text-[11px] text-[var(--color-text-muted)]">{label}</p>
       <p className="text-xl font-bold text-[var(--color-text)] tabular-nums">{value}</p>
       {note && <p className="text-[11px] text-[var(--color-text-muted)]">{note}</p>}
@@ -78,7 +78,7 @@ export default function AdminOverview({ onClose }: { onClose: () => void }) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="business-title"
-        className="bg-[var(--color-surface)] w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl border border-[var(--color-border)] shadow-2xl p-6 space-y-6"
+        className="bg-[var(--color-surface)] w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-[10px] border-[1.6px] border-[var(--color-ink)] shadow-[6px_6px_0_0_var(--color-ink)] p-6 space-y-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4">
@@ -105,7 +105,7 @@ export default function AdminOverview({ onClose }: { onClose: () => void }) {
         </div>
 
         {error && (
-          <div className="rounded-xl border border-[var(--color-error)] bg-[var(--color-error-highlight)] p-3 text-sm text-[var(--color-error)]">
+          <div className="rounded-[10px] border border-[var(--color-error)] bg-[var(--color-error-highlight)] p-3 text-sm text-[var(--color-error)]">
             {error}
           </div>
         )}
@@ -114,7 +114,7 @@ export default function AdminOverview({ onClose }: { onClose: () => void }) {
           <>
             <section className="space-y-2">
               <h3 className="text-sm font-semibold text-[var(--color-text)]">Setup</h3>
-              <ul className="rounded-xl border border-[var(--color-border)] divide-y divide-[var(--color-divider)]">
+              <ul className="rounded-[10px] border-[1.6px] border-[var(--color-ink)] divide-y divide-[var(--color-divider)]">
                 {data.checks.map((check) => (
                   <li key={check.label} className="flex items-start gap-3 p-3">
                     <span className={`w-4 text-center font-bold ${MARK[check.state].className}`} aria-label={check.state}>
@@ -151,10 +151,10 @@ export default function AdminOverview({ onClose }: { onClose: () => void }) {
               {data.subscriptions.length === 0 ? (
                 <p className="text-xs text-[var(--color-text-muted)]">No subscriptions yet.</p>
               ) : (
-                <div className="overflow-x-auto rounded-xl border border-[var(--color-border)]">
+                <div className="overflow-x-auto rounded-[10px] border-[1.6px] border-[var(--color-ink)]">
                   <table className="w-full text-xs">
                     <thead>
-                      <tr className="border-b border-[var(--color-border)]">
+                      <tr className="border-b-[1.6px] border-[var(--color-ink)]">
                         <th className={th}>Account</th>
                         <th className={th}>Status</th>
                         <th className={th}>Paid until</th>
@@ -181,10 +181,10 @@ export default function AdminOverview({ onClose }: { onClose: () => void }) {
               {data.payments.length === 0 ? (
                 <p className="text-xs text-[var(--color-text-muted)]">No payments yet.</p>
               ) : (
-                <div className="overflow-x-auto rounded-xl border border-[var(--color-border)]">
+                <div className="overflow-x-auto rounded-[10px] border-[1.6px] border-[var(--color-ink)]">
                   <table className="w-full text-xs">
                     <thead>
-                      <tr className="border-b border-[var(--color-border)]">
+                      <tr className="border-b-[1.6px] border-[var(--color-ink)]">
                         <th className={th}>Date</th>
                         <th className={th}>Account</th>
                         <th className={th}>For</th>

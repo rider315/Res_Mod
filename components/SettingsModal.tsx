@@ -195,7 +195,7 @@ export default function SettingsModal({
       onClick={onClose}
     >
       <div
-        className="bg-[var(--color-surface)] w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-[var(--color-border)] shadow-2xl p-6"
+        className="bg-[var(--color-surface)] w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-[10px] border-[1.6px] border-[var(--color-ink)] shadow-[6px_6px_0_0_var(--color-ink)] p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-6">
@@ -224,7 +224,7 @@ export default function SettingsModal({
                   <button
                     key={id}
                     onClick={() => setProvider(id)}
-                    className={`flex items-center gap-2 p-2.5 rounded-xl border text-left transition-all ${
+                    className={`flex items-center gap-2 p-2.5 rounded-[10px] border text-left transition-all ${
                       selected
                         ? 'border-[var(--color-primary)] bg-[var(--color-primary-highlight)] ring-1 ring-[var(--color-primary)]'
                         : 'border-[var(--color-border)] hover:border-[var(--color-text-muted)]'
@@ -288,7 +288,7 @@ export default function SettingsModal({
                 value={apiKeys[provider]}
                 onChange={(e) => setApiKeys((k) => ({ ...k, [provider]: e.target.value }))}
                 onBlur={() => config.catalogNeedsKey && apiKeys[provider]?.trim() !== savedKey && loadCatalog(true)}
-                className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-sm placeholder:text-[var(--color-text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition-all font-mono"
+                className="w-full px-4 py-3 rounded-[10px] border-[1.6px] border-[var(--color-ink)] bg-[var(--color-bg)] text-[var(--color-text)] text-sm placeholder:text-[var(--color-text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition-all font-mono"
               />
               <p className="text-[11px] text-[var(--color-text-faint)] mt-1.5">
                 {serverKeys
@@ -297,13 +297,13 @@ export default function SettingsModal({
               </p>
             </div>
           ) : (
-            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-offset)] p-3">
+            <div className="rounded-[10px] border-[1.6px] border-[var(--color-ink)] bg-[var(--color-surface-offset)] p-3">
               <p className="text-xs text-[var(--color-text-muted)]">{config.keyHint}</p>
               {config.transport === 'puter' && (
                 <>
                   <button
                     onClick={handlePuterSignIn}
-                    className="mt-2.5 px-3 py-1.5 rounded-lg bg-[var(--color-primary)] text-white text-xs font-semibold hover:bg-[var(--color-primary-hover)] transition-all"
+                    className="mt-2.5 px-3 py-1.5 rounded-[8px] bg-[var(--color-primary)] text-white text-xs font-semibold hover:bg-[var(--color-primary-hover)] transition-all"
                   >
                     Sign in to Puter
                   </button>
@@ -345,7 +345,7 @@ export default function SettingsModal({
               </div>
             </div>
 
-            <div className="mb-2 px-3 py-2 rounded-lg bg-[var(--color-primary-highlight)] text-xs text-[var(--color-text)] font-mono break-all">
+            <div className="mb-2 px-3 py-2 rounded-[8px] bg-[var(--color-primary-highlight)] text-xs text-[var(--color-text)] font-mono break-all">
               {model || <span className="text-[var(--color-text-muted)]">Auto-select</span>}
             </div>
 
@@ -354,7 +354,7 @@ export default function SettingsModal({
               placeholder="Search models, or paste a model id…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full px-3 py-2 mb-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-sm placeholder:text-[var(--color-text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition-all"
+              className="w-full px-3 py-2 mb-2 rounded-[8px] border-[1.6px] border-[var(--color-ink)] bg-[var(--color-bg)] text-[var(--color-text)] text-sm placeholder:text-[var(--color-text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition-all"
             />
 
             {catalogError[provider] && (
@@ -377,7 +377,7 @@ export default function SettingsModal({
                 </p>
               )}
 
-            <div className="max-h-56 overflow-y-auto rounded-xl border border-[var(--color-border)] divide-y divide-[var(--color-divider)]">
+            <div className="max-h-56 overflow-y-auto rounded-[10px] border-[1.6px] border-[var(--color-ink)] divide-y divide-[var(--color-divider)]">
               {searchIsUnlistedId && (
                 <button
                   onClick={() => {
@@ -441,7 +441,7 @@ export default function SettingsModal({
           {/* Test result */}
           {testResult && (
             <div
-              className={`rounded-xl border p-3 text-xs ${
+              className={`rounded-[10px] border p-3 text-xs ${
                 testResult.ok
                   ? 'border-[var(--color-success)] bg-[var(--color-success-highlight)] text-[var(--color-success)]'
                   : 'border-[var(--color-error)] bg-[var(--color-error-highlight)] text-[var(--color-error)]'
@@ -456,13 +456,13 @@ export default function SettingsModal({
             <button
               onClick={handleTest}
               disabled={testing}
-              className="flex-1 py-3 px-4 rounded-xl border border-[var(--color-border)] text-[var(--color-text)] font-semibold text-sm hover:bg-[var(--color-surface-offset)] disabled:opacity-50 transition-all"
+              className="flex-1 py-3 px-4 rounded-[10px] border-[1.6px] border-[var(--color-ink)] text-[var(--color-text)] font-semibold text-sm hover:bg-[var(--color-surface-offset)] disabled:opacity-50 transition-all"
             >
               {testing ? 'Testing…' : 'Test connection'}
             </button>
             <button
               onClick={() => onSave({ provider, apiKeys, models })}
-              className="flex-1 py-3 px-4 rounded-xl bg-[var(--color-primary)] text-white font-semibold text-sm hover:bg-[var(--color-primary-hover)] transition-all"
+              className="flex-1 py-3 px-4 rounded-[10px] bg-[var(--color-primary)] text-white font-semibold text-sm hover:bg-[var(--color-primary-hover)] transition-all"
             >
               Save Settings
             </button>

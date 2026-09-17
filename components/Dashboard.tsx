@@ -6,6 +6,7 @@ import StepIndicator from './StepIndicator'
 import SettingsModal from './SettingsModal'
 import LatexPreview from './LatexPreview'
 import OwnerNav from './OwnerNav'
+import { LogoMark } from './brand/Logo'
 import { AppState, OptimizationResult } from '@/types/resume'
 import { AISettings, DEFAULT_AI_SETTINGS, loadAISettings, saveAISettings } from '@/lib/settings-storage'
 import { getProvider } from '@/lib/providers'
@@ -59,7 +60,7 @@ function ParsingAnimation() {
         <h2 className="text-xl font-bold text-[var(--color-text)]">Reading your LaTeX resume</h2>
         <AnimatedPhaseText phases={['Loading the .tex source…', 'Walking the document tree…', 'Mapping editable bullets…', 'Almost ready…']} />
       </div>
-      <div className="w-48 h-1.5 rounded-full bg-[var(--color-border)] overflow-hidden">
+      <div className="w-48 h-1.5 rounded-full bg-[var(--color-surface-dynamic)] overflow-hidden">
         <div className="h-full rounded-full anim-shimmer" style={{ width: '100%' }} />
       </div>
     </div>
@@ -98,7 +99,7 @@ function AnalyzingAnimation() {
         <h2 className="text-xl font-bold text-[var(--color-text)]">Extracting ATS Keywords</h2>
         <AnimatedPhaseText phases={['Extracting keywords from JD…', 'Matching keywords to resume…', 'Rewriting experience bullets…', 'Injecting missing ATS keywords…', 'Refining suggestions…']} />
       </div>
-      <div className="w-48 h-1.5 rounded-full bg-[var(--color-border)] overflow-hidden">
+      <div className="w-48 h-1.5 rounded-full bg-[var(--color-surface-dynamic)] overflow-hidden">
         <div className="h-full rounded-full anim-shimmer" style={{ width: '100%' }} />
       </div>
     </div>
@@ -137,7 +138,7 @@ function RevampingAnimation() {
         <h2 className="text-xl font-bold text-[var(--color-text)]">🔥 Full ATS Revamp in Progress</h2>
         <AnimatedPhaseText phases={['Extracting all JD keywords…', 'Rewriting every experience bullet…', 'Saturating with ATS keywords…', 'Swapping skills to match JD…', 'Finalizing aggressive rewrites…']} />
       </div>
-      <div className="w-48 h-1.5 rounded-full bg-[var(--color-border)] overflow-hidden">
+      <div className="w-48 h-1.5 rounded-full bg-[var(--color-surface-dynamic)] overflow-hidden">
         <div className="h-full rounded-full anim-shimmer" style={{ width: '100%', background: 'linear-gradient(90deg, var(--color-error), var(--color-gold), var(--color-error))' }} />
       </div>
     </div>
@@ -167,7 +168,7 @@ function MergeAnimation({ count }: { count: number }) {
         <h2 className="text-xl font-bold text-[var(--color-text)]">Splicing changes into LaTeX</h2>
         <p className="text-sm text-[var(--color-text-muted)]">Writing {count} approved change{count !== 1 ? 's' : ''} into a copy of your .tex…</p>
       </div>
-      <div className="w-48 h-1.5 rounded-full bg-[var(--color-border)] overflow-hidden">
+      <div className="w-48 h-1.5 rounded-full bg-[var(--color-surface-dynamic)] overflow-hidden">
         <div className="h-full rounded-full anim-shimmer" style={{ width: '100%' }} />
       </div>
     </div>
@@ -176,7 +177,7 @@ function MergeAnimation({ count }: { count: number }) {
 
 function ErrorBanner({ message, onDismiss }: { message: string; onDismiss: () => void }) {
   return (
-    <div className="flex items-start gap-3 bg-[var(--color-error-highlight)] border border-[var(--color-error)] rounded-xl p-4 text-sm text-[var(--color-error)]">
+    <div className="flex items-start gap-3 bg-[var(--color-error-highlight)] border border-[var(--color-error)] rounded-[10px] p-4 text-sm text-[var(--color-error)]">
       <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
         <circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" />
       </svg>
@@ -531,22 +532,10 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-[var(--color-bg)]">
-      <header className="sticky top-0 z-10 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-6 py-3 flex items-center justify-between">
+      <header className="sticky top-0 z-10 border-b-[1.6px] border-[var(--color-ink)] bg-[var(--color-surface)] px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <svg width="28" height="28" viewBox="0 0 52 52" fill="none" aria-label="ResMod">
-            <rect x="1" y="1" width="50" height="50" rx="13" fill="var(--color-primary)" />
-            <rect x="13" y="10" width="22" height="30" rx="3" fill="white" opacity="0.95" />
-            <path d="M29 10 L35 16 L29 16 Z" fill="var(--color-primary)" opacity="0.3" />
-            <rect x="17" y="19" width="14" height="2" rx="1" fill="var(--color-primary)" opacity="0.5" />
-            <rect x="17" y="24" width="11" height="2" rx="1" fill="var(--color-primary)" opacity="0.35" />
-            <rect x="17" y="29" width="14" height="2" rx="1" fill="var(--color-primary)" opacity="0.5" />
-            <rect x="17" y="34" width="8" height="2" rx="1" fill="var(--color-primary)" opacity="0.35" />
-            <g transform="translate(30, 28) rotate(-45)">
-              <rect x="0" y="0" width="4" height="14" rx="1" fill="white" />
-              <polygon points="0,14 4,14 2,18" fill="white" />
-            </g>
-          </svg>
-          <span className="font-semibold text-[var(--color-text)] text-base">ResMod</span>
+          <LogoMark size={34} />
+          <span className="text-xl font-black tracking-tight text-[var(--color-text)]">ResMod</span>
         </div>
         <StepIndicator currentStep={state.step} />
         <div className="flex items-center gap-3">
@@ -558,7 +547,7 @@ export default function Dashboard() {
           />
           <button
             onClick={() => setState((s) => ({ ...s, showSettings: true }))}
-            className="h-8 px-2 flex items-center gap-1.5 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-offset)] transition-all"
+            className="h-8 px-2 flex items-center gap-1.5 rounded-[8px] text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-offset)] transition-all"
             aria-label="AI Settings"
             title={`AI: ${activeModelLabel}`}
           >
@@ -568,7 +557,7 @@ export default function Dashboard() {
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
             </svg>
           </button>
-          <button onClick={toggleTheme} className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-offset)] transition-all" aria-label="Toggle theme">
+          <button onClick={toggleTheme} className="w-8 h-8 flex items-center justify-center rounded-[8px] text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-offset)] transition-all" aria-label="Toggle theme">
             {themeMode === 'dark' ? (
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="12" cy="12" r="5" /><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
@@ -602,7 +591,7 @@ export default function Dashboard() {
         {state.step === 'input' && (
           <div className="space-y-6">
             <div>
-              <h1 className="text-2xl font-bold text-[var(--color-text)] mb-1">Optimize your resume</h1>
+              <h1 className="text-3xl font-black tracking-tight text-[var(--color-text)] mb-1">Optimize your resume</h1>
               <p className="text-sm text-[var(--color-text-muted)]">
                 Pick whose resume to tailor. The optimizer reads the stored LaTeX and writes a tailored copy,
                 never touching the original.
@@ -610,7 +599,7 @@ export default function Dashboard() {
             </div>
 
             {/* Whose resume — each has its own layout rules and its own .tex */}
-            <div className="bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] p-6 space-y-3">
+            <div className="nb-card rounded-[10px] p-6 space-y-3">
               <span className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">Whose resume</span>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {PROFILE_ORDER.map((id) => {
@@ -620,7 +609,7 @@ export default function Dashboard() {
                     <button
                       key={id}
                       onClick={() => setActiveProfile(id)}
-                      className={`text-left p-3 rounded-xl border transition-all ${
+                      className={`text-left p-3 rounded-[10px] border transition-all ${
                         selected
                           ? 'border-[var(--color-primary)] bg-[var(--color-primary-highlight)] ring-1 ring-[var(--color-primary)]'
                           : 'border-[var(--color-border)] hover:border-[var(--color-text-muted)]'
@@ -636,12 +625,12 @@ export default function Dashboard() {
                 })}
               </div>
               <button onClick={handleLoadResume} disabled={loading}
-                className="w-full py-3 px-6 rounded-xl bg-[var(--color-primary)] text-white font-semibold text-sm hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2">
+                className="w-full py-3 px-6 rounded-[10px] bg-[var(--color-primary)] text-white font-semibold text-sm hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2">
                 Load {activeProfile.label}&apos;s Resume →
               </button>
             </div>
 
-            <div className="rounded-xl bg-[var(--color-primary-highlight)] border border-[var(--color-border)] p-4 text-sm text-[var(--color-text-muted)] flex gap-3">
+            <div className="rounded-[10px] bg-[var(--color-primary-highlight)] border-[1.6px] border-[var(--color-ink)] p-4 text-sm text-[var(--color-text-muted)] flex gap-3">
               <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-[var(--color-primary)]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
               <span>
                 To change the base resume itself, edit <code className="font-mono text-xs">resumes/{activeProfile.texFile}</code> and
@@ -659,12 +648,12 @@ export default function Dashboard() {
         {state.step === 'instructions' && state.parsedResume && (
           <div className="space-y-6 anim-page-enter">
             <div>
-              <h1 className="text-2xl font-bold text-[var(--color-text)] mb-1">Define your optimization goals</h1>
+              <h1 className="text-3xl font-black tracking-tight text-[var(--color-text)] mb-1">Define your optimization goals</h1>
               <p className="text-sm text-[var(--color-text-muted)]">
                 Loaded <code className="font-mono text-xs">resumes/{activeProfile.texFile}</code> — {state.parsedResume.sections.length} sections detected
               </p>
             </div>
-            <div className="bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] p-4">
+            <div className="nb-card rounded-[10px] p-4">
               <p className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wide mb-3">Detected Sections</p>
               <div className="flex flex-wrap gap-2">
                 {state.parsedResume.sections.map((s) => (
@@ -678,30 +667,30 @@ export default function Dashboard() {
                 <span className="text-sm font-semibold text-[var(--color-text)] mb-1.5 block">Job Description *</span>
                 <span className="text-xs text-[var(--color-text-muted)] block mb-2">Paste the full job posting. The AI will extract keywords automatically.</span>
                 <textarea rows={6} placeholder="We are looking for a Forward Deployed Engineer with Python, LLMs, RAG, React..." value={state.jobDescription} onChange={(e) => setState((s) => ({ ...s, jobDescription: e.target.value }))}
-                  className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-sm placeholder:text-[var(--color-text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] resize-y transition-all" />
+                  className="w-full px-4 py-3 rounded-[10px] border-[1.6px] border-[var(--color-ink)] bg-[var(--color-bg)] text-[var(--color-text)] text-sm placeholder:text-[var(--color-text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] resize-y transition-all" />
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <label className="block">
                   <span className="text-sm font-semibold text-[var(--color-text)] mb-1.5 block">Hard Instructions</span>
                   <span className="text-xs text-[var(--color-text-muted)] block mb-2">Rules the AI must never break.</span>
                   <textarea rows={4} placeholder={'Do not modify the Innodata role\nDo not remove the IEEE publication\nDo not add fake experience'} value={state.hardInstructions} onChange={(e) => setState((s) => ({ ...s, hardInstructions: e.target.value }))}
-                    className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-sm placeholder:text-[var(--color-text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] resize-y transition-all" />
+                    className="w-full px-4 py-3 rounded-[10px] border-[1.6px] border-[var(--color-ink)] bg-[var(--color-bg)] text-[var(--color-text)] text-sm placeholder:text-[var(--color-text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] resize-y transition-all" />
                 </label>
                 <label className="block">
                   <span className="text-sm font-semibold text-[var(--color-text)] mb-1.5 block">Soft Instructions</span>
                   <span className="text-xs text-[var(--color-text-muted)] block mb-2">Optimization preferences.</span>
                   <textarea rows={4} placeholder={'Use action verbs (Built, Led, Designed)\nAdd measurable impact\nLead with RAG and LLM evaluation'} value={state.softInstructions} onChange={(e) => setState((s) => ({ ...s, softInstructions: e.target.value }))}
-                    className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-sm placeholder:text-[var(--color-text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] resize-y transition-all" />
+                    className="w-full px-4 py-3 rounded-[10px] border-[1.6px] border-[var(--color-ink)] bg-[var(--color-bg)] text-[var(--color-text)] text-sm placeholder:text-[var(--color-text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] resize-y transition-all" />
                 </label>
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button onClick={() => runPass('optimize')} disabled={loading || !state.jobDescription.trim()}
-                className="w-full py-3 px-6 rounded-xl bg-[var(--color-primary)] text-white font-semibold text-sm hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2">
+                className="w-full py-3 px-6 rounded-[10px] bg-[var(--color-primary)] text-white font-semibold text-sm hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2">
                 Generate Optimizations →
               </button>
               <button onClick={() => runPass('revamp')} disabled={loading || !state.jobDescription.trim()}
-                className="w-full py-3 px-6 rounded-xl font-semibold text-sm text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
+                className="w-full py-3 px-6 rounded-[10px] font-semibold text-sm text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 hover:shadow-[5px_5px_0_0_var(--color-ink)] hover:scale-[1.02] active:scale-[0.98]"
                 style={{ background: 'linear-gradient(135deg, #e8450e 0%, #f59e0b 100%)' }}>
                 🔥 Full Revamp
               </button>
@@ -717,13 +706,13 @@ export default function Dashboard() {
         {state.step === 'review' && state.optimizationResult && (
           <div className="space-y-6 anim-page-enter">
             <div>
-              <h1 className="text-2xl font-bold text-[var(--color-text)] mb-1">Review proposed changes</h1>
+              <h1 className="text-3xl font-black tracking-tight text-[var(--color-text)] mb-1">Review proposed changes</h1>
               <p className="text-sm text-[var(--color-text-muted)]">Approve or reject each suggestion. Only approved changes are written into the LaTeX.</p>
             </div>
-            <div className="bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] p-4 space-y-3">
+            <div className="nb-card rounded-[10px] p-4 space-y-3">
               <p className="text-sm text-[var(--color-text)]">{state.optimizationResult.summary}</p>
               {(state.optimizationResult.unevidencedSkills?.length ?? 0) > 0 && (
-                <div className="rounded-xl border border-[var(--color-warning)] bg-[var(--color-warning-highlight)] p-3">
+                <div className="rounded-[10px] border border-[var(--color-warning)] bg-[var(--color-warning-highlight)] p-3">
                   <p className="text-xs font-semibold text-[var(--color-warning)] mb-1.5">
                     Claimed in Skills, but no bullet backs them up
                   </p>
@@ -753,12 +742,12 @@ export default function Dashboard() {
               )}
             </div>
             <DiffViewer changes={state.optimizationResult.changes} onApprove={handleApprove} onReject={handleReject} onApproveAll={handleApproveAll} onRejectAll={handleRejectAll} />
-            <div className="sticky bottom-4 bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] shadow-lg p-4 flex items-center justify-between">
+            <div className="sticky bottom-4 nb-card rounded-[10px] shadow-[5px_5px_0_0_var(--color-ink)] p-4 flex items-center justify-between">
               <p className="text-sm text-[var(--color-text-muted)]">
                 <span className="font-semibold text-[var(--color-text)]">{approvedCount}</span> change{approvedCount !== 1 ? 's' : ''} approved
               </p>
               <button onClick={handleApplyChanges} disabled={loading || approvedCount === 0}
-                className="py-2.5 px-6 rounded-xl bg-[var(--color-primary)] text-white font-semibold text-sm hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2">
+                className="py-2.5 px-6 rounded-[10px] bg-[var(--color-primary)] text-white font-semibold text-sm hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2">
                 {`Apply ${approvedCount} Change${approvedCount !== 1 ? 's' : ''} →`}
               </button>
             </div>
@@ -789,14 +778,14 @@ export default function Dashboard() {
               </div>
 
               <div>
-                <h1 className="text-2xl font-bold text-[var(--color-text)] mb-2">Resume optimized!</h1>
+                <h1 className="text-3xl font-black tracking-tight text-[var(--color-text)] mb-2">Resume optimized!</h1>
                 <p className="text-sm text-[var(--color-text-muted)]">
                   Your changes are spliced into a tailored copy of the LaTeX. <code className="font-mono text-xs">resumes/{activeProfile.texFile}</code> is untouched.
                 </p>
               </div>
 
               {state.applyWarning && (
-                <div className="max-w-xl mx-auto flex items-start gap-3 rounded-xl border border-[var(--color-warning)] bg-[var(--color-warning-highlight)] p-4 text-left text-sm text-[var(--color-warning)]">
+                <div className="max-w-xl mx-auto flex items-start gap-3 rounded-[10px] border border-[var(--color-warning)] bg-[var(--color-warning-highlight)] p-4 text-left text-sm text-[var(--color-warning)]">
                   <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
                     <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
@@ -819,15 +808,15 @@ export default function Dashboard() {
 
               {state.optimizationResult && (
                 <div className="flex justify-center gap-6">
-                  <div className="bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] px-5 py-3 text-center">
+                  <div className="nb-card rounded-[10px] px-5 py-3 text-center">
                     <p className="text-2xl font-bold text-[var(--color-primary)]">{state.optimizationResult.sectionsModified.length}</p>
                     <p className="text-xs text-[var(--color-text-muted)]">Sections</p>
                   </div>
-                  <div className="bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] px-5 py-3 text-center">
+                  <div className="nb-card rounded-[10px] px-5 py-3 text-center">
                     <p className="text-2xl font-bold text-[var(--color-success)]">{approvedCount}</p>
                     <p className="text-xs text-[var(--color-text-muted)]">Changes</p>
                   </div>
-                  <div className="bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] px-5 py-3 text-center">
+                  <div className="nb-card rounded-[10px] px-5 py-3 text-center">
                     <p className="text-2xl font-bold text-[var(--color-gold)]">{state.optimizationResult.keywordsAdded.length}</p>
                     <p className="text-xs text-[var(--color-text-muted)]">Keywords</p>
                   </div>
@@ -836,21 +825,21 @@ export default function Dashboard() {
 
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <button onClick={handleDownloadTex}
-                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-[var(--color-primary)] text-white font-semibold text-sm hover:bg-[var(--color-primary-hover)] transition-all shadow-md hover:shadow-lg">
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-[10px] bg-[var(--color-primary)] text-white font-semibold text-sm hover:bg-[var(--color-primary-hover)] transition-all shadow-[4px_4px_0_0_var(--color-ink)] hover:shadow-[5px_5px_0_0_var(--color-ink)]">
                   <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
                   </svg>
                   Download .tex
                 </button>
                 <button onClick={() => state.optimizedLatex && openInOverleaf(state.optimizedLatex)}
-                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl border border-[var(--color-border)] text-[var(--color-text)] font-semibold text-sm hover:bg-[var(--color-surface-offset)] transition-all">
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-[10px] border-[1.6px] border-[var(--color-ink)] text-[var(--color-text)] font-semibold text-sm hover:bg-[var(--color-surface-offset)] transition-all">
                   <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
                   </svg>
                   Open in Overleaf
                 </button>
                 <button onClick={handleCompilePdf} disabled={compiling}
-                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl border border-[var(--color-border)] text-[var(--color-text)] font-semibold text-sm hover:bg-[var(--color-surface-offset)] disabled:opacity-50 transition-all">
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-[10px] border-[1.6px] border-[var(--color-ink)] text-[var(--color-text)] font-semibold text-sm hover:bg-[var(--color-surface-offset)] disabled:opacity-50 transition-all">
                   <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" />
                   </svg>

@@ -2,7 +2,8 @@
 import { useState } from 'react'
 import { signOut } from 'next-auth/react'
 import { readApiError } from '@/components/user/billing-client'
-import { dangerButton, errorBox, inputClass } from '@/components/user/shared'
+import { dangerButton, errorBox, inputClass, backLinkClass } from '@/components/user/shared'
+import { ArrowLeft } from '@/components/brand/Icons'
 import { clearLocalAppData } from '@/lib/settings-storage'
 
 /** The signed-in account: who it is, where its data lives, and deleting it. */
@@ -14,7 +15,7 @@ interface AccountPanelProps {
 }
 
 const CONFIRM_WORD = 'DELETE'
-const card = 'bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] p-5'
+const card = 'nb-card rounded-[10px] p-5'
 
 export default function AccountPanel({ email, onBack, onOpenHistory }: AccountPanelProps) {
   const [confirmText, setConfirmText] = useState('')
@@ -40,53 +41,52 @@ export default function AccountPanel({ email, onBack, onOpenHistory }: AccountPa
   }
 
   return (
-    <div className="space-y-6 anim-page-enter">
+    <div className="space-y-8 anim-page-enter max-w-3xl">
       <div>
-        <button
-          onClick={onBack}
-          disabled={deleting}
-          className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] disabled:opacity-50 transition-colors"
-        >
-          ← Back
+        <button onClick={onBack} disabled={deleting} className={backLinkClass}>
+          <ArrowLeft size={16} /> Back
         </button>
-        <h1 className="text-2xl font-bold text-[var(--color-text)] mt-2">Your account</h1>
-        <p className="text-sm text-[var(--color-text-muted)] mt-1">Signed in with Google{email ? ` as ${email}` : ''}.</p>
+        <h1 className="mt-3 text-4xl sm:text-5xl font-black tracking-tight">
+          Your <span className="nb-highlight">account</span>
+        </h1>
+        <p className="mt-5 text-lg text-[var(--color-text-muted)]">Signed in with Google{email ? ` as ${email}` : ''}.</p>
       </div>
 
       <section className={card}>
-        <h2 className="text-sm font-semibold text-[var(--color-text)]">Your data</h2>
-        <ul className="mt-2 space-y-1.5 text-sm text-[var(--color-text-muted)] list-disc pl-5">
+        <h2 className="text-xl font-black">Your data</h2>
+        <ul className="mt-3 space-y-1.5 text-sm text-[var(--color-text-muted)] list-disc pl-5">
           <li>
             Your saved resumes and your{' '}
-            <button onClick={onOpenHistory} className="text-[var(--color-primary)] hover:underline">
+            <button onClick={onOpenHistory} className="font-bold text-[var(--color-text)] underline underline-offset-4">
               tailoring history
-            </button>{' '}
-            are stored with your account.
+            </button>
+            , with its cover letters, are stored with your account.
           </li>
+          <li>Job descriptions you check in the keyword finder aren&apos;t saved.</li>
           <li>Payments are handled by Razorpay; ResMod keeps only the payment records.</li>
         </ul>
         <p className="text-xs text-[var(--color-text-muted)] mt-3">
           The{' '}
-          <a href="/privacy" className="underline hover:text-[var(--color-text)]">
+          <a href="/privacy" className="font-bold underline underline-offset-4 hover:text-[var(--color-text)]">
             privacy policy
           </a>{' '}
           has the details.
         </p>
       </section>
 
-      <section className="rounded-2xl border border-[var(--color-error)] p-5 space-y-3">
-        <h2 className="text-sm font-semibold text-[var(--color-error)]">Delete your account</h2>
-        <p className="text-sm text-[var(--color-text-muted)]">
-          This deletes your saved resumes, your tailoring history, and your name and email, then signs you out. It can&apos;t
-          be undone.
+      <section className="nb-card rounded-[10px] p-5 space-y-3 bg-[var(--color-error-highlight)]">
+        <h2 className="text-xl font-black text-[var(--color-error)]">Delete your account</h2>
+        <p className="text-sm text-[var(--color-text)]">
+          This deletes your saved resumes, your tailoring history and cover letters, and your name and email, then signs
+          you out. It can&apos;t be undone.
         </p>
-        <ul className="text-sm text-[var(--color-text-muted)] list-disc pl-5 space-y-1">
+        <ul className="text-sm text-[var(--color-text)] list-disc pl-5 space-y-1">
           <li>Unused credits are lost.</li>
           <li>A Pro plan is cancelled and won&apos;t renew. The current month isn&apos;t refunded.</li>
           <li>Payment records are kept for accounting, and so are usage counts, so deleting doesn&apos;t give you free tailorings again.</li>
         </ul>
         <label className="block">
-          <span className="block text-xs text-[var(--color-text-muted)] mb-1.5">Type {CONFIRM_WORD} to confirm</span>
+          <span className="block text-sm font-bold mb-1.5">Type {CONFIRM_WORD} to confirm</span>
           <input
             value={confirmText}
             onChange={(e) => setConfirmText(e.target.value)}

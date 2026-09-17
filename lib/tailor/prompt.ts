@@ -1,6 +1,6 @@
 import { ParsedResume } from '@/types/resume'
 import { ResumeProfile } from '@/lib/profiles/types'
-import { LEVELS, TailorLevel } from '@/lib/tailor/levels'
+import { LEVELS, TailorLevel, TailorTone, TONES } from '@/lib/tailor/levels'
 import type { JdKeyword, JdKeywords } from '@/lib/tailor/keywords'
 import type { EditableLine } from '@/lib/tailor/guards'
 
@@ -20,13 +20,17 @@ ABSOLUTE RULES
 5. When a required keyword cannot honestly be tied to real work, add it to the skills line of the matching category instead of inventing experience.
 6. Return only the JSON object: no markdown fences, no commentary.`
 
-export function buildTailorSystemInstruction(level: TailorLevel, profile: ResumeProfile): string {
+export function buildTailorSystemInstruction(level: TailorLevel, profile: ResumeProfile, tone: TailorTone = 'balanced'): string {
   const spec = LEVELS[level]
+  const voice = TONES[tone]?.style
+  const toneBlock = voice
+    ? `\n## TONE: ${TONES[tone].label.toUpperCase()}\n${voice} The tone changes the wording only, never the facts.\n`
+    : ''
   return `${CORE}
 
 ## TAILORING LEVEL: ${spec.label.toUpperCase()}
 ${spec.strategy}
-
+${toneBlock}
 ${profile.sectionRules}`
 }
 

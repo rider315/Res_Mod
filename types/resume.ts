@@ -31,6 +31,8 @@ export interface ResumeChange {
   reason: string
   type: 'rewrite' | 'add_keywords' | 'improve_clarity' | 'action_verb'
   approved: boolean | null
+  /** The person changed the suggested wording before approving it. */
+  edited?: boolean
 }
 
 /** What a tailoring run found in the job description, and where the resume started. */

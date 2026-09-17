@@ -43,9 +43,15 @@ const dailyLimitReached = () =>
 const unavailable = () =>
   refuse(
     503,
-    "Importing and tailoring aren't available right now. Please try again later.",
+    "ResMod's AI isn't available right now. Please try again later.",
     BILLING_CODES.platformUnavailable
   )
+
+/**
+ * What a request spends: a tailoring, an import from the month's allowance, or
+ * nothing beyond the daily cap (finding keywords, writing a cover letter).
+ */
+export type AiMeter = 'run' | 'import' | 'free'
 
 /**
  * Which model an AI route runs on, and who pays for it.
@@ -60,7 +66,7 @@ const unavailable = () =>
  * reservation to releaseReservation if the work then fails. Every request also
  * counts toward a daily cap.
  */
-export async function chooseAi(account: Account, request: AiRequest, meter: 'run' | 'import'): Promise<AiChoice> {
+export async function chooseAi(account: Account, request: AiRequest, meter: AiMeter): Promise<AiChoice> {
   if (account.role === 'owner') return ownerAi(request)
   if (!account.userId) return refuse(401, 'Not authenticated')
 
@@ -71,22 +77,28 @@ export async function chooseAi(account: Account, request: AiRequest, meter: 'run
     await ensureUser({ id: account.userId, email: account.email, name: account.userName || null })
 
     // The run is taken first, so a request refused for want of runs doesn't also use up the day's cap.
-    const reservation = meter === 'run' ? await reserveRun(account.userId) : await reserveImport(account.userId)
-    if (!reservation) {
-      return meter === 'run'
-        ? refuse(
-            402,
-            'You have no tailorings left. Get Pro or a credit pack on the Plans page to keep tailoring.',
-            BILLING_CODES.quotaExhausted
-          )
-        : refuse(
-            429,
-            "You've reached this month's limit for importing resumes. It starts again next month.",
-            BILLING_CODES.importLimit
-          )
+    let reservation: Reservation | null = null
+    if (meter === 'run') {
+      reservation = await reserveRun(account.userId)
+      if (!reservation) {
+        return refuse(
+          402,
+          'You have no tailorings left. Get Pro or a credit pack on the Plans page to keep tailoring.',
+          BILLING_CODES.quotaExhausted
+        )
+      }
+    } else if (meter === 'import') {
+      reservation = await reserveImport(account.userId)
+      if (!reservation) {
+        return refuse(
+          429,
+          "You've reached this month's limit for importing resumes. It starts again next month.",
+          BILLING_CODES.importLimit
+        )
+      }
     }
     if (!(await takeDailyAiRequest(account.userId))) {
-      await releaseReservation(reservation)
+      if (reservation) await releaseReservation(reservation)
       return dailyLimitReached()
     }
     return { ok: true, ...platform, reservation }

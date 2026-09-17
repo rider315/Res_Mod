@@ -79,3 +79,33 @@ export const LEVELS: Record<TailorLevel, LevelSpec> = {
 export function isTailorLevel(value: unknown): value is TailorLevel {
   return typeof value === 'string' && (TAILOR_LEVELS as readonly string[]).includes(value)
 }
+
+/**
+ * The voice the rewritten lines are written in. Balanced is the default; the
+ * others shift the wording to suit the role and company, never the facts.
+ */
+export const TAILOR_TONES = ['balanced', 'formal', 'direct', 'warm'] as const
+export type TailorTone = (typeof TAILOR_TONES)[number]
+
+export const TONES: Record<TailorTone, { label: string; hint: string; style: string }> = {
+  balanced: {
+    label: 'Balanced',
+    hint: 'Clear and professional',
+    style: '',
+  },
+  formal: {
+    label: 'Formal',
+    hint: 'Polished, for corporate and regulated roles',
+    style: 'Write in a formal, polished register: precise verbs and measured phrasing, nothing casual.',
+  },
+  direct: {
+    label: 'Direct',
+    hint: 'Short, results first',
+    style: 'Write plainly and concisely: lead each line with a strong verb and the result, and cut every filler word.',
+  },
+  warm: {
+    label: 'Warm',
+    hint: 'Human, for people-focused roles',
+    style: 'Write in an approachable, human voice that still sounds professional, suited to people-focused and creative roles.',
+  },
+}

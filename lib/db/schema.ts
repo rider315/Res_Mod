@@ -89,6 +89,30 @@ export const tailorings = pgTable(
   (table) => [index('tailorings_user_id_created_at_idx').on(table.userId, table.createdAt)]
 )
 
+/**
+ * Cover letters written for a tailored copy. Each write or rewrite is a row, so
+ * the number of rows is how many times one was written; edits change the
+ * newest row in place. They go with the tailored copy they were written for.
+ */
+export const coverLetters = pgTable(
+  'cover_letters',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    tailoringId: uuid('tailoring_id')
+      .notNull()
+      .references(() => tailorings.id, { onDelete: 'cascade' }),
+    /** professional, warm, direct or enthusiastic. */
+    tone: text('tone').notNull(),
+    body: text('body').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('cover_letters_tailoring_id_created_at_idx').on(table.tailoringId, table.createdAt)]
+)
+
 // ─── Billing ─────────────────────────────────────────────────────────────────
 //
 // Money-related rows (orders, subscriptions, payments) keep their history when

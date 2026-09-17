@@ -56,16 +56,14 @@ export default function UsageMeter({ usage, stage, label, startedAt, source, run
   const inputShare = total > 0 ? Math.round((usage.inputTokens / total) * 100) : 0
 
   return (
-    <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-offset)] p-4 space-y-3">
-      <div className="flex items-baseline justify-between gap-3">
-        <h2 className="text-sm font-semibold text-[var(--color-text)]">AI usage this run</h2>
-        <span className="text-xs tabular-nums text-[var(--color-text-muted)]">
-          {startedAt ? clock(elapsed) : null}
-        </span>
+    <div className="nb-card rounded-[10px] p-5 space-y-4 bg-[var(--color-sky-soft)]">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-lg font-black">AI usage this run</h2>
+        <span className="nb-chip bg-[var(--color-yellow)] text-[#0a0a0a] tabular-nums">{startedAt ? clock(elapsed) : '0:00'}</span>
       </div>
 
       <div>
-        <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-[var(--color-border)]">
+        <div className="flex h-4 w-full overflow-hidden rounded-full border-[1.6px] border-[var(--color-ink)] bg-[var(--color-surface)]">
           <div
             className="bg-[var(--color-primary)] transition-all duration-500"
             style={{ width: `${inputShare}%` }}
@@ -78,7 +76,11 @@ export default function UsageMeter({ usage, stage, label, startedAt, source, run
           />
         </div>
         <p className="mt-2 text-sm text-[var(--color-text)]">
-          <span className="font-semibold tabular-nums">{about}{formatTokens(total)}</span> tokens
+          <span className="text-2xl font-black tabular-nums">
+            {about}
+            {formatTokens(total)}
+          </span>{' '}
+          tokens
           <span className="text-[var(--color-text-muted)]">
             {' '}· {formatTokens(usage.inputTokens)} in / {formatTokens(usage.outputTokens)} out ·{' '}
             {usage.calls} model call{usage.calls === 1 ? '' : 's'}
@@ -90,14 +92,14 @@ export default function UsageMeter({ usage, stage, label, startedAt, source, run
         {RUN_STAGES.map((entry, index) => {
           const state = stageState(index, stage)
           return (
-            <li key={entry.stage} className="flex items-center gap-2 text-xs">
+            <li key={entry.stage} className="flex items-center gap-2.5 text-sm">
               <span
-                className={`inline-block h-1.5 w-1.5 rounded-full ${
+                className={`inline-block h-3 w-3 rounded-full border-[1.6px] border-[var(--color-ink)] ${
                   state === 'done'
-                    ? 'bg-[var(--color-success)]'
+                    ? 'bg-[var(--color-accent)]'
                     : state === 'running'
                       ? 'bg-[var(--color-primary)] animate-pulse'
-                      : 'bg-[var(--color-border)]'
+                      : 'bg-[var(--color-surface)]'
                 }`}
                 aria-hidden
               />
@@ -106,7 +108,7 @@ export default function UsageMeter({ usage, stage, label, startedAt, source, run
                   state === 'waiting'
                     ? 'text-[var(--color-text-faint)]'
                     : state === 'running'
-                      ? 'text-[var(--color-text)] font-medium'
+                      ? 'text-[var(--color-text)] font-bold'
                       : 'text-[var(--color-text-muted)]'
                 }
               >

@@ -7,12 +7,12 @@ export const metadata = {
 
 export default function Shipping() {
   return (
-    <PolicyPage title="Shipping and Delivery Policy" updated="15 September 2026">
+    <PolicyPage title="Shipping and Delivery Policy" updated="16 September 2026">
       <PolicySection title="Nothing is shipped">
         <p>ResMod is an online service. It sells no physical goods, so nothing is shipped and there are no delivery charges.</p>
       </PolicySection>
 
-      <PolicySection title="Runs and Pro">
+      <PolicySection title="Tailorings and Pro">
         <p>
           Credit packs and Pro are added to your ResMod account as soon as Razorpay confirms the payment, usually within a
           minute. If they have not appeared within an hour, write to the address on the{' '}
@@ -23,8 +23,8 @@ export default function Shipping() {
 
       <PolicySection title="Your tailored resumes">
         <p>
-          Tailored resumes are delivered in the app, as PDF or LaTeX downloads or an Overleaf project, and are kept in your
-          history so you can download them again.
+          Tailored resumes and cover letters are delivered in the app, as PDF or LaTeX downloads or an Overleaf project, and
+          are kept in your history so you can download them again.
         </p>
       </PolicySection>
     </PolicyPage>

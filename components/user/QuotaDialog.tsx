@@ -55,23 +55,23 @@ export default function QuotaDialog({ kind, billing, onOpenBilling, onClose }: Q
         role="dialog"
         aria-modal="true"
         aria-labelledby="quota-dialog-title"
-        className="bg-[var(--color-surface)] w-full max-w-md rounded-2xl border border-[var(--color-border)] shadow-2xl p-6 space-y-4"
+        className="nb-card w-full max-w-md rounded-[10px] shadow-[8px_8px_0_0_var(--color-ink)] p-7 space-y-5"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 id="quota-dialog-title" className="text-lg font-bold text-[var(--color-text)]">
+        <span className="nb-badge w-12 h-12 bg-[var(--color-yellow)] text-2xl" aria-hidden>
+          !
+        </span>
+        <h2 id="quota-dialog-title" className="text-2xl font-black leading-tight">
           {title}
         </h2>
-        {detail && <p className="text-sm text-[var(--color-text-muted)]">{detail}</p>}
+        {detail && <p className="text-[var(--color-text-muted)]">{detail}</p>}
         <div className="flex flex-col sm:flex-row gap-2">
           {canBuy && (
             <button onClick={onOpenBilling} className={primaryButton}>
               {kind === 'run' ? 'Get Pro or a credit pack' : 'See plans'}
             </button>
           )}
-          <button
-            onClick={onClose}
-            className="py-2 px-3.5 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
-          >
+          <button onClick={onClose} className="nb-btn nb-btn-sm py-2.5 px-4 text-sm">
             Not now
           </button>
         </div>

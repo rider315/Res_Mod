@@ -112,8 +112,8 @@ export default function PlatformAiSection({ provider, model, apiKey, focus = fal
   return (
     <section
       ref={sectionRef}
-      className={`mt-6 pt-5 border-t border-[var(--color-border)] space-y-3 ${
-        focus ? 'rounded-xl ring-2 ring-[var(--color-warning)] ring-offset-4 ring-offset-[var(--color-surface)] px-1' : ''
+      className={`mt-6 pt-5 border-t-[1.6px] border-[var(--color-ink)] space-y-3 ${
+        focus ? 'rounded-[10px] ring-2 ring-[var(--color-warning)] ring-offset-4 ring-offset-[var(--color-surface)] px-1' : ''
       }`}
     >
       <div>
@@ -125,7 +125,7 @@ export default function PlatformAiSection({ provider, model, apiKey, focus = fal
         </p>
       </div>
 
-      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-offset)] p-3 text-xs space-y-1">
+      <div className="rounded-[10px] border-[1.6px] border-[var(--color-ink)] bg-[var(--color-surface-offset)] p-3 text-xs space-y-1">
         {loadError ? (
           <p className="text-[var(--color-error)]">{loadError}</p>
         ) : !status ? (
@@ -164,7 +164,7 @@ export default function PlatformAiSection({ provider, model, apiKey, focus = fal
         <button
           onClick={() => send('PUT')}
           disabled={busy !== null || config.clientSide}
-          className="py-2 px-3 rounded-xl bg-[var(--color-primary)] text-white text-xs font-semibold hover:bg-[var(--color-primary-hover)] disabled:opacity-50 transition-all"
+          className="py-2 px-3 rounded-[10px] bg-[var(--color-primary)] text-white text-xs font-semibold hover:bg-[var(--color-primary-hover)] disabled:opacity-50 transition-all"
         >
           {busy === 'save' ? 'Checking the key…' : `Use ${config.label}${modelLabel} for ResMod AI`}
         </button>
@@ -172,7 +172,7 @@ export default function PlatformAiSection({ provider, model, apiKey, focus = fal
           <button
             onClick={() => send('DELETE')}
             disabled={busy !== null}
-            className="py-2 px-3 rounded-xl border border-[var(--color-border)] text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-error)] hover:border-[var(--color-error)] disabled:opacity-50 transition-all"
+            className="py-2 px-3 rounded-[10px] border-[1.6px] border-[var(--color-ink)] text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-error)] hover:border-[var(--color-error)] disabled:opacity-50 transition-all"
           >
             {busy === 'off' ? 'Turning off…' : 'Turn off'}
           </button>

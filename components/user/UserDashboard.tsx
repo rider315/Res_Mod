@@ -3,16 +3,29 @@ import { useCallback, useEffect, useState } from 'react'
 import { signOut } from 'next-auth/react'
 import OwnerNav from '@/components/OwnerNav'
 import SettingsModal from '@/components/SettingsModal'
+import { LogoMark } from '@/components/brand/Logo'
+import {
+  ArrowRight,
+  Download,
+  FileText,
+  History as HistoryIcon,
+  Pencil,
+  Plus,
+  Search,
+  Sparkles,
+  Trash,
+  User,
+} from '@/components/brand/Icons'
 import AccountPanel from '@/components/user/AccountPanel'
 import BillingPanel from '@/components/user/BillingPanel'
 import HistoryPanel from '@/components/user/HistoryPanel'
 import ImportPanel from '@/components/user/ImportPanel'
+import KeywordFinderPanel from '@/components/user/KeywordFinderPanel'
 import QuotaDialog from '@/components/user/QuotaDialog'
 import ResumeEditor from '@/components/user/ResumeEditor'
 import TailorPanel from '@/components/user/TailorPanel'
 import { fetchBilling, tailorings } from '@/components/user/billing-client'
 import {
-  dangerButton,
   downloadBlob,
   downloadResumePdf,
   errorBox,
@@ -53,17 +66,16 @@ type View =
 
 /**
  * Screens that open over the current view. The view stays mounted underneath,
- * so a pasted job description survives a trip to buy runs or look something up.
+ * so a pasted job description survives a trip to buy tailorings or look something up.
  */
-type Overlay = 'billing' | 'history' | 'account' | null
+type Overlay = 'billing' | 'history' | 'account' | 'keywords' | null
 
 const FORMAT_LABEL: Record<string, string> = { pdf: 'PDF', docx: 'Word', latex: 'LaTeX', text: 'text' }
-const headerButton = 'text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors'
 
 const STEPS: Array<[string, string]> = [
-  ['Import your resume', 'A PDF, Word, LaTeX or text file becomes a clean LaTeX resume you can check and edit.'],
-  ['Paste a job description', 'Choose Soft, Hard or Hardest, and the AI tailors your resume to that job.'],
-  ['Review and download', 'Approve each change, then download a PDF or .tex, or open it in Overleaf.'],
+  ['Import your resume', 'A PDF, Word, LaTeX or text file becomes a clean resume you can check and edit.'],
+  ['Paste a job description', 'Choose Soft, Hard or Hardest, and a tone, and ResMod tailors your resume to the job.'],
+  ['Review and download', 'Keep, edit or skip each change, then download a PDF and write a matching cover letter.'],
 ]
 
 interface LoadedResume {
@@ -77,11 +89,13 @@ interface UserDashboardProps {
   email: string
   /** The owner, visiting this workspace from the profile dashboard. */
   isOwner?: boolean
+  /** Start on the keyword finder, as the public keyword finder page links here. */
+  openKeywordFinder?: boolean
 }
 
-export default function UserDashboard({ name, email, isOwner = false }: UserDashboardProps) {
+export default function UserDashboard({ name, email, isOwner = false, openKeywordFinder = false }: UserDashboardProps) {
   const [view, setView] = useState<View>({ kind: 'list' })
-  const [overlay, setOverlay] = useState<Overlay>(null)
+  const [overlay, setOverlay] = useState<Overlay>(openKeywordFinder ? 'keywords' : null)
   const [resumes, setResumes] = useState<ResumeSummary[] | null>(null)
   const [listError, setListError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -95,11 +109,19 @@ export default function UserDashboard({ name, email, isOwner = false }: UserDash
   const firstName = name.trim().split(/\s+/)[0]
 
   useEffect(() => {
-    const theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-    document.documentElement.setAttribute('data-theme', theme)
+    // The workspace has one look, whatever the device's theme.
+    document.documentElement.setAttribute('data-theme', 'light')
     // Only the owner has AI settings; everyone else runs on ResMod AI.
     if (isOwner) setSettings(loadAISettings())
   }, [isOwner])
+
+  useEffect(() => {
+    if (!openKeywordFinder) return
+    // The link has done its job: reloading shouldn't reopen the finder once it's closed.
+    const url = new URL(window.location.href)
+    url.searchParams.delete('open')
+    window.history.replaceState(null, '', url)
+  }, [openKeywordFinder])
 
   const refresh = useCallback(async () => {
     try {
@@ -131,6 +153,12 @@ export default function UserDashboard({ name, email, isOwner = false }: UserDash
   function openOverlay(next: Overlay) {
     setQuotaDialog(null)
     setOverlay(next)
+    window.scrollTo({ top: 0 })
+  }
+
+  function goHome() {
+    setOverlay(null)
+    setView({ kind: 'list' })
     window.scrollTo({ top: 0 })
   }
 
@@ -198,160 +226,162 @@ export default function UserDashboard({ name, email, isOwner = false }: UserDash
     }
   }
 
+  const startTailoring = (resumeId: string, title: string, jobDescription?: string) => {
+    setOverlay(null)
+    setView({ kind: 'tailor', resumeId, title, jobDescription })
+    window.scrollTo({ top: 0 })
+  }
+
   return (
-    <div className="min-h-screen bg-[var(--color-bg)]">
-      <header className="sticky top-0 z-10 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-6 py-3 flex items-center justify-between gap-4">
-        <button onClick={() => setOverlay(null)} className="font-semibold text-[var(--color-text)] text-base">
-          ResMod
-        </button>
-        <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1">
-          {isOwner ? (
-            <OwnerNav
-              inUserWorkspace
-              onOpenAiSettings={() => {
-                setFocusPlatformAi(true)
-                setShowSettings(true)
-              }}
-            />
-          ) : (
-            <>
-              {billing?.platformAi && (
-                <button onClick={() => openOverlay('billing')} className={headerButton}>
-                  <span className="font-semibold text-[var(--color-text)] tabular-nums">{billing.runs.left}</span>{' '}
-                  {billing.runs.left === 1 ? 'tailoring' : 'tailorings'} left
-                </button>
-              )}
-              <button onClick={() => openOverlay('billing')} className={headerButton}>
-                Plans
-              </button>
-            </>
-          )}
-          <button onClick={() => openOverlay('history')} className={headerButton}>
-            History
+    <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)]">
+      {/* Below lg the links get a row of their own, and on phones the header scrolls away. */}
+      <header className="sm:sticky sm:top-0 z-20 bg-[var(--color-surface)] border-b-[1.6px] border-[var(--color-ink)]">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 min-h-[64px] py-2 flex flex-wrap items-center gap-x-1.5 gap-y-2">
+          <button onClick={goHome} className="mr-auto inline-flex items-center gap-2.5" aria-label="Your resumes">
+            <LogoMark size={36} />
+            <span className="hidden sm:inline text-xl font-black tracking-tight">ResMod</span>
           </button>
-          {isOwner && (
-            <button onClick={() => setShowSettings(true)} className={headerButton}>
-              AI settings
+          {!isOwner && billing?.platformAi && (
+            <button
+              onClick={() => openOverlay('billing')}
+              className="nb-chip py-1.5 px-3 bg-[var(--color-accent)] text-[#0a0a0a] hover:shadow-[3px_3px_0_0_var(--color-ink)] transition-shadow"
+            >
+              <span className="tabular-nums">{billing.runs.left}</span> {billing.runs.left === 1 ? 'tailoring' : 'tailorings'} left
             </button>
           )}
-          {!isOwner && (
-            <button onClick={() => openOverlay('account')} title={email || name} className={headerButton}>
-              Account
-            </button>
-          )}
+          <nav className="order-last w-full lg:order-none lg:w-auto flex flex-wrap items-center gap-1 lg:gap-1.5">
+            {isOwner && (
+              <OwnerNav
+                inUserWorkspace
+                onOpenAiSettings={() => {
+                  setFocusPlatformAi(true)
+                  setShowSettings(true)
+                }}
+              />
+            )}
+            <NavButton active={overlay === 'keywords'} onClick={() => openOverlay('keywords')} icon={<Search size={16} />}>
+              Keywords
+            </NavButton>
+            <NavButton active={overlay === 'history'} onClick={() => openOverlay('history')} icon={<HistoryIcon size={16} />}>
+              History
+            </NavButton>
+            {!isOwner && (
+              <NavButton active={overlay === 'billing'} onClick={() => openOverlay('billing')} icon={<Sparkles size={16} />}>
+                Plans
+              </NavButton>
+            )}
+            {isOwner && (
+              <NavButton active={showSettings} onClick={() => setShowSettings(true)}>
+                AI settings
+              </NavButton>
+            )}
+            {!isOwner && (
+              <NavButton active={overlay === 'account'} onClick={() => openOverlay('account')} icon={<User size={16} />} title={email || name}>
+                Account
+              </NavButton>
+            )}
+          </nav>
           <button
             onClick={() => signOut({ callbackUrl: '/' })}
-            className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-error)] transition-colors"
+            className="px-2 py-1.5 text-sm font-bold text-[var(--color-text-muted)] hover:text-[var(--color-error)] transition-colors"
           >
             Sign out
           </button>
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-4 py-8">
-        <div hidden={overlay !== null} className="space-y-6">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
+        <div hidden={overlay !== null}>
           {view.kind === 'list' && (
-            <div className="space-y-6 anim-page-enter">
-              <div className="flex flex-wrap items-end justify-between gap-3">
+            <div className="space-y-8 anim-page-enter">
+              <div className="flex flex-wrap items-end justify-between gap-4">
                 <div>
-                  <h1 className="text-2xl font-bold text-[var(--color-text)]">
-                    {firstName ? `Welcome, ${firstName}` : 'Your resumes'}
+                  <h1 className="text-4xl sm:text-5xl font-black tracking-tight">
+                    {firstName ? (
+                      <>
+                        Welcome, <span className="nb-highlight">{firstName}</span>
+                      </>
+                    ) : (
+                      'Your resumes'
+                    )}
                   </h1>
-                  <p className="text-sm text-[var(--color-text-muted)] mt-1">
+                  <p className="mt-4 text-lg text-[var(--color-text-muted)]">
                     Import a resume once, then tailor it to any job description.
                   </p>
                 </div>
                 {resumes && resumes.length > 0 && (
                   <button onClick={() => setView({ kind: 'import' })} className={secondaryButton}>
-                    + Import another resume
+                    <Plus size={16} /> Import a resume
                   </button>
                 )}
               </div>
 
-              {!isOwner && billing?.platformAi && (
-                <PlanStrip billing={billing} onOpenBilling={() => openOverlay('billing')} />
-              )}
+              {!isOwner && billing?.platformAi && <PlanStrip billing={billing} onOpenBilling={() => openOverlay('billing')} />}
 
               {listError && <div className={errorBox}>{listError}</div>}
 
               {resumes === null ? (
-                <p className="text-sm text-[var(--color-text-muted)]">Loading your resumes…</p>
+                <p className="text-sm font-semibold text-[var(--color-text-muted)]">Loading your resumes…</p>
               ) : resumes.length === 0 ? (
-                <div className="bg-[var(--color-surface)] rounded-2xl border border-dashed border-[var(--color-border)] p-8 space-y-5">
-                  <div className="text-center space-y-1">
-                    <p className="text-base font-semibold text-[var(--color-text)]">Tailor your resume in three steps</p>
-                    <p className="text-sm text-[var(--color-text-muted)]">Start by importing the resume you already have.</p>
-                  </div>
-                  <ol className="max-w-md mx-auto space-y-3">
-                    {STEPS.map(([title, detail], i) => (
-                      <li key={title} className="flex items-start gap-3">
-                        <span className="w-6 h-6 rounded-full bg-[var(--color-primary-highlight)] text-[var(--color-primary)] text-xs font-bold flex items-center justify-center flex-shrink-0">
-                          {i + 1}
-                        </span>
-                        <div>
-                          <p className="text-sm font-semibold text-[var(--color-text)]">{title}</p>
-                          <p className="text-xs text-[var(--color-text-muted)]">{detail}</p>
-                        </div>
-                      </li>
-                    ))}
-                  </ol>
-                  <div className="text-center">
-                    <button onClick={() => setView({ kind: 'import' })} className={primaryButton}>
-                      Import your resume →
-                    </button>
-                  </div>
-                </div>
+                <GettingStarted onImport={() => setView({ kind: 'import' })} />
               ) : (
-                <>
+                <div className="grid gap-8 lg:grid-cols-[1.2fr_1fr] items-start">
                   <TailorStart
                     resumes={resumes}
                     disabled={busyId !== null}
-                    onStart={(resume, jobDescription) =>
-                      setView({ kind: 'tailor', resumeId: resume.id, title: resume.title, jobDescription })
-                    }
+                    onStart={(resume, jobDescription) => startTailoring(resume.id, resume.title, jobDescription)}
+                    onFindKeywords={() => openOverlay('keywords')}
                   />
 
-                  <div className="space-y-3">
-                    <h2 className="text-sm font-semibold text-[var(--color-text)]">Your resumes</h2>
-                    <ul className="space-y-3">
+                  <section className="space-y-4">
+                    <h2 className="text-xl font-black">Your resumes</h2>
+                    <ul className="space-y-4">
                       {resumes.map((resume) => (
-                        <li
-                          key={resume.id}
-                          className="bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] p-4 flex flex-wrap items-center justify-between gap-3"
-                        >
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold text-[var(--color-text)] truncate">{resume.title}</p>
-                            <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-                              Imported from {FORMAT_LABEL[resume.sourceFormat] ?? resume.sourceFormat} · updated{' '}
-                              {new Date(resume.updatedAt).toLocaleDateString()}
-                            </p>
+                        <li key={resume.id} className="nb-card rounded-[10px] p-4 space-y-3">
+                          <div className="flex items-start gap-3 min-w-0">
+                            <span className="nb-badge w-10 h-10 shrink-0 bg-[var(--color-yellow)]">
+                              <FileText size={20} />
+                            </span>
+                            <div className="min-w-0">
+                              <p className="font-extrabold truncate">{resume.title}</p>
+                              <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+                                From {FORMAT_LABEL[resume.sourceFormat] ?? resume.sourceFormat} · updated{' '}
+                                {new Date(resume.updatedAt).toLocaleDateString()}
+                              </p>
+                            </div>
                           </div>
                           <div className="flex flex-wrap gap-2">
                             <button
-                              onClick={() => setView({ kind: 'tailor', resumeId: resume.id, title: resume.title })}
+                              onClick={() => startTailoring(resume.id, resume.title)}
                               disabled={busyId !== null}
-                              className={primaryButton}
+                              className="nb-btn nb-btn-sm nb-btn-primary py-2 px-3.5 text-sm"
                             >
-                              Tailor
+                              Tailor <ArrowRight size={15} />
                             </button>
                             <button onClick={() => openResume(resume.id)} disabled={busyId !== null} className={secondaryButton}>
-                              Edit
+                              <Pencil size={15} /> Edit
+                            </button>
+                            <button onClick={() => downloadPdf(resume)} disabled={busyId !== null} className={secondaryButton}>
+                              <Download size={15} /> {busyId === resume.id ? 'Working…' : 'PDF'}
                             </button>
                             <button onClick={() => downloadTex(resume.id)} disabled={busyId !== null} className={secondaryButton}>
                               .tex
                             </button>
-                            <button onClick={() => downloadPdf(resume)} disabled={busyId !== null} className={secondaryButton}>
-                              {busyId === resume.id ? 'Working…' : 'PDF'}
-                            </button>
-                            <button onClick={() => remove(resume)} disabled={busyId !== null} className={dangerButton}>
-                              Delete
+                            <button
+                              onClick={() => remove(resume)}
+                              disabled={busyId !== null}
+                              className="nb-btn nb-btn-sm nb-btn-danger py-2 px-2.5"
+                              aria-label={`Delete ${resume.title}`}
+                              title="Delete"
+                            >
+                              <Trash size={15} />
                             </button>
                           </div>
                         </li>
                       ))}
                     </ul>
-                  </div>
-                </>
+                  </section>
+                </div>
               )}
             </div>
           )}
@@ -380,26 +410,38 @@ export default function UserDashboard({ name, email, isOwner = false }: UserDash
                 setView({ kind: 'list' })
                 refresh()
               }}
-              onTailor={(resumeId, title) => setView({ kind: 'tailor', resumeId, title })}
+              onTailor={(resumeId, title) => startTailoring(resumeId, title)}
             />
           )}
 
           {view.kind === 'tailor' && (
             <TailorPanel
-              key={view.resumeId}
+              key={`${view.resumeId}:${view.jobDescription ?? ''}`}
               resumeId={view.resumeId}
               resumeTitle={view.title}
               initialJobDescription={view.jobDescription}
               {...aiProps}
               onQuotaExhausted={() => setQuotaDialog('run')}
               onOpenHistory={() => openOverlay('history')}
-              onBack={() => setView({ kind: 'list' })}
+              onBack={goHome}
             />
           )}
         </div>
 
         {overlay === 'billing' && <BillingPanel billing={billing} onBillingChange={setBilling} onBack={() => setOverlay(null)} />}
-        {overlay === 'history' && <HistoryPanel onBack={() => setOverlay(null)} />}
+        {overlay === 'history' && <HistoryPanel {...aiProps} onBack={() => setOverlay(null)} />}
+        {overlay === 'keywords' && (
+          <KeywordFinderPanel
+            {...aiProps}
+            resumes={resumes ?? []}
+            onTailor={startTailoring}
+            onImport={() => {
+              setOverlay(null)
+              setView({ kind: 'import' })
+            }}
+            onBack={() => setOverlay(null)}
+          />
+        )}
         {overlay === 'account' && !isOwner && (
           <AccountPanel email={email} onBack={() => setOverlay(null)} onOpenHistory={() => openOverlay('history')} />
         )}
@@ -436,6 +478,64 @@ export default function UserDashboard({ name, email, isOwner = false }: UserDash
   )
 }
 
+function NavButton({
+  active,
+  onClick,
+  icon,
+  title,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  icon?: React.ReactNode
+  title?: string
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      aria-current={active ? 'page' : undefined}
+      className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-sm font-bold rounded-[8px] border-[1.6px] transition-all ${
+        active
+          ? 'border-[var(--color-ink)] bg-[var(--color-yellow)] text-[#0a0a0a] shadow-[3px_3px_0_0_var(--color-ink)]'
+          : 'border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:border-[var(--color-ink)]'
+      }`}
+    >
+      {icon && <span className="hidden sm:inline-flex">{icon}</span>}
+      {children}
+    </button>
+  )
+}
+
+/** The first thing a new account sees: the three steps, and the button for the first one. */
+function GettingStarted({ onImport }: { onImport: () => void }) {
+  return (
+    <div className="nb-card rounded-[10px] p-6 sm:p-10">
+      <div className="text-center">
+        <h2 className="text-2xl sm:text-3xl font-black">Tailor your resume in three steps</h2>
+        <p className="mt-2 text-[var(--color-text-muted)]">Start by importing the resume you already have.</p>
+      </div>
+      <ol className="mt-8 grid gap-5 md:grid-cols-3">
+        {STEPS.map(([title, detail], i) => (
+          <li key={title} className="rounded-[10px] border-[1.6px] border-[var(--color-ink)] bg-[var(--color-sky-soft)] p-5">
+            <div className="flex items-center gap-2">
+              <span className="nb-badge w-9 h-9 bg-[var(--color-accent)]">{i + 1}.</span>
+              <span className="nb-badge h-9 px-3 bg-[var(--color-yellow)] text-sm">{title}</span>
+            </div>
+            <p className="mt-4 text-sm text-[var(--color-text-muted)] leading-relaxed">{detail}</p>
+          </li>
+        ))}
+      </ol>
+      <div className="mt-8 text-center">
+        <button onClick={onImport} className="nb-btn nb-btn-primary px-7 py-3.5 text-base">
+          Import your resume <ArrowRight size={18} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
 /**
  * Where the account stands, and that Pro can be had at any time: before the free
  * tailorings run out as much as after.
@@ -455,13 +555,16 @@ function PlanStrip({ billing, onOpenBilling }: { billing: BillingStatus; onOpenB
 
   return (
     <div
-      className={`rounded-2xl border p-4 flex flex-wrap items-center justify-between gap-3 ${
-        warn
-          ? 'border-[var(--color-warning)] bg-[var(--color-warning-highlight)]'
-          : 'border-[var(--color-border)] bg-[var(--color-surface)]'
+      className={`nb-card rounded-[10px] p-4 flex flex-wrap items-center justify-between gap-3 ${
+        warn ? 'bg-[var(--color-error-highlight)]' : 'bg-[var(--color-yellow-soft)]'
       }`}
     >
-      <p className={`text-sm ${warn ? 'text-[var(--color-warning)] font-medium' : 'text-[var(--color-text-muted)]'}`}>{text}</p>
+      <p className="flex items-center gap-2.5 text-sm font-semibold">
+        <span className="nb-badge w-8 h-8 shrink-0 bg-[var(--color-yellow)]">
+          <Sparkles size={16} />
+        </span>
+        {text}
+      </p>
       <button onClick={onOpenBilling} className={warn ? primaryButton : secondaryButton}>
         See plans
       </button>
@@ -474,10 +577,12 @@ function TailorStart({
   resumes,
   disabled,
   onStart,
+  onFindKeywords,
 }: {
   resumes: ResumeSummary[]
   disabled: boolean
   onStart: (resume: ResumeSummary, jobDescription: string) => void
+  onFindKeywords: () => void
 }) {
   const [resumeId, setResumeId] = useState(resumes[0].id)
   const [jobDescription, setJobDescription] = useState('')
@@ -485,16 +590,21 @@ function TailorStart({
   const length = jobDescription.trim().length
 
   return (
-    <section className="bg-[var(--color-surface)] rounded-2xl border border-[var(--color-primary)] p-5 space-y-3">
-      <div>
-        <h2 className="text-base font-semibold text-[var(--color-text)]">Tailor a resume to a job</h2>
-        <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-          Paste the job description. Next you choose how much should change, and nothing is applied until you approve it.
-        </p>
+    <section className="nb-card rounded-[10px] p-5 sm:p-6 space-y-4 bg-[var(--color-surface)]">
+      <div className="flex items-start gap-3">
+        <span className="nb-badge w-11 h-11 shrink-0 bg-[var(--color-accent)]">
+          <Sparkles size={22} />
+        </span>
+        <div>
+          <h2 className="text-xl sm:text-2xl font-black leading-tight">Tailor a resume to a job</h2>
+          <p className="text-sm text-[var(--color-text-muted)] mt-1">
+            Paste the job description. Next you choose how much should change, and nothing is applied until you approve it.
+          </p>
+        </div>
       </div>
       {resumes.length > 1 && (
         <label className="block">
-          <span className="block text-xs font-medium text-[var(--color-text-muted)] mb-1">Resume</span>
+          <span className="block text-sm font-bold mb-1.5">Resume</span>
           <select value={resume.id} onChange={(e) => setResumeId(e.target.value)} disabled={disabled} className={inputClass}>
             {resumes.map((entry) => (
               <option key={entry.id} value={entry.id}>
@@ -504,27 +614,31 @@ function TailorStart({
           </select>
         </label>
       )}
-      <textarea
-        rows={5}
-        value={jobDescription}
-        onChange={(e) => setJobDescription(e.target.value)}
-        disabled={disabled}
-        placeholder="Paste the job description…"
-        aria-label="Job description"
-        className={`${inputClass} resize-y leading-relaxed`}
-      />
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[11px] text-[var(--color-text-muted)]">
-          {length > 0 && length < 80
-            ? 'Paste the whole job description: at least 80 characters.'
-            : resumes.length === 1
-              ? `Tailors ${resume.title}.`
-              : ''}
-        </p>
+      <label className="block">
+        <span className="block text-sm font-bold mb-1.5">Job description</span>
+        <textarea
+          rows={9}
+          value={jobDescription}
+          onChange={(e) => setJobDescription(e.target.value)}
+          disabled={disabled}
+          placeholder="Paste the full job post…"
+          className={`${inputClass} resize-y leading-relaxed`}
+        />
+      </label>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <button onClick={onFindKeywords} className="text-sm font-bold underline underline-offset-4 decoration-2 hover:text-[var(--color-primary)]">
+          Just want the keywords? Try the keyword finder
+        </button>
         <button onClick={() => onStart(resume, jobDescription)} disabled={disabled || length < 80} className={primaryButton}>
-          Next: choose how much to change →
+          Next: choose how much to change <ArrowRight size={16} />
         </button>
       </div>
+      {length > 0 && length < 80 && (
+        <p className="text-xs font-semibold text-[var(--color-text-muted)]">Paste the whole job description: at least 80 characters.</p>
+      )}
+      {length === 0 && resumes.length === 1 && (
+        <p className="text-xs text-[var(--color-text-muted)]">Tailors {resume.title}.</p>
+      )}
     </section>
   )
 }

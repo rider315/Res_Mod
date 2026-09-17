@@ -33,11 +33,11 @@ export default function LatexPreview({
   const lineCount = latex.split('\n').length
 
   return (
-    <div className="bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] overflow-hidden">
+    <div className="nb-card rounded-[10px] overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3">
         <button
           onClick={() => setOpen((o) => !o)}
-          className="flex items-center gap-2 text-sm font-semibold text-[var(--color-text)] hover:text-[var(--color-primary)] transition-colors"
+          className="flex items-center gap-2 text-sm font-black text-[var(--color-text)] hover:text-[var(--color-primary)] transition-colors"
           aria-expanded={open}
         >
           <svg
@@ -51,10 +51,7 @@ export default function LatexPreview({
             {lineCount} lines
           </span>
         </button>
-        <button
-          onClick={copy}
-          className="text-xs px-2.5 py-1 rounded-lg border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-offset)] transition-all"
-        >
+        <button onClick={copy} className="nb-btn nb-btn-sm px-2.5 py-1 text-xs">
           {copied ? 'Copied' : 'Copy'}
         </button>
       </div>
@@ -65,7 +62,7 @@ export default function LatexPreview({
           spellCheck={false}
           rows={20}
           onFocus={(e) => e.currentTarget.select()}
-          className="w-full px-4 py-3 border-t border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-xs font-mono leading-relaxed resize-y focus:outline-none"
+          className="w-full px-4 py-3 border-t-[1.6px] border-[var(--color-ink)] bg-[var(--color-bg)] text-[var(--color-text)] text-xs font-mono leading-relaxed resize-y focus:outline-none"
         />
       )}
     </div>

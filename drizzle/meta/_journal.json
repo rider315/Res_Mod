@@ -29,6 +29,13 @@
       "when": 1789469050410,
       "tag": "0003_lying_scarecrow",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789583029483,
+      "tag": "0004_freezing_leopardon",
+      "breakpoints": true
     }
   ]
 }

@@ -14,7 +14,7 @@ import type { PlatformAiStatus } from '@/lib/billing/types'
  */
 
 const link =
-  'h-8 px-2 inline-flex items-center rounded-lg text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-offset)] transition-all'
+  'inline-flex items-center px-3 py-1.5 text-sm font-bold rounded-[8px] border-[1.6px] border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:border-[var(--color-ink)] transition-all'
 
 interface OwnerNavProps {
   inUserWorkspace?: boolean
@@ -49,7 +49,7 @@ export default function OwnerNav({ inUserWorkspace = false, onOpenAiSettings }: 
         <button
           onClick={onOpenAiSettings}
           title="Every other account can't import or tailor until you choose the AI they run on."
-          className="h-8 px-2.5 inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-warning)] bg-[var(--color-warning-highlight)] text-xs font-semibold text-[var(--color-warning)] hover:opacity-90 transition-all"
+          className="nb-btn nb-btn-sm nb-btn-yellow px-3 py-1.5 text-xs"
         >
           <span aria-hidden>⚠</span> Set up ResMod AI
         </button>

@@ -1,44 +1,45 @@
-import Link from 'next/link'
+import SiteFooter from '@/components/brand/SiteFooter'
+import SiteHeader from '@/components/brand/SiteHeader'
 
-/** The shared frame of the public pricing and policy pages. */
-
-const LINKS: Array<[string, string]> = [
-  ['/pricing', 'Pricing'],
-  ['/terms', 'Terms of Service'],
-  ['/privacy', 'Privacy Policy'],
-  ['/refunds', 'Cancellation and Refunds'],
-  ['/shipping', 'Shipping and Delivery'],
-  ['/contact', 'Contact'],
-]
+/** The shared frame of the public pricing, policy and contact pages. */
 
 export default function PolicyPage({
   title,
   updated,
+  intro,
+  wide = false,
   children,
 }: {
   title: string
   updated?: string
+  /** A line under the title. */
+  intro?: React.ReactNode
+  /** Room for cards, as on the pricing page, instead of one column of text. */
+  wide?: boolean
   children: React.ReactNode
 }) {
   return (
-    <div className="min-h-screen bg-[var(--color-bg)] py-12 px-6">
-      <div className="max-w-3xl mx-auto space-y-8 text-[var(--color-text)]">
-        <div className="space-y-2">
-          <Link href="/" className="text-[var(--color-primary)] hover:underline text-sm font-medium">← Back to home</Link>
-          <h1 className="text-3xl font-bold">{title}</h1>
-          {updated && <p className="text-[var(--color-text-muted)]">Last updated: {updated}</p>}
+    <div className="min-h-screen flex flex-col bg-[var(--color-bg)] text-[var(--color-text)]">
+      <SiteHeader />
+      <main className="flex-1 px-4 sm:px-6 py-14">
+        <div className={`${wide ? 'max-w-5xl' : 'max-w-3xl'} mx-auto`}>
+          <h1 className="text-4xl sm:text-5xl font-black tracking-tight">{title}</h1>
+          {intro && <p className="mt-4 text-lg text-[var(--color-text-muted)] leading-relaxed">{intro}</p>}
+          {updated && (
+            <p className="mt-4 inline-flex nb-chip bg-[var(--color-yellow)] text-[#0a0a0a]">Last updated: {updated}</p>
+          )}
+          <div
+            className={
+              wide
+                ? 'mt-10 space-y-8 text-[15px] leading-relaxed text-[var(--color-text-muted)]'
+                : 'nb-card mt-8 p-6 sm:p-10 space-y-8 text-[15px] leading-relaxed text-[var(--color-text-muted)] [&_a]:font-semibold [&_a]:text-[var(--color-primary)]'
+            }
+          >
+            {children}
+          </div>
         </div>
-
-        <div className="space-y-6 text-sm leading-relaxed text-[var(--color-text-muted)]">{children}</div>
-
-        <nav className="flex flex-wrap gap-x-4 gap-y-1 pt-4 border-t border-[var(--color-border)] text-xs text-[var(--color-text-muted)]">
-          {LINKS.map(([href, label]) => (
-            <Link key={href} href={href} className="hover:text-[var(--color-primary)] hover:underline">
-              {label}
-            </Link>
-          ))}
-        </nav>
-      </div>
+      </main>
+      <SiteFooter />
     </div>
   )
 }
@@ -46,7 +47,7 @@ export default function PolicyPage({
 export function PolicySection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-3">
-      <h2 className="text-xl font-semibold text-[var(--color-text)]">{title}</h2>
+      <h2 className="text-xl font-extrabold text-[var(--color-text)]">{title}</h2>
       {children}
     </section>
   )

@@ -1,12 +1,13 @@
 'use client'
 import { useRef, useState } from 'react'
 import AiAllowance from '@/components/user/AiAllowance'
+import { ArrowLeft, ArrowRight, CheckCircle, FileText, Upload } from '@/components/brand/Icons'
 import { ApiError, readApiError } from '@/components/user/billing-client'
 import { AISettings } from '@/lib/settings-storage'
 import { getProvider } from '@/lib/providers'
 import { BILLING_CODES, BillingStatus } from '@/lib/billing/types'
 import { MAX_UPLOAD_BYTES, ResumeDoc, SourceFormat } from '@/lib/resume-doc'
-import { errorBox, inputClass, primaryButton } from '@/components/user/shared'
+import { backLinkClass, cardClass, errorBox, inputClass, primaryButton } from '@/components/user/shared'
 
 /**
  * Importing a resume: a file or pasted text, turned into a structured resume.
@@ -129,24 +130,22 @@ export default function ImportPanel({
   }
 
   return (
-    <div className="space-y-6 anim-page-enter">
+    <div className="space-y-8 anim-page-enter">
       <div>
-        <button
-          onClick={onCancel}
-          disabled={busy}
-          className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] disabled:opacity-50 transition-colors"
-        >
-          ← Your resumes
+        <button onClick={onCancel} disabled={busy} className={backLinkClass}>
+          <ArrowLeft size={16} /> Your resumes
         </button>
-        <h1 className="text-2xl font-bold text-[var(--color-text)] mt-2">Import your resume</h1>
-        <p className="text-sm text-[var(--color-text-muted)] mt-1">
-          The AI copies your resume into editable fields without rewriting anything, and you check the result
-          before it is saved.
+        <h1 className="mt-3 text-4xl sm:text-5xl font-black tracking-tight">
+          Import your <span className="nb-highlight">resume</span>
+        </h1>
+        <p className="mt-5 text-lg text-[var(--color-text-muted)] max-w-3xl">
+          The AI copies your resume into editable fields without rewriting anything, and you check the result before it is saved.
         </p>
       </div>
 
-      <div className="bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] p-5 space-y-4">
-        <div className="inline-flex rounded-lg border border-[var(--color-border)] p-0.5 text-sm">
+      <div className="grid gap-8 lg:grid-cols-[1.4fr_1fr] items-start">
+      <div className={`${cardClass} p-6 space-y-5`}>
+        <div className="inline-flex rounded-[8px] border-[1.6px] border-[var(--color-ink)] p-1 gap-1 text-sm bg-[var(--color-surface-offset)]">
           {(['file', 'paste'] as const).map((option) => (
             <button
               key={option}
@@ -155,10 +154,11 @@ export default function ImportPanel({
                 setError(null)
               }}
               disabled={busy}
-              className={`px-3 py-1.5 rounded-md transition-all ${
+              aria-pressed={mode === option}
+              className={`px-3.5 py-1.5 rounded-[6px] font-bold transition-all ${
                 mode === option
-                  ? 'bg-[var(--color-primary-highlight)] text-[var(--color-primary)] font-semibold'
-                  : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+                  ? 'bg-[var(--color-yellow)] text-[#0a0a0a] border-[1.6px] border-[var(--color-ink)] shadow-[2px_2px_0_0_var(--color-ink)]'
+                  : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)] border-[1.6px] border-transparent'
               }`}
             >
               {option === 'file' ? 'Upload a file' : 'Paste text'}
@@ -184,10 +184,8 @@ export default function ImportPanel({
               setDragging(false)
               if (!busy) pick(e.dataTransfer.files[0])
             }}
-            className={`cursor-pointer rounded-xl border-2 border-dashed p-8 text-center transition-all ${
-              dragging
-                ? 'border-[var(--color-primary)] bg-[var(--color-primary-highlight)]'
-                : 'border-[var(--color-border)] hover:border-[var(--color-text-muted)]'
+            className={`cursor-pointer rounded-[10px] border-2 border-dashed border-[var(--color-ink)] p-10 text-center transition-all ${
+              dragging ? 'bg-[var(--color-accent-soft)] shadow-[4px_4px_0_0_var(--color-ink)]' : 'bg-[var(--color-bg)] hover:bg-[var(--color-accent-soft)]'
             }`}
           >
             <input
@@ -197,19 +195,20 @@ export default function ImportPanel({
               className="hidden"
               onChange={(e) => pick(e.target.files?.[0])}
             />
+            <span className={`nb-badge w-16 h-16 mx-auto mb-4 ${file ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-yellow)]'}`}>
+              {file ? <FileText size={30} /> : <Upload size={30} />}
+            </span>
             {file ? (
               <>
-                <p className="text-sm font-semibold text-[var(--color-text)] break-all">{file.name}</p>
-                <p className="text-xs text-[var(--color-text-muted)] mt-1">
+                <p className="text-lg font-black break-all">{file.name}</p>
+                <p className="text-sm text-[var(--color-text-muted)] mt-1">
                   {Math.max(1, Math.round(file.size / 1024))} KB · click to choose a different file
                 </p>
               </>
             ) : (
               <>
-                <p className="text-sm font-semibold text-[var(--color-text)]">Drop your resume here, or click to choose</p>
-                <p className="text-xs text-[var(--color-text-muted)] mt-1">
-                  PDF, Word (.docx), LaTeX (.tex) or plain text, up to 4 MB
-                </p>
+                <p className="text-lg font-black">Drop your resume here, or click to choose</p>
+                <p className="text-sm text-[var(--color-text-muted)] mt-1">PDF, Word (.docx), LaTeX (.tex) or plain text, up to 4 MB</p>
               </>
             )}
           </div>
@@ -248,9 +247,43 @@ export default function ImportPanel({
           </div>
         )}
 
-        <button onClick={run} disabled={busy || !ready || needsKey || checkingRuns || aiOff} className={`w-full ${primaryButton}`}>
-          {phase === 'reading' ? 'Reading your resume…' : phase === 'structuring' ? 'Sorting it into sections…' : 'Import resume →'}
+        <button
+          onClick={run}
+          disabled={busy || !ready || needsKey || checkingRuns || aiOff}
+          className={`w-full ${primaryButton} py-3.5 text-base`}
+        >
+          {phase === 'reading' ? (
+            'Reading your resume…'
+          ) : phase === 'structuring' ? (
+            'Sorting it into sections…'
+          ) : (
+            <>
+              Import resume <ArrowRight size={18} />
+            </>
+          )}
         </button>
+      </div>
+
+      <aside className={`${cardClass} p-6 bg-[var(--color-sky-soft)] space-y-4`}>
+        <p className="text-lg font-black">What happens next</p>
+        <ol className="space-y-3">
+          {[
+            'ResMod reads the text of your file. Nothing is rewritten at this stage.',
+            'The AI sorts it into sections: summary, skills, experience, projects and education.',
+            'You check every field, fix anything that came through wrong, and save.',
+            'Then paste a job description and tailor it.',
+          ].map((line, i) => (
+            <li key={line} className="flex items-start gap-2.5 text-sm">
+              <span className="nb-badge w-7 h-7 shrink-0 bg-[var(--color-accent)] text-xs">{i + 1}</span>
+              <span className="pt-1">{line}</span>
+            </li>
+          ))}
+        </ol>
+        <p className="flex items-start gap-2 text-xs text-[var(--color-text-muted)]">
+          <CheckCircle size={16} className="shrink-0 text-[var(--color-success)]" />
+          Your file itself isn&apos;t kept, only the resume you save.
+        </p>
+      </aside>
       </div>
     </div>
   )

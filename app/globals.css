@@ -2,78 +2,95 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * ResMod's look: bold black outlines, hard offset shadows, a mint highlight and
+ * a blue call to action on a pale lilac page. The public site and the user
+ * workspace are light only; the owner's dashboard keeps a dark variant.
+ */
 :root, [data-theme="light"] {
-  --color-bg: #f7f6f2;
-  --color-surface: #f9f8f5;
-  --color-surface-2: #fbfbf9;
-  --color-surface-offset: #f3f0ec;
-  --color-surface-dynamic: #e6e4df;
-  --color-divider: #dcd9d5;
-  --color-border: #d4d1ca;
-  --color-text: #28251d;
-  --color-text-muted: #7a7974;
-  --color-text-faint: #bab9b4;
-  --color-text-inverse: #f9f8f4;
-  --color-primary: #01696f;
-  --color-primary-hover: #0c4e54;
-  --color-primary-active: #0f3638;
-  --color-primary-highlight: #cedcd8;
-  --color-success: #437a22;
-  --color-success-highlight: #d4dfcc;
-  --color-error: #a12c7b;
-  --color-error-highlight: #e0ced7;
-  --color-warning: #964219;
-  --color-warning-highlight: #ddcfc6;
-  --color-blue: #006494;
-  --color-blue-highlight: #c6d8e4;
-  --color-gold: #d19900;
-  --color-gold-highlight: #e9e0c6;
-  --color-purple: #7a39bb;
-  --color-purple-highlight: #dacfde;
+  --color-ink: #0a0a0a;
+  --color-bg: #faf6fb;
+  --color-surface: #ffffff;
+  --color-surface-2: #ffffff;
+  --color-surface-offset: #f4eff7;
+  --color-surface-dynamic: #ebe4ef;
+  --color-divider: #e4dde8;
+  --color-border: #0a0a0a;
+  --color-border-soft: #d1d5dc;
+  --color-text: #0a0a0a;
+  --color-text-muted: #364153;
+  --color-text-faint: #6a7282;
+  --color-text-inverse: #ffffff;
+  --color-primary: #2b7fff;
+  --color-primary-hover: #155dfc;
+  --color-primary-active: #1447e6;
+  --color-primary-highlight: #dbeafe;
+  --color-accent: #75fa92;
+  --color-accent-strong: #00d95f;
+  --color-accent-soft: #f0fdf4;
+  --color-yellow: #ffdf20;
+  --color-yellow-soft: #fef9c2;
+  --color-periwinkle: #799eff;
+  --color-sky: #bedbff;
+  --color-sky-soft: #dbeafe;
+  --color-cream: #fefce8;
+  --color-success: #00a63e;
+  --color-success-highlight: #dcfce7;
+  --color-error: #e7000b;
+  --color-error-highlight: #ffe2e2;
+  --color-warning: #a65f00;
+  --color-warning-highlight: #fef3c6;
+  --color-blue: #155dfc;
+  --color-blue-highlight: #dbeafe;
+  --color-gold: #d08700;
+  --color-gold-highlight: #fef9c2;
+  --color-purple: #8e51ff;
+  --color-purple-highlight: #ede9fe;
+  --nb-border: 1.6px;
+  --nb-shadow: 4px 4px 0 0 var(--color-ink);
+  --nb-shadow-sm: 3px 3px 0 0 var(--color-ink);
+  --nb-shadow-lg: 6px 6px 0 0 var(--color-ink);
 }
 
 [data-theme="dark"] {
-  --color-bg: #171614;
-  --color-surface: #1c1b19;
-  --color-surface-2: #201f1d;
-  --color-surface-offset: #1d1c1a;
-  --color-surface-dynamic: #2d2c2a;
-  --color-divider: #262523;
-  --color-border: #393836;
-  --color-text: #cdccca;
-  --color-text-muted: #797876;
-  --color-text-faint: #5a5957;
-  --color-text-inverse: #2b2a28;
-  --color-primary: #4f98a3;
-  --color-primary-hover: #227f8b;
-  --color-primary-active: #1a626b;
-  --color-primary-highlight: #313b3b;
-  --color-success: #6daa45;
-  --color-success-highlight: #3a4435;
-  --color-error: #d163a7;
-  --color-error-highlight: #4c3d46;
-  --color-warning: #bb653b;
-  --color-warning-highlight: #564942;
-  --color-blue: #5591c7;
-  --color-blue-highlight: #3a4550;
-  --color-gold: #e8af34;
-  --color-gold-highlight: #4d4332;
-  --color-purple: #a86fdf;
-  --color-purple-highlight: #4e4652;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) {
-    --color-bg: #171614;
-    --color-surface: #1c1b19;
-    --color-surface-offset: #1d1c1a;
-    --color-border: #393836;
-    --color-text: #cdccca;
-    --color-text-muted: #797876;
-    --color-primary: #4f98a3;
-    --color-primary-hover: #227f8b;
-    --color-primary-highlight: #313b3b;
-  }
+  --color-ink: #e8e6e3;
+  --color-bg: #121212;
+  --color-surface: #1b1b1d;
+  --color-surface-2: #202023;
+  --color-surface-offset: #25252a;
+  --color-surface-dynamic: #2e2e33;
+  --color-divider: #2c2c31;
+  --color-border: #e8e6e3;
+  --color-border-soft: #3a3a40;
+  --color-text: #f2f1ee;
+  --color-text-muted: #b4b2ad;
+  --color-text-faint: #85837e;
+  --color-text-inverse: #0a0a0a;
+  --color-primary: #51a2ff;
+  --color-primary-hover: #2b7fff;
+  --color-primary-active: #155dfc;
+  --color-primary-highlight: #1c2a44;
+  --color-accent: #75fa92;
+  --color-accent-strong: #3ee877;
+  --color-accent-soft: #15291c;
+  --color-yellow: #ffdf20;
+  --color-yellow-soft: #3a3514;
+  --color-periwinkle: #5b7fe0;
+  --color-sky: #1f3257;
+  --color-sky-soft: #172340;
+  --color-cream: #1f1d12;
+  --color-success: #3ee877;
+  --color-success-highlight: #15291c;
+  --color-error: #ff6467;
+  --color-error-highlight: #3b1618;
+  --color-warning: #ffb900;
+  --color-warning-highlight: #3a2c0a;
+  --color-blue: #51a2ff;
+  --color-blue-highlight: #1c2a44;
+  --color-gold: #ffb900;
+  --color-gold-highlight: #3a3514;
+  --color-purple: #a684ff;
+  --color-purple-highlight: #2a2240;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -86,19 +103,118 @@ html {
 
 body {
   min-height: 100dvh;
-  font-family: system-ui, sans-serif;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   color: var(--color-text);
   background-color: var(--color-bg);
 }
 
 ::selection {
-  background: color-mix(in oklab, var(--color-primary) 25%, transparent);
-  color: var(--color-text);
+  background: var(--color-accent);
+  color: #0a0a0a;
 }
 
 :focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 3px;
+}
+
+/* ─── Bold components ────────────────────────────────── */
+
+@layer components {
+  /* A white panel with a black outline and a hard shadow. */
+  .nb-card {
+    background: var(--color-surface);
+    border: var(--nb-border) solid var(--color-ink);
+    box-shadow: var(--nb-shadow);
+  }
+  .nb-card-flat {
+    background: var(--color-surface);
+    border: var(--nb-border) solid var(--color-ink);
+  }
+  .nb-rounded { border-radius: 10px; }
+
+  /* Buttons lift on hover and press into their shadow. */
+  .nb-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border: var(--nb-border) solid var(--color-ink);
+    box-shadow: var(--nb-shadow);
+    font-weight: 700;
+    line-height: 1.25;
+    color: var(--color-text);
+    background: var(--color-surface);
+    transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease;
+    cursor: pointer;
+    text-align: center;
+  }
+  .nb-btn:hover:not(:disabled) {
+    transform: translate(-1px, -1px);
+    box-shadow: 5px 5px 0 0 var(--color-ink);
+  }
+  .nb-btn:active:not(:disabled) {
+    transform: translate(3px, 3px);
+    box-shadow: 1px 1px 0 0 var(--color-ink);
+  }
+  .nb-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .nb-btn-primary { background: var(--color-primary); color: #ffffff; }
+  .nb-btn-primary:hover:not(:disabled) { background: var(--color-primary-hover); }
+  .nb-btn-accent { background: var(--color-accent); color: #0a0a0a; }
+  .nb-btn-yellow { background: var(--color-yellow); color: #0a0a0a; }
+  .nb-btn-danger { background: var(--color-surface); color: var(--color-error); }
+  .nb-btn-danger:hover:not(:disabled) { background: var(--color-error-highlight); }
+  .nb-btn-sm { box-shadow: var(--nb-shadow-sm); }
+  .nb-btn-sm:hover:not(:disabled) { box-shadow: 4px 4px 0 0 var(--color-ink); }
+
+  .nb-input {
+    width: 100%;
+    border: 2px solid var(--color-ink);
+    background: var(--color-surface);
+    color: var(--color-text);
+    padding: 0.625rem 0.75rem;
+    font-size: 0.9375rem;
+    transition: box-shadow 0.12s ease;
+  }
+  .nb-input::placeholder { color: var(--color-text-faint); }
+  .nb-input:focus { outline: none; box-shadow: 4px 4px 0 0 var(--color-primary); }
+  .nb-input:disabled { opacity: 0.6; }
+
+  /* Small labels: a step number, a status, a count. */
+  .nb-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    border: var(--nb-border) solid var(--color-ink);
+    border-radius: 8px;
+    box-shadow: var(--nb-shadow-sm);
+    font-weight: 800;
+    color: #0a0a0a;
+  }
+
+  /* The mint pill that marks the words that matter in a headline. */
+  .nb-highlight {
+    display: inline-block;
+    background: var(--color-accent);
+    color: #0a0a0a;
+    border: var(--nb-border) solid #0a0a0a;
+    border-radius: 10px;
+    box-shadow: 4px 4px 0 0 #0a0a0a;
+    padding: 0.05em 0.35em 0.1em;
+    transform: rotate(-2deg);
+  }
+
+  .nb-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    border: var(--nb-border) solid var(--color-ink);
+    border-radius: 999px;
+    padding: 0.125rem 0.625rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
 }
 
 /* ─── ResMod Animations ──────────────────────────────── */

@@ -9,20 +9,41 @@ export interface ResumeSummary {
   updatedAt: string
 }
 
-export const primaryButton =
-  'py-2.5 px-5 rounded-xl bg-[var(--color-primary)] text-white font-semibold text-sm hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-all'
+/** The main action on a screen: blue, outlined, with a hard shadow. */
+export const primaryButton = 'nb-btn nb-btn-primary py-2.5 px-5 text-sm'
 
-export const secondaryButton =
-  'py-2 px-3.5 rounded-xl border border-[var(--color-border)] text-[var(--color-text)] font-medium text-sm hover:bg-[var(--color-surface-offset)] disabled:opacity-50 disabled:cursor-not-allowed transition-all'
+/** A positive action that isn't the main one, such as approving. */
+export const accentButton = 'nb-btn nb-btn-accent py-2.5 px-5 text-sm'
 
-export const dangerButton =
-  'py-2 px-3.5 rounded-xl border border-[var(--color-border)] text-[var(--color-text-muted)] font-medium text-sm hover:text-[var(--color-error)] hover:border-[var(--color-error)] disabled:opacity-50 disabled:cursor-not-allowed transition-all'
+export const secondaryButton = 'nb-btn nb-btn-sm py-2 px-3.5 text-sm'
 
-export const inputClass =
-  'w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-sm placeholder:text-[var(--color-text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition-all'
+export const dangerButton = 'nb-btn nb-btn-sm nb-btn-danger py-2 px-3.5 text-sm'
+
+/** A text link styled as a small underlined action. */
+export const linkButton =
+  'text-sm font-bold underline underline-offset-4 decoration-2 hover:text-[var(--color-primary)] disabled:opacity-50 transition-colors'
+
+export const inputClass = 'nb-input text-sm'
+
+export const cardClass = 'nb-card rounded-[10px]'
 
 export const errorBox =
-  'rounded-xl border border-[var(--color-error)] bg-[var(--color-error-highlight)] p-3 text-sm text-[var(--color-error)] whitespace-pre-wrap'
+  'rounded-[10px] border-[1.6px] border-[var(--color-ink)] bg-[var(--color-error-highlight)] p-3 text-sm font-medium text-[var(--color-error)] whitespace-pre-wrap'
+
+export const successBox =
+  'rounded-[10px] border-[1.6px] border-[var(--color-ink)] bg-[var(--color-success-highlight)] p-3 text-sm font-medium text-[var(--color-text)]'
+
+export const warningBox =
+  'rounded-[10px] border-[1.6px] border-[var(--color-ink)] bg-[var(--color-yellow-soft)] p-3 text-sm font-medium text-[var(--color-text)]'
+
+/** The fill for a keyword match score: green when strong, yellow when fair, red when weak. */
+export function scoreFill(score: number): string {
+  return score >= 80 ? 'bg-[var(--color-accent)]' : score >= 50 ? 'bg-[var(--color-yellow)]' : 'bg-[var(--color-error-highlight)]'
+}
+
+/** The back link at the top of a screen. */
+export const backLinkClass =
+  'inline-flex items-center gap-1.5 text-sm font-bold text-[var(--color-text-muted)] hover:text-[var(--color-text)] disabled:opacity-50 transition-colors'
 
 /** Hand a file to the browser as a download. */
 export function downloadBlob(blob: Blob, fileName: string): void {
@@ -64,8 +85,8 @@ export function resumeFileBase(name: string): string {
 }
 
 /** Compile on the server and download the PDF. Throws with the compiler's reason. */
-async function compileAndDownload(body: Record<string, unknown>, name: string): Promise<void> {
-  const fileName = resumeFileBase(name)
+async function compileAndDownload(body: Record<string, unknown>, name: string, fileBase = resumeFileBase(name)): Promise<void> {
+  const fileName = fileBase
   const res = await fetch('/api/resume/compile', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -90,4 +111,9 @@ export function downloadResumePdf(
 /** Build a tailored copy from the history into a PDF, exactly as it was saved, and download it. */
 export function downloadTailoringPdf(tailoringId: string, name: string): Promise<void> {
   return compileAndDownload({ tailoringId }, name)
+}
+
+/** Set a cover letter on a letter page, build it into a PDF and download it. */
+export function downloadCoverLetterPdf(coverLetterId: string, name: string): Promise<void> {
+  return compileAndDownload({ coverLetterId }, name, `${sanitizeFileName(name) || 'Cover'}_Cover_Letter`)
 }

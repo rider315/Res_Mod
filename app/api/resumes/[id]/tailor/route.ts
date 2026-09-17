@@ -7,7 +7,7 @@ import { generateAIResponse, resolveModel } from '@/lib/ai-provider'
 import { GenerateFn, RunProgress, runOptimization } from '@/lib/run-optimization'
 import { addCall, AiUsage, describeUsage, emptyUsage } from '@/lib/ai-usage'
 import { extractJdKeywords } from '@/lib/tailor/keywords'
-import { TAILOR_LEVELS } from '@/lib/tailor/levels'
+import { TAILOR_LEVELS, TAILOR_TONES } from '@/lib/tailor/levels'
 import { standardProfile } from '@/lib/profiles/standard'
 import { getResume } from '@/lib/db/resumes'
 import { ResumeDocSchema } from '@/lib/resume-doc'
@@ -25,6 +25,7 @@ const schema = z.object({
     .min(80, 'Paste the whole job description.')
     .max(20_000, 'That job description is longer than 20,000 characters.'),
   level: z.enum(TAILOR_LEVELS),
+  tone: z.enum(TAILOR_TONES).default('balanced'),
   /** What the candidate says must not change. */
   instructions: z.string().max(2_000).default(''),
   /** The owner's own AI settings. Everyone else always runs on ResMod AI, and these are ignored. */
@@ -62,7 +63,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Invalid request' }, { status: 400 })
   }
 
-  const { jobDescription, level, instructions, provider, usePlatform } = parsed.data
+  const { jobDescription, level, tone, instructions, provider, usePlatform } = parsed.data
   if (auth.role === 'owner' && !usePlatform && provider && getProvider(provider).clientSide) {
     return NextResponse.json({ error: 'Puter runs in the browser, not through this route.' }, { status: 400 })
   }
@@ -141,6 +142,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         const result = await runOptimization({
           mode: 'optimize',
           level,
+          tone,
           keywords,
           profile: standardProfile(level),
           resume: rendered.parsed.resume,

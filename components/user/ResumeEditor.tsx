@@ -1,8 +1,10 @@
 'use client'
 import { ReactNode, useState } from 'react'
 import LatexPreview from '@/components/LatexPreview'
+import { ArrowLeft } from '@/components/brand/Icons'
 import { ResumeDoc, ResumeDocSchema, SourceFormat } from '@/lib/resume-doc'
 import {
+  backLinkClass,
   downloadBlob,
   downloadResumePdf,
   errorBox,
@@ -169,7 +171,7 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="block text-xs font-medium text-[var(--color-text-muted)] mb-1">{label}</span>
+      <span className="block text-sm font-bold mb-1.5">{label}</span>
       <input type={type} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} className={inputClass} />
     </label>
   )
@@ -190,7 +192,7 @@ function Area({
 }) {
   return (
     <label className="block">
-      <span className="block text-xs font-medium text-[var(--color-text-muted)] mb-1">
+      <span className="block text-sm font-bold mb-1.5">
         {label}
         {hint && <span className="font-normal text-[var(--color-text-faint)]"> · {hint}</span>}
       </span>
@@ -201,10 +203,10 @@ function Area({
 
 function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
   return (
-    <section className="bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] p-5 space-y-4">
+    <section className="nb-card rounded-[10px] p-6 space-y-4">
       <div>
-        <h2 className="text-sm font-semibold text-[var(--color-text)]">{title}</h2>
-        {description && <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{description}</p>}
+        <h2 className="text-xl font-black">{title}</h2>
+        {description && <p className="text-sm text-[var(--color-text-muted)] mt-1">{description}</p>}
       </div>
       {children}
     </section>
@@ -229,7 +231,7 @@ function Repeater<T>({
   return (
     <div className="space-y-3">
       {items.map((item, index) => (
-        <div key={index} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-4 space-y-3">
+        <div key={index} className="rounded-[10px] border-[1.6px] border-[var(--color-ink)] bg-[var(--color-bg)] p-4 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-faint)]">
               {itemLabel(index)}
@@ -344,15 +346,23 @@ export default function ResumeEditor({
   }
 
   return (
-    <div className="space-y-5 anim-page-enter">
+    <div className="space-y-6 anim-page-enter max-w-4xl">
       <div>
-        <button onClick={onBack} className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors">
-          ← Your resumes
+        <button onClick={onBack} className={backLinkClass}>
+          <ArrowLeft size={16} /> Your resumes
         </button>
-        <h1 className="text-2xl font-bold text-[var(--color-text)] mt-2">
-          {savedId ? 'Edit resume' : 'Check your imported resume'}
+        <h1 className="mt-3 text-4xl sm:text-5xl font-black tracking-tight">
+          {savedId ? (
+            <>
+              Edit <span className="nb-highlight">resume</span>
+            </>
+          ) : (
+            <>
+              Check your <span className="nb-highlight">resume</span>
+            </>
+          )}
         </h1>
-        <p className="text-sm text-[var(--color-text-muted)] mt-1">
+        <p className="mt-5 text-lg text-[var(--color-text-muted)]">
           {savedId
             ? 'Saving updates the stored copy and regenerates its LaTeX.'
             : 'The AI copied your resume into these fields without rewriting it. Fix anything it misread, then save.'}
@@ -501,7 +511,7 @@ export default function ResumeEditor({
 
       {latex && !dirty && <LatexPreview latex={latex} title="Generated LaTeX" />}
 
-      <div className="sticky bottom-4 bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] shadow-lg p-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="sticky bottom-4 nb-card rounded-[10px] shadow-[5px_5px_0_0_var(--color-ink)] p-4 flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-[var(--color-text-muted)]">
           {saving ? 'Saving…' : dirty ? (savedId ? 'Unsaved changes' : 'Not saved yet') : 'All changes saved'}
         </p>

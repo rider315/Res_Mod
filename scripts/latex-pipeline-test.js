@@ -37,11 +37,14 @@
  *                     AI cap's counter, and resume text kept out of production logs
  *  14. settings     — ResMod AI chosen in AI settings: its key encrypted at rest,
  *                     and which saved settings can actually run
- *  16. usage       — the meter: calls add up, a provider's own token counts reach
- *                     it, and a provider that reports none is estimated and says so
- *  15. resolving   — the last step of a run: every change points at a real line,
+ *  15. resolving    — the last step of a run: every change points at a real line,
  *                     a rewrite of a rewrite folds into one, and a proposal the
  *                     sanitizer refuses is repaired or dropped before the user sees it
+ *  16. usage        — the meter: calls add up, a provider's own token counts reach
+ *                     it, and a provider that reports none is estimated and says so
+ *  17. new features — the keyword finder's scores, a suggestion edited by hand
+ *                     turning back into safe LaTeX, tailoring tones, and cover
+ *                     letters: the prompt, the model's reply, and the printable page
  */
 const path = require('path')
 const fs = require('fs')
@@ -1255,6 +1258,119 @@ async function usageTests() {
   }
 }
 
+// --------------------------------------------------------- 17. new features
+const finder = require(BUILD + '/lib/tailor/keyword-finder')
+const editText = require(BUILD + '/lib/tailor/edit-text')
+const letters = require(BUILD + '/lib/cover-letter')
+const { buildTailorSystemInstruction } = require(BUILD + '/lib/tailor/prompt')
+
+async function featureTests() {
+  console.log('\n=== keyword finder, editing, tone and cover letters ===')
+
+  // ---- keyword finder
+  const jd = [
+    'We are hiring a Platform Engineer.',
+    'You will run Kubernetes clusters and write Terraform.',
+    'Kubernetes experience is essential; we deploy everything on Kubernetes.',
+    '- Python for tooling',
+    'Nice to have: Kafka.',
+  ].join('\n')
+  const kw = (term, required, kind = 'tool') => ({ term, kind, required, aliases: [] })
+  const scored = finder.scoreKeywords(jd, [kw('Terraform', true), kw('Kafka', false), kw('Kubernetes', true), kw('Python', true, 'skill')])
+  const byTerm = Object.fromEntries(scored.map((k) => [k.term, k]))
+  check('mentions are counted per sentence',
+    byTerm.Kubernetes.mentions === 3 && byTerm.Terraform.mentions === 1 && byTerm.Kafka.mentions === 1,
+    JSON.stringify(scored.map((k) => [k.term, k.mentions])))
+  check('must-haves come first, and score 5 to 10; nice-to-haves 1 to 6',
+    scored.map((k) => k.required).join() === 'true,true,true,false' &&
+    scored.every((k) => (k.required ? k.score >= 5 && k.score <= 10 : k.score >= 1 && k.score <= 6)),
+    JSON.stringify(scored.map((k) => [k.term, k.score])))
+  check('a must-have the job keeps coming back to outscores one it lists once, later',
+    byTerm.Kubernetes.score > byTerm.Python.score, JSON.stringify(scored.map((k) => [k.term, k.score])))
+  check('each keyword says where it belongs',
+    /skills line/.test(byTerm.Terraform.where) && finder.scoreKeywords(jd, [kw('SOC 2', true, 'certification')])[0].where.includes('certifications'))
+
+  // ---- editing a suggestion as text
+  const latexLine = 'Cut p95 latency by 40\\% with \\textbf{Redis} \\& Go for \\textless{}1k users'
+  const editable = editText.latexToEditable(latexLine)
+  check('a suggestion is edited as plain text, with **bold**',
+    editable === 'Cut p95 latency by 40% with **Redis** & Go for <1k users', editable)
+  const back = editText.editableToLatex('Cut p95 latency by 45% with **Redis** & Go')
+  check('edited text goes back to safe LaTeX',
+    back.ok && back.latex === 'Cut p95 latency by 45\\% with \\textbf{Redis} \\& Go', JSON.stringify(back))
+  check('an edit that could read a file, or an empty one, is refused',
+    !editText.editableToLatex('see \\input{/etc/passwd}').ok && !editText.editableToLatex('   ').ok)
+
+  // ---- tone
+  const hard = standardProfile('hard')
+  const direct = buildTailorSystemInstruction('hard', hard, 'direct')
+  const balanced = buildTailorSystemInstruction('hard', hard, 'balanced')
+  check('a tone is written into the tailoring instructions, and balanced adds nothing',
+    direct.includes('## TONE: DIRECT') && direct.includes('never the facts') &&
+    !balanced.includes('## TONE') && balanced === buildTailorSystemInstruction('hard', hard))
+
+  // ---- cover letters
+  const doc = ResumeDocSchema.parse({
+    name: 'Riya Patel',
+    summary: 'Backend engineer building payment systems.',
+    skills: [{ category: 'Languages:', items: ['Python', 'Go'] }],
+    experience: [{ company: 'PayNow', role: 'Software Engineer', dates: '2022 – Present', bullets: ['Built the ledger service handling 2M payments a day'] }],
+  })
+  // As a tailored copy has it: rewritten lines carry LaTeX bold.
+  const tailoredLatex = renderResumeLatex(doc).replace('Built the ledger service', 'Built the \\textbf{ledger} service')
+  const resumeText = letters.resumeTextFromLatex(tailoredLatex)
+  check('the letter prompt gets the tailored resume as plain text, without the header',
+    tailoredLatex.includes('\\textbf{ledger}') && resumeText.includes('Experience') &&
+    resumeText.includes('Built the ledger service handling 2M payments') && !resumeText.includes('\\') && !resumeText.includes('Riya'),
+    resumeText.slice(0, 200))
+
+  const input = {
+    resumeText, jobDescription: 'Platform role', jobTitle: 'Platform Engineer', company: 'Northwind',
+    candidateName: 'Riya Patel', tone: 'warm', length: 'short', recipient: 'Ms. Rao', notes: 'Open to relocating',
+  }
+  const prompt = letters.buildCoverLetterPrompt(input)
+  check('the prompt carries the tone, length, recipient and notes, and forbids invented facts',
+    prompt.includes('Friendly and personal') && prompt.includes('3 paragraphs') && prompt.includes('"Ms. Rao"') &&
+    prompt.includes('Open to relocating') && prompt.includes('never invent'))
+
+  const good = JSON.stringify({
+    greeting: 'Dear Ms. Rao,',
+    paragraphs: [
+      'I am applying for the Platform Engineer role at Northwind, where my payments work fits well.',
+      'At PayNow I built the **ledger** service that handles two million payments a day.',
+    ],
+    closing: 'Kind regards,',
+  })
+  const parsed = letters.parseCoverLetterResponse('```json\n' + good + '\n```')
+  check('a letter reply is read, with markdown removed',
+    parsed.ok && parsed.paragraphs[1].includes('the ledger service') && !parsed.paragraphs[1].includes('**'), JSON.stringify(parsed))
+  const body = letters.composeLetter(parsed, 'Riya Patel')
+  check('the letter reads greeting, paragraphs, closing and name',
+    body.startsWith('Dear Ms. Rao,\n\nI am applying') && body.endsWith('Kind regards,\nRiya Patel'), body)
+  check('placeholders and thin letters are rejected',
+    !letters.parseCoverLetterResponse(good.replace('Northwind', '[Company]')).ok &&
+    !letters.parseCoverLetterResponse(JSON.stringify({ greeting: 'Hi,', paragraphs: ['Too short.'], closing: 'Bye,' })).ok &&
+    !letters.parseCoverLetterResponse('not json').ok)
+
+  const replies = ['{"greeting": "Dear [Name],", "paragraphs": []}', good]
+  const seen = []
+  const written = await letters.writeCoverLetter({
+    input,
+    generate: async ({ prompt: p }) => { seen.push(p); return replies.shift() },
+  })
+  check('a rejected letter is asked for once more, with the problems',
+    seen.length === 2 && seen[1].includes('REJECTED') && written.includes('Riya Patel'), seen.length)
+
+  const latex = letters.coverLetterLatex(
+    { name: 'Riya Patel', contact: ['riya@example.com', '+91 90000 00000'], date: '17 September 2026' },
+    'Dear team,\n\nI cut costs by 40% & shipped $2M of features_fast #1.\n\nKind regards,\nRiya Patel'
+  )
+  check('the letter page escapes every special character and is a complete document',
+    latex.includes('40\\% \\& shipped \\$2M of features\\_fast \\#1') && latex.includes('Kind regards,\\\\\nRiya Patel') &&
+    validateLatexDocument(latex).length === 0, validateLatexDocument(latex).join('; '))
+  fs.writeFileSync(path.join(BUILD, 'cover-letter.tex'), latex)
+}
+
 importTests()
   .then(tailorTests)
   .then(billingTests)
@@ -1262,6 +1378,7 @@ importTests()
   .then(settingsTests)
   .then(resolveTests)
   .then(usageTests)
+  .then(featureTests)
   .then(summary, (err) => {
     check('the async tests ran to completion', false, err && err.stack)
     summary()

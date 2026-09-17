@@ -22,7 +22,7 @@ import {
   mergeEvidenceChanges,
   remainingUnevidenced,
 } from '@/lib/keyword-evidence'
-import { LEVELS, TailorLevel } from '@/lib/tailor/levels'
+import { LEVELS, TailorLevel, TailorTone } from '@/lib/tailor/levels'
 import { logSnippet } from '@/lib/log'
 import { buildKeywordTopUpPrompt, buildTailorPrompt, buildTailorSystemInstruction } from '@/lib/tailor/prompt'
 import { addMissingKeywords, JdKeywords, keywordCoverage } from '@/lib/tailor/keywords'
@@ -65,6 +65,8 @@ export interface RunOptions {
   level?: TailorLevel
   /** The job description's keywords. Required with a level. */
   keywords?: JdKeywords
+  /** With a level: the voice the rewrites are written in. */
+  tone?: TailorTone
   profile: ResumeProfile
   resume: ParsedResume
   jobDescription: string
@@ -157,7 +159,7 @@ export async function runOptimization(opts: RunOptions): Promise<OptimizationRes
   const label = level ? `tailor-${level}:${profile.id}` : `${mode}:${profile.id}`
 
   const systemInstruction = level
-    ? buildTailorSystemInstruction(level, profile)
+    ? buildTailorSystemInstruction(level, profile, opts.tone)
     : isRevamp
       ? buildRevampSystemInstruction(profile)
       : buildOptimizeSystemInstruction(profile)

@@ -5,7 +5,7 @@ import { getAccess } from '@/lib/access'
 import Dashboard from '@/components/Dashboard'
 import UserDashboard from '@/components/user/UserDashboard'
 
-export default async function DashboardPage({ searchParams }: { searchParams: { workspace?: string } }) {
+export default async function DashboardPage({ searchParams }: { searchParams: { workspace?: string; open?: string } }) {
   const session = await getServerSession(authOptions)
   if (!session) redirect('/')
 
@@ -14,7 +14,14 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
   // workspace too, to use it or to see what users see.
   const owner = getAccess(session)?.role === 'owner'
   if (!owner || searchParams.workspace === 'user') {
-    return <UserDashboard name={session.user?.name ?? ''} email={session.user?.email ?? ''} isOwner={owner} />
+    return (
+      <UserDashboard
+        name={session.user?.name ?? ''}
+        email={session.user?.email ?? ''}
+        isOwner={owner}
+        openKeywordFinder={searchParams.open === 'keywords'}
+      />
+    )
   }
   return <Dashboard />
 }

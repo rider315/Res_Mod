@@ -2,6 +2,7 @@
 import { useMemo } from 'react'
 import { KeywordReport, ParsedResume, ResumeChange } from '@/types/resume'
 import { JdKeyword, keywordCoverage, KeywordStatus } from '@/lib/tailor/keywords'
+import { scoreFill } from '@/components/user/shared'
 
 /**
  * The live keyword score on the review screen: where the resume started, where the
@@ -9,9 +10,9 @@ import { JdKeyword, keywordCoverage, KeywordStatus } from '@/lib/tailor/keywords
  */
 
 const CHIP: Record<KeywordStatus, string> = {
-  covered: 'bg-[var(--color-success-highlight)] text-[var(--color-success)] border-[var(--color-success)]',
-  skills_only: 'bg-[var(--color-warning-highlight)] text-[var(--color-warning)] border-[var(--color-warning)]',
-  missing: 'bg-[var(--color-error-highlight)] text-[var(--color-error)] border-[var(--color-error)]',
+  covered: 'bg-[var(--color-accent)]',
+  skills_only: 'bg-[var(--color-yellow)]',
+  missing: 'bg-[var(--color-error-highlight)] line-through decoration-[var(--color-error)] decoration-2',
 }
 
 const STATUS_LABEL: Record<KeywordStatus, string> = {
@@ -23,10 +24,14 @@ const STATUS_LABEL: Record<KeywordStatus, string> = {
 function Score({ label, value, strong = false }: { label: string; value: number; strong?: boolean }) {
   return (
     <div className="text-center">
-      <p className={strong ? 'text-2xl font-bold text-[var(--color-primary)]' : 'text-lg font-semibold text-[var(--color-text)]'}>
+      <p
+        className={`nb-badge tabular-nums ${
+          strong ? `w-20 h-14 text-2xl ${scoreFill(value)}` : 'w-16 h-11 text-lg bg-[var(--color-surface)]'
+        }`}
+      >
         {value}%
       </p>
-      <p className="text-[10px] text-[var(--color-text-muted)]">{label}</p>
+      <p className="mt-1.5 text-[10px] font-black uppercase tracking-wider text-[var(--color-text-muted)]">{label}</p>
     </div>
   )
 }
@@ -54,39 +59,39 @@ export default function KeywordCoverage({
     .map((s) => s.keyword.term)
 
   return (
-    <section className="bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] p-5 space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+    <section className="nb-card rounded-[10px] p-6 space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-sm font-semibold text-[var(--color-text)]">ATS keyword coverage</h2>
-          <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+          <h2 className="text-2xl font-black">ATS keyword score</h2>
+          <p className="text-sm text-[var(--color-text-muted)] mt-1">
             {report.jobTitle ? `${report.jobTitle} · ` : ''}
             {approved.requiredPresent} of {approved.requiredTotal} required keywords with the changes you approved
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-start gap-3">
           <Score label="Before" value={report.before.score} />
-          <span className="text-[var(--color-text-faint)]">→</span>
+          <span className="pt-3 font-black">→</span>
           <Score label="Approved" value={approved.score} strong />
           {pending && (
             <>
-              <span className="text-[var(--color-text-faint)]">·</span>
+              <span className="pt-3 text-[var(--color-text-faint)]">·</span>
               <Score label="Approve the rest" value={notRejected.score} />
             </>
           )}
         </div>
       </div>
 
-      <div className="h-2 rounded-full bg-[var(--color-border)] overflow-hidden">
-        <div className="h-full bg-[var(--color-primary)] transition-all duration-300" style={{ width: `${approved.score}%` }} />
+      <div className="h-4 rounded-full border-[1.6px] border-[var(--color-ink)] bg-[var(--color-surface-offset)] overflow-hidden">
+        <div className="h-full bg-[var(--color-accent)] border-r-[1.6px] border-[var(--color-ink)] transition-all duration-300" style={{ width: `${approved.score}%` }} />
       </div>
 
       {lostByRejecting.length > 0 && (
-        <p className="text-xs text-[var(--color-error)]">
+        <p className="text-sm font-semibold text-[var(--color-error)]">
           You rejected changes that carried required keywords, so these are now missing: {lostByRejecting.join(', ')}.
         </p>
       )}
       {lostByRejecting.length === 0 && pending && missingNow.length > 0 && (
-        <p className="text-xs text-[var(--color-text-muted)]">Approve the remaining changes to cover {missingNow.join(', ')}.</p>
+        <p className="text-sm text-[var(--color-text-muted)]">Approve the remaining changes to cover {missingNow.join(', ')}.</p>
       )}
       {report.unplaced.length > 0 && (
         <p className="text-xs text-[var(--color-warning)]">
@@ -100,7 +105,7 @@ export default function KeywordCoverage({
           <li
             key={keyword.term}
             title={STATUS_LABEL[status]}
-            className={`text-xs px-2 py-0.5 rounded-full border ${CHIP[status]}`}
+            className={`nb-chip text-[#0a0a0a] ${CHIP[status]}`}
           >
             {keyword.term}
             {keyword.required ? '' : ' · nice to have'}
@@ -109,8 +114,8 @@ export default function KeywordCoverage({
       </ul>
 
       <p className="text-[11px] text-[var(--color-text-muted)] leading-snug">
-        Green keywords appear in your summary or experience. Amber ones are listed in your skills with nothing in your
-        experience behind them: be ready to discuss them, or reject the change that added them. Red ones are missing.
+        Green keywords appear in your summary or experience. Yellow ones are listed in your skills with nothing in your
+        experience behind them: be ready to discuss them, or reject the change that added them. Crossed-out ones are missing.
       </p>
     </section>
   )

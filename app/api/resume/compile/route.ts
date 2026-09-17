@@ -5,6 +5,8 @@ import { compileLatexToPdf, compileHost } from '@/lib/latex/compile'
 import { validateLatexDocument } from '@/lib/latex/sanitize'
 import { getResume } from '@/lib/db/resumes'
 import { getTailoring } from '@/lib/db/tailorings'
+import { getCoverLetter } from '@/lib/db/cover-letters'
+import { coverLetterLatex } from '@/lib/cover-letter'
 import { renderResumeLatex } from '@/lib/import/render'
 import { ResumeDocSchema } from '@/lib/resume-doc'
 import { ChangeListSchema, tailorStoredResume } from '@/lib/tailor/splice'
@@ -18,6 +20,8 @@ const schema = z.object({
   changes: ChangeListSchema.optional(),
   /** Any user: a tailored copy from their history, compiled exactly as it was saved. */
   tailoringId: z.string().optional(),
+  /** Any user: one of their cover letters, set on a plain letter page here. */
+  coverLetterId: z.string().optional(),
   fileName: z.string().optional(),
 })
 
@@ -33,12 +37,30 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return auth.response
 
   const parsed = schema.safeParse(await req.json().catch(() => null))
-  if (!parsed.success || (!parsed.data.latex && !parsed.data.resumeId && !parsed.data.tailoringId)) {
+  if (
+    !parsed.success ||
+    (!parsed.data.latex && !parsed.data.resumeId && !parsed.data.tailoringId && !parsed.data.coverLetterId)
+  ) {
     return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
   }
 
   let latex: string
-  if (parsed.data.tailoringId) {
+  if (parsed.data.coverLetterId) {
+    const letter = await getCoverLetter(auth.userId, parsed.data.coverLetterId)
+    const tailoring = letter ? await getTailoring(auth.userId, letter.tailoringId) : null
+    if (!letter || !tailoring) return NextResponse.json({ error: 'Cover letter not found' }, { status: 404 })
+    // The header comes from the resume the letter's copy was tailored from, when that still exists.
+    let name = tailoring.resumeTitle
+    let contact: string[] = []
+    const row = tailoring.resumeId ? await getResume(auth.userId, tailoring.resumeId) : null
+    const doc = row ? ResumeDocSchema.safeParse(row.doc) : null
+    if (doc?.success) {
+      name = doc.data.name
+      contact = [doc.data.contact.email, doc.data.contact.phone, doc.data.contact.location].filter(Boolean)
+    }
+    const date = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+    latex = coverLetterLatex({ name, contact, date }, letter.body)
+  } else if (parsed.data.tailoringId) {
     // Saved by the apply route from the stored resume and checked changes, so it is the server's own document.
     const saved = auth.userId ? await getTailoring(auth.userId, parsed.data.tailoringId) : null
     if (!saved) return NextResponse.json({ error: 'Tailored resume not found' }, { status: 404 })

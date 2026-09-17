@@ -1,7 +1,30 @@
 'use client'
 
-import { signIn } from 'next-auth/react'
 import Link from 'next/link'
+import SiteFooter from '@/components/brand/SiteFooter'
+import SiteHeader from '@/components/brand/SiteHeader'
+import { StartButton } from '@/components/brand/SignInButton'
+import {
+  ArrowRight,
+  Briefcase,
+  CheckCircle,
+  ChevronDown,
+  FileText,
+  KeyIcon,
+  Layers,
+  Mail,
+  Pencil,
+  Shield,
+  Sliders,
+  Upload,
+} from '@/components/brand/Icons'
+import { CREDIT_PACKS, formatPrice, IMPORTS_PER_MONTH, PRO_PLAN } from '@/lib/billing/plans'
+
+/**
+ * The public home page: what ResMod does, how, an example of the changes it
+ * makes, answers to the usual questions, and the prices. Every "start" button
+ * signs in with Google.
+ */
 
 interface LoginPageProps {
   /** Free tailorings every account gets; null while ResMod AI isn't switched on. */
@@ -10,106 +33,474 @@ interface LoginPageProps {
   accountDeleted: boolean
 }
 
-const FEATURES: Array<[string, string]> = [
-  ['Any format in', 'Upload a PDF, Word, LaTeX or text resume. It becomes a clean LaTeX resume you can check and edit.'],
-  ['Three levels', 'Soft, Hard or Hardest: choose how much of your resume is rewritten for each job.'],
-  ['Every required keyword', 'The keywords an ATS screens the job for always end up in your resume, with a score that shows it.'],
-  ['Still your resume', 'Employers, titles, dates and degrees never change, and nothing goes in until you approve it.'],
+const FEATURES: Array<{ icon: React.ReactNode; title: string; text: string }> = [
+  {
+    icon: <KeyIcon />,
+    title: 'Every required keyword',
+    text: 'ResMod picks out the terms an ATS screens the job for, works them into your resume, and shows a score so you can see nothing is missing.',
+  },
+  {
+    icon: <Sliders />,
+    title: 'Soft, Hard or Hardest',
+    text: 'Choose how much changes: a light touch on the summary and skills, or every bullet reframed around the role.',
+  },
+  {
+    icon: <Shield />,
+    title: 'Still your resume',
+    text: 'Employers, job titles, dates, degrees and your numbers stay exactly as they are. Nothing is made up.',
+  },
+  {
+    icon: <Pencil />,
+    title: 'You approve every change',
+    text: 'See each rewrite next to the original. Keep it, edit it, or leave it out. Your saved resume never changes.',
+  },
+  {
+    icon: <Mail />,
+    title: 'A cover letter to match',
+    text: 'Write a cover letter from any tailored resume, in the tone you want, and edit it before you send it.',
+  },
+  {
+    icon: <FileText />,
+    title: 'Any format in, a clean resume out',
+    text: 'Import a PDF, Word, LaTeX or text file. You get a clean LaTeX resume that ATS software can read, as a PDF or .tex.',
+  },
+]
+
+const FAQ: Array<[string, React.ReactNode]> = [
+  [
+    'How does ResMod tailor my resume?',
+    <>
+      It reads the job description, picks out the <strong>keywords an ATS screens for</strong>, and rewrites your summary, skills and
+      bullets around them at the level you choose. You then see <strong>every change next to the original</strong> and decide what goes in.
+    </>,
+  ],
+  [
+    'Will it change my experience or invent anything?',
+    <>
+      No. Your <strong>employers, job titles, dates, degrees and contact details never change</strong>, and your metrics are kept. If a
+      skill ends up listed with no bullet behind it, ResMod flags it so you can remove it or be ready to talk about it.
+    </>,
+  ],
+  [
+    'What do Soft, Hard and Hardest mean?',
+    <>
+      <strong>Soft</strong> adjusts the summary, skills and at most one bullet per role. <strong>Hard</strong> rebuilds the summary and skills
+      and rewrites at least two bullets per role. <strong>Hardest</strong> rewrites every editable line toward the job.
+    </>,
+  ],
+  [
+    'What is an ATS, and how does ResMod help with it?',
+    <>
+      An Applicant Tracking System is the software many employers use to collect and filter applications. ResMod&apos;s resume template
+      is plain, selectable text that these systems read well, and every <strong>required keyword</strong> from the job ends up in your
+      resume.
+    </>,
+  ],
+  [
+    'Which file formats can I import?',
+    <>
+      <strong>PDF, Word (.docx), LaTeX (.tex) and plain text</strong>, up to 4 MB, or paste the text in. You check the imported resume and
+      fix anything before it is saved. Old Word .doc files need saving as .docx first.
+    </>,
+  ],
+  [
+    'Can I edit the tailored resume?',
+    <>
+      Yes. You can <strong>edit any suggested change</strong> before applying it, and edit your saved resume at any time. Every tailored
+      copy is kept in your history, so you can download it again later.
+    </>,
+  ],
+  [
+    'Can I get a cover letter too?',
+    <>
+      Yes. From any tailored resume you can write a <strong>matching cover letter</strong>, pick its tone, edit it, and download it as a PDF
+      or copy it.
+    </>,
+  ],
+  [
+    'How long does it take?',
+    <>Usually a minute or two. You can watch each step, and the AI used, as it happens.</>,
+  ],
+  [
+    'Does it work in other languages?',
+    <>ResMod works best with resumes and job descriptions written in English.</>,
+  ],
+  [
+    'What happens to my data?',
+    <>
+      Your resumes are kept in your account until you delete them, and you can delete your whole account at any time. They are not used
+      to train AI models. The <Link href="/privacy" className="underline font-semibold">Privacy Policy</Link> has the details.
+    </>,
+  ],
 ]
 
 export default function LoginPage({ freeTailorings, accountDeleted }: LoginPageProps) {
-  return (
-    <main className="min-h-screen bg-[var(--color-bg)] flex items-center justify-center px-4 py-10">
-      <div className="w-full max-w-md space-y-8 text-center anim-page-enter">
-        {accountDeleted && (
-          <p className="rounded-xl border border-[var(--color-success)] bg-[var(--color-success-highlight)] p-3 text-sm text-[var(--color-success)]">
-            Your account has been deleted.
-          </p>
-        )}
+  const startNote = freeTailorings
+    ? `${freeTailorings} free tailorings · No card needed`
+    : 'Sign in with Google to get started'
 
-        <div className="flex justify-center">
-          <div className="relative">
-            <svg width="52" height="52" viewBox="0 0 52 52" fill="none" aria-label="ResMod">
-              <rect x="1" y="1" width="50" height="50" rx="13" fill="var(--color-primary)" />
-              {/* Document body */}
-              <rect x="13" y="10" width="22" height="30" rx="3" fill="white" opacity="0.95" />
-              {/* Folded corner */}
-              <path d="M29 10 L35 16 L29 16 Z" fill="var(--color-primary)" opacity="0.3" />
-              {/* Text lines */}
-              <rect x="17" y="19" width="14" height="2" rx="1" fill="var(--color-primary)" opacity="0.5" />
-              <rect x="17" y="24" width="11" height="2" rx="1" fill="var(--color-primary)" opacity="0.35" />
-              <rect x="17" y="29" width="14" height="2" rx="1" fill="var(--color-primary)" opacity="0.5" />
-              <rect x="17" y="34" width="8" height="2" rx="1" fill="var(--color-primary)" opacity="0.35" />
-              {/* Edit pencil accent */}
-              <g transform="translate(30, 28) rotate(-45)">
-                <rect x="0" y="0" width="4" height="14" rx="1" fill="white" />
-                <polygon points="0,14 4,14 2,18" fill="white" />
-              </g>
-            </svg>
-            <div className="absolute -top-1 -right-1 w-4 h-4 bg-[var(--color-success)] rounded-full border-2 border-[var(--color-bg)] anim-pulse-dot" />
+  return (
+    <div className="min-h-screen bg-[var(--color-surface)] text-[var(--color-text)]">
+      <SiteHeader />
+
+      {accountDeleted && (
+        <div className="bg-[var(--color-success-highlight)] border-b-[1.6px] border-[var(--color-ink)]">
+          <p className="max-w-6xl mx-auto px-6 py-3 text-sm font-semibold">Your account has been deleted.</p>
+        </div>
+      )}
+
+      {/* ── Hero ─────────────────────────────────────────── */}
+      <section className="px-4 sm:px-6 pt-14 sm:pt-20 pb-16 overflow-hidden">
+        <div className="max-w-5xl mx-auto text-center">
+          <h1 className="text-[2.6rem] leading-[1.15] sm:text-6xl sm:leading-[1.2] font-black tracking-tight">
+            <span className="nb-highlight">Tailor your resume</span>
+            <br />
+            to every job description
+          </h1>
+          <p className="mt-7 text-lg sm:text-2xl text-[var(--color-text-muted)] max-w-3xl mx-auto leading-relaxed">
+            Paste a job description and get a version of your resume that speaks to it, with every required keyword in and nothing made
+            up.
+          </p>
+          <div className="mt-9 flex flex-col items-center gap-3">
+            <StartButton />
+            <p className="text-sm font-bold text-[var(--color-text-muted)]">{startNote}</p>
           </div>
         </div>
 
-        <div className="space-y-2">
-          <h1 className="text-3xl font-bold text-[var(--color-text)]">ResMod</h1>
-          <p className="text-base font-medium text-[var(--color-text)]">
-            Tailor your resume to every job, without losing what makes it yours.
-          </p>
-          <p className="text-sm text-[var(--color-text-muted)] max-w-sm mx-auto">
-            Upload your resume once. For each job description, ResMod proposes changes you review one by one, then hands
-            you a tailored PDF, LaTeX file or Overleaf project.
-          </p>
+        <HeroVisual />
+      </section>
+
+      {/* ── How it works ─────────────────────────────────── */}
+      <section id="how-it-works" className="scroll-mt-20 bg-[var(--color-periwinkle)] border-y-[1.6px] border-[var(--color-ink)] px-4 sm:px-6 py-20">
+        <div className="max-w-5xl mx-auto">
+          <h2 className="text-3xl sm:text-4xl font-black text-center">How ResMod works</h2>
+          <div className="mt-12 grid gap-10 md:grid-cols-3">
+            <Step n={1} label="Import your resume">
+              <div className="flex items-center gap-3">
+                <span className="nb-badge w-11 h-11 bg-[var(--color-accent)]">
+                  <Upload size={22} />
+                </span>
+                <div className="text-left">
+                  <p className="font-bold">resume.pdf</p>
+                  <p className="text-xs text-[var(--color-text-muted)]">PDF · Word · LaTeX · text</p>
+                </div>
+              </div>
+              <div className="mt-4 space-y-2">
+                <Line w="w-full" />
+                <Line w="w-4/5" />
+                <Line w="w-3/5" />
+              </div>
+            </Step>
+            <Step n={2} label="Paste the job description">
+              <div className="flex items-center gap-2">
+                <Briefcase size={18} />
+                <p className="font-bold">Platform Engineer</p>
+              </div>
+              <p className="mt-3 text-sm text-[var(--color-text-muted)] text-left leading-relaxed">
+                You will run <Mark>Kubernetes</Mark> clusters, write <Mark>Terraform</Mark> and build tools in <Mark>Python</Mark>…
+              </p>
+            </Step>
+            <Step n={3} label="Review and download">
+              <p className="text-xs font-bold uppercase tracking-wide text-[var(--color-text-faint)] text-left">Suggested change</p>
+              <p className="mt-2 text-sm text-left line-through decoration-2 decoration-[var(--color-error)] text-[var(--color-text-muted)]">
+                Deployed services to the cloud
+              </p>
+              <p className="mt-1 text-sm text-left font-semibold">
+                Deployed services on <Mark>Kubernetes</Mark> with <Mark>Terraform</Mark>
+              </p>
+              <div className="mt-4 flex gap-2">
+                <span className="nb-chip bg-[var(--color-accent)]">
+                  <CheckCircle size={14} /> Keep
+                </span>
+                <span className="nb-chip bg-white">PDF</span>
+                <span className="nb-chip bg-white">.tex</span>
+              </div>
+            </Step>
+          </div>
         </div>
+      </section>
 
-        <ul className="text-left space-y-3 bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] p-5">
-          {FEATURES.map(([title, desc]) => (
-            <li key={title} className="flex items-start gap-3">
-              <div className="w-5 h-5 rounded-full bg-[var(--color-primary-highlight)] flex items-center justify-center flex-shrink-0 mt-0.5">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" strokeWidth="3">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
+      {/* ── Features ─────────────────────────────────────── */}
+      <section className="bg-[var(--color-sky)] border-b-[1.6px] border-[var(--color-ink)] px-4 sm:px-6 py-20">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center max-w-3xl mx-auto">
+            <h2 className="text-3xl sm:text-4xl font-black">Stop rewriting your resume for every application</h2>
+            <p className="mt-4 text-lg sm:text-xl font-bold text-[var(--color-text-muted)]">
+              A job-specific resume in a couple of minutes, built from your real experience.
+            </p>
+          </div>
+          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {FEATURES.map((feature) => (
+              <div key={feature.title} className="nb-card p-6">
+                <div className="flex items-center gap-3">
+                  <span className="nb-badge w-11 h-11 bg-[var(--color-accent)] shrink-0">{feature.icon}</span>
+                  <h3 className="text-xl font-extrabold leading-tight">{feature.title}</h3>
+                </div>
+                <p className="mt-4 text-[var(--color-text-muted)] leading-relaxed">{feature.text}</p>
               </div>
-              <div>
-                <span className="text-sm font-semibold text-[var(--color-text)]">{title} </span>
-                <span className="text-sm text-[var(--color-text-muted)]">{desc}</span>
-              </div>
-            </li>
-          ))}
-        </ul>
+            ))}
+          </div>
+          <div className="mt-12 flex flex-col items-center gap-3">
+            <StartButton />
+            <p className="text-sm font-bold text-[var(--color-text-muted)]">{startNote}</p>
+          </div>
+        </div>
+      </section>
 
-        <button
-          onClick={() => signIn('google', { callbackUrl: '/dashboard' })}
-          className="w-full flex items-center justify-center gap-3 px-6 py-3.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] font-semibold text-sm hover:bg-[var(--color-surface-offset)] transition-all shadow-sm hover:shadow-md"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24">
-            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-          </svg>
-          Continue with Google
-        </button>
+      {/* ── Example ──────────────────────────────────────── */}
+      <section className="px-4 sm:px-6 py-20 bg-[var(--color-surface)]">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center">
+            <h2 className="text-3xl sm:text-4xl font-black">See what a tailoring changes</h2>
+            <p className="mt-3 text-lg text-[var(--color-text-muted)]">
+              A backend engineer&apos;s resume, tailored to a platform engineering job.
+            </p>
+          </div>
+          <ExampleResume />
+        </div>
+      </section>
 
-        <p className="text-xs text-[var(--color-text-faint)]">
-          {freeTailorings ? `Your first ${freeTailorings} tailorings are free; after that, Pro or a credit pack. ` : ''}
-          Google is used for sign-in only; no Docs or Drive access is requested.
-        </p>
+      {/* ── FAQ ──────────────────────────────────────────── */}
+      <section id="faq" className="scroll-mt-20 px-4 sm:px-6 py-20 bg-[var(--color-bg)] border-y-[1.6px] border-[var(--color-ink)]">
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-3xl sm:text-4xl font-black text-center">Frequently asked questions</h2>
+          <div className="mt-10 space-y-4">
+            {FAQ.map(([question, answer], i) => (
+              <details key={question} open={i === 0} className="group nb-card nb-rounded bg-[var(--color-accent-soft)] px-5 py-4">
+                <summary className="flex items-center justify-between gap-4 cursor-pointer list-none font-bold text-lg">
+                  {question}
+                  <ChevronDown size={20} className="shrink-0 transition-transform group-open:rotate-180" />
+                </summary>
+                <p className="mt-3 text-[var(--color-text-muted)] leading-relaxed [&_strong]:text-[var(--color-text)]">{answer}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
 
-        <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-[var(--color-text-muted)] pt-4">
-          {[
-            ['/pricing', 'Pricing'],
-            ['/terms', 'Terms'],
-            ['/privacy', 'Privacy'],
-            ['/refunds', 'Refunds'],
-            ['/shipping', 'Shipping'],
-            ['/contact', 'Contact'],
-          ].map(([href, label]) => (
-            <Link key={href} href={href} className="hover:text-[var(--color-primary)] hover:underline">
-              {label}
+      {/* ── Pricing ──────────────────────────────────────── */}
+      <section id="pricing" className="scroll-mt-20 px-4 sm:px-6 py-20 bg-[var(--color-sky-soft)]">
+        <div className="max-w-5xl mx-auto">
+          <h2 className="text-3xl sm:text-4xl font-black text-center">Simple, clear pricing</h2>
+          <p className="mt-3 text-center text-lg text-[var(--color-text-muted)]">
+            Start free. Get Pro or a credit pack whenever you like.
+          </p>
+          <PricingCards freeTailorings={freeTailorings} />
+          <div className="mt-12 flex flex-col items-center gap-3">
+            <StartButton label="Get started" />
+            <Link href="/pricing" className="text-sm font-bold underline underline-offset-4">
+              Full pricing details
             </Link>
-          ))}
-        </nav>
+          </div>
+        </div>
+      </section>
+
+      <SiteFooter />
+    </div>
+  )
+}
+
+function Mark({ children }: { children: React.ReactNode }) {
+  return <span className="bg-[var(--color-accent)] px-1 font-semibold text-[#0a0a0a]">{children}</span>
+}
+
+function Line({ w }: { w: string }) {
+  return <div className={`h-2.5 ${w} bg-[var(--color-surface-dynamic)] rounded-sm`} />
+}
+
+function Step({ n, label, children }: { n: number; label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col items-center">
+      <div className="flex items-center gap-3">
+        <span className="nb-badge w-10 h-10 bg-[var(--color-accent)] text-lg">{n}.</span>
+        <span className="nb-badge h-10 px-4 bg-[var(--color-yellow)]">{label}</span>
       </div>
-    </main>
+      <div className="nb-card nb-rounded mt-5 w-full p-5">{children}</div>
+    </div>
+  )
+}
+
+/** Original artwork: a job post goes in, a tailored resume comes out. */
+function HeroVisual() {
+  return (
+    <div className="relative max-w-5xl mx-auto mt-16 grid gap-6 md:grid-cols-[1fr_auto_1fr] items-center">
+      <div className="nb-card nb-rounded p-5 md:-rotate-2">
+        <div className="flex items-center gap-3">
+          <span className="nb-badge w-10 h-10 bg-[var(--color-yellow)]">
+            <Briefcase size={20} />
+          </span>
+          <div>
+            <p className="font-extrabold">Senior Platform Engineer</p>
+            <p className="text-xs text-[var(--color-text-muted)]">Northwind Labs · Bengaluru</p>
+          </div>
+        </div>
+        <p className="mt-4 text-sm text-[var(--color-text-muted)] leading-relaxed">
+          We need someone who owns <Mark>Kubernetes</Mark> on <Mark>AWS</Mark>, writes <Mark>Terraform</Mark> and leads{' '}
+          <Mark>incident response</Mark>.
+        </p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {['Kubernetes', 'AWS', 'Terraform', 'Go'].map((k) => (
+            <span key={k} className="nb-chip bg-white">
+              {k}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex md:flex-col items-center justify-center gap-3">
+        <span className="nb-badge px-4 py-2 bg-[var(--color-primary)] text-white text-sm">
+          <Layers size={16} /> Tailoring
+        </span>
+        <ArrowRight size={28} className="md:rotate-0 rotate-90" />
+      </div>
+
+      <div className="nb-card nb-rounded p-5 md:rotate-2">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="font-extrabold text-lg">Asha Menon</p>
+            <p className="text-xs text-[var(--color-text-muted)]">Platform Engineer · asha@example.com</p>
+          </div>
+          <span className="nb-chip bg-[var(--color-accent)] whitespace-nowrap">
+            <CheckCircle size={14} /> 9/9 keywords
+          </span>
+        </div>
+        <div className="mt-4 space-y-2.5 text-sm">
+          <p className="leading-relaxed">
+            • Ran production <Mark>Kubernetes</Mark> clusters on <Mark>AWS</Mark>, cutting deploy time by 40%
+          </p>
+          <p className="leading-relaxed">
+            • Led <Mark>incident response</Mark> for a payments platform serving 2M users
+          </p>
+          <div className="space-y-2 pt-1">
+            <Line w="w-full" />
+            <Line w="w-2/3" />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** Original example of a tailoring, with the reason for each change. */
+function ExampleResume() {
+  const changes: Array<{ note: string; before: string; after: React.ReactNode }> = [
+    {
+      note: 'Added the tools the job lists as required.',
+      before: 'Skills: Python, Go, PostgreSQL, Docker',
+      after: (
+        <>
+          Skills: Go, Python, <Mark>Kubernetes</Mark>, <Mark>Terraform</Mark>, PostgreSQL, Docker
+        </>
+      ),
+    },
+    {
+      note: 'Reframed a bullet around the on-call work the role asks for.',
+      before: 'Maintained the payments service and fixed production bugs',
+      after: (
+        <>
+          Kept the payments service running as part of the on-call rota, leading <Mark>incident response</Mark> and postmortems
+        </>
+      ),
+    },
+    {
+      note: 'Moved Go first: it is the job’s main language.',
+      before: 'Built internal tools in Python and Go',
+      after: (
+        <>
+          Built internal deployment tools in <Mark>Go</Mark> and Python used by 40 engineers
+        </>
+      ),
+    },
+  ]
+
+  return (
+    <div className="nb-card nb-rounded mt-10 p-5 sm:p-8">
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b-[1.6px] border-[var(--color-ink)] pb-4">
+        <div>
+          <p className="text-2xl font-black">Rahul Verma</p>
+          <p className="text-sm text-[var(--color-text-muted)]">Backend Engineer · Pune · rahul@example.com</p>
+        </div>
+        <div className="flex items-center gap-2 text-sm font-bold">
+          <span className="nb-chip bg-[var(--color-error-highlight)]">Before 38%</span>
+          <ArrowRight size={16} />
+          <span className="nb-chip bg-[var(--color-accent)]">After 100%</span>
+        </div>
+      </div>
+      <div className="mt-6 space-y-7">
+        {changes.map((change) => (
+          <div key={change.note}>
+            <span className="nb-badge inline-flex px-3 py-1 text-sm bg-[var(--color-yellow)] -rotate-1">{change.note}</span>
+            <div className="mt-3 rounded-[10px] border-[1.6px] border-[var(--color-border-soft)] shadow-[4px_4px_0_0_rgba(0,0,0,0.25)] p-4 space-y-2 text-sm">
+              <p className="text-[var(--color-text-muted)] line-through decoration-2 decoration-[var(--color-error)]">{change.before}</p>
+              <p className="font-medium leading-relaxed">{change.after}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function PricingCards({ freeTailorings }: { freeTailorings: number | null }) {
+  const free = freeTailorings ?? 3
+  const cards: Array<{ name: string; price: string; per?: string; points: string[]; highlight?: boolean }> = [
+    {
+      name: 'Free',
+      price: '₹0',
+      points: [
+        `${free} tailorings, once for every account`,
+        'A cover letter for each one',
+        `${IMPORTS_PER_MONTH.free} resume imports a month`,
+        'Keyword finder and match check',
+        'History and PDF downloads',
+      ],
+    },
+    {
+      name: PRO_PLAN.label,
+      price: formatPrice(PRO_PLAN.pricePaise),
+      per: '/month',
+      highlight: true,
+      points: [
+        `${PRO_PLAN.runsPerCycle} tailorings every month`,
+        'A cover letter for each one',
+        `${IMPORTS_PER_MONTH.paid} resume imports a month`,
+        'Cancel any time',
+      ],
+    },
+    {
+      name: 'Credit packs',
+      price: formatPrice(CREDIT_PACKS[0].pricePaise),
+      per: ` / ${CREDIT_PACKS[0].runs} tailorings`,
+      points: [
+        ...CREDIT_PACKS.map((pack) => `${pack.runs} tailorings for ${formatPrice(pack.pricePaise)}`),
+        'A one-time payment',
+        'Credits never expire',
+      ],
+    },
+  ]
+
+  return (
+    <div className="mt-10 grid gap-6 md:grid-cols-3 items-stretch">
+      {cards.map((card) => (
+        <div
+          key={card.name}
+          className={`nb-card p-7 flex flex-col ${card.highlight ? 'md:-translate-y-2 border-[3px] shadow-[6px_6px_0_0_#0a0a0a]' : ''}`}
+        >
+          <h3 className="text-xl font-extrabold">{card.name}</h3>
+          <p className="mt-3">
+            <span className="text-4xl font-black">{card.price}</span>
+            {card.per && <span className="text-[var(--color-text-muted)]">{card.per}</span>}
+          </p>
+          <ul className="mt-6 space-y-3 flex-1">
+            {card.points.map((point) => (
+              <li key={point} className="flex items-start gap-2.5">
+                <CheckCircle size={20} className="text-[var(--color-success)] shrink-0 mt-0.5" />
+                <span>{point}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
   )
 }
