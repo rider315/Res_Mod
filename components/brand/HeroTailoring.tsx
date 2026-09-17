@@ -111,7 +111,10 @@ export default function HeroTailoring() {
   const [step, setStep] = useState(0)
   const [still, setStill] = useState(false)
   const frame = useRef<HTMLDivElement>(null)
-  const [running, setRunning] = useState(false)
+  // Starts true: the observer below may only pause it. Where an observer never
+  // reports — a webview that isn't compositing — the animation must still play
+  // rather than freeze on its first frame.
+  const [running, setRunning] = useState(true)
 
   // Anyone who asks for less motion gets the finished tailoring, not a slideshow of it.
   useEffect(() => {
@@ -129,8 +132,16 @@ export default function HeroTailoring() {
   useEffect(() => {
     const element = frame.current
     if (!element) return
-    let onScreen = false
-    const sync = () => setRunning(onScreen && !document.hidden)
+    let onScreen = true
+    // Being on screen is what decides this. A hidden page only stops it once the
+    // page has reported itself visible at least once: some in-app browsers — the
+    // ones people arrive in from LinkedIn — say "hidden" the whole time they are
+    // on screen, and the hero must not sit frozen there.
+    let everVisible = false
+    const sync = () => {
+      if (document.visibilityState === 'visible') everVisible = true
+      setRunning(onScreen && !(everVisible && document.hidden))
+    }
     const observer = new IntersectionObserver(
       ([entry]) => {
         onScreen = entry.isIntersecting
