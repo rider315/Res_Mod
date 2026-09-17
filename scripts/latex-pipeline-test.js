@@ -1971,6 +1971,197 @@ async function outreachTests() {
     quota.nextDayStart(late).toISOString() === '2026-10-01T00:00:00.000Z')
 }
 
+// ------------------------------------------------------------------- 19. apply
+const jobSource = require(BUILD + '/lib/apply/job-source')
+const applyRole = require(BUILD + '/lib/apply/role')
+const applyPlans = require(BUILD + '/lib/billing/plans')
+
+/**
+ * Stubs for one run, so no check ever reaches the network or a resolver. Bare
+ * IPs still go through the real guard, which needs no DNS, so the SSRF checks
+ * below are testing the real thing.
+ */
+function stubResolver() {
+  return async (url) => {
+    const host = url.hostname.replace(/^\[|\]$/g, '')
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.includes(':')) return jobSource.resolvePublicHost(url)
+    return '93.184.216.34'
+  }
+}
+
+/** A stub for one fetch, so no check ever reaches the network. */
+function stubFetch(pages) {
+  const seen = []
+  const impl = async (url) => {
+    seen.push(url)
+    const page = pages[url]
+    if (!page) throw new Error('nothing stubbed for ' + url)
+    return {
+      ok: page.status === undefined || (page.status >= 200 && page.status < 300),
+      status: page.status ?? 200,
+      headers: new Map(Object.entries({ 'content-type': 'text/html; charset=utf-8', ...(page.headers ?? {}) })),
+      arrayBuffer: async () => new TextEncoder().encode(page.body ?? '').buffer,
+    }
+  }
+  // The code reads headers with .get(), which a Map already has.
+  return Object.assign(impl, { seen })
+}
+
+const LONG_JD =
+  'We are hiring a Platform Engineer in Bengaluru. You will own production Kubernetes clusters on AWS, write Terraform for every ' +
+  'environment, and lead incident response for a payments platform. You should be comfortable with Go, with on-call rotations, and ' +
+  'with reviewing infrastructure as code. Experience with observability tooling is a plus, as is prior work on payments systems.'
+
+async function applyTests() {
+  console.log('\n=== the combined apply run ===')
+  const { normalizeJobUrl, resolvePublicHost, textFromHtml, decodeEntities, jobPostingFromHtml, fetchJobPosting, postingFromText, JobSourceError } =
+    jobSource
+
+  // ---- the link
+  const refusedUrl = (raw) => {
+    try {
+      normalizeJobUrl(raw)
+      return false
+    } catch (err) {
+      return err instanceof JobSourceError && err.kind === 'url'
+    }
+  }
+  check('a bare host gets https, and only web links are accepted',
+    normalizeJobUrl('jobs.example.com/platform-engineer').toString() === 'https://jobs.example.com/platform-engineer' &&
+    normalizeJobUrl(' https://a.example/x?y=1 ').toString() === 'https://a.example/x?y=1' &&
+    refusedUrl('javascript:alert(1)') && refusedUrl('file:///etc/passwd') && refusedUrl('data:text/html,hi') && refusedUrl(''))
+  check('a link carrying a username and password is refused',
+    refusedUrl('https://user:pass@jobs.example.com/x'))
+
+  const refusedHost = async (raw) => {
+    try {
+      await resolvePublicHost(normalizeJobUrl(raw))
+      return false
+    } catch (err) {
+      return err instanceof JobSourceError && err.kind === 'blocked'
+    }
+  }
+  check('a link pointing straight at a private or loopback address is refused',
+    (await refusedHost('http://127.0.0.1/x')) && (await refusedHost('http://169.254.169.254/latest/meta-data/')) &&
+    (await refusedHost('http://10.0.0.5/jd')) && (await refusedHost('http://192.168.1.1/jd')) &&
+    (await resolvePublicHost(normalizeJobUrl('http://8.8.8.8/jd'))) === '8.8.8.8')
+
+  // ---- the page
+  const html =
+    '<html><head><title>Platform Engineer at Northwind | BoardCo</title><style>.a{color:red}</style></head>' +
+    '<body><nav>Home Jobs</nav><script>track()</script><h1>Platform&nbsp;Engineer</h1>' +
+    '<p>Own our clusters &amp; write Terraform.</p><ul><li>Kubernetes</li><li>Go &lt;1.22&gt;</li></ul>' +
+    '<footer>© BoardCo</footer></body></html>'
+  const text = textFromHtml(html)
+  check('scripts, styles and page furniture are dropped, and list items become lines',
+    !/track\(\)|color:red|Home Jobs|BoardCo/.test(text) && text.includes('Platform Engineer') &&
+    text.includes('Own our clusters & write Terraform.') && text.includes('• Kubernetes') && text.includes('• Go <1.22>'), text)
+  check('entities are decoded, including numeric and hex ones',
+    decodeEntities('a&amp;b &#65;&#x42; &hellip; &unknownthing;') === 'a&b AB … &unknownthing;')
+
+  // ---- the posting's own structured data
+  const ldHtml =
+    '<html><body><script type="application/ld+json">' +
+    JSON.stringify({
+      '@context': 'https://schema.org',
+      '@graph': [
+        { '@type': 'BreadcrumbList', name: 'crumbs' },
+        {
+          '@type': ['JobPosting'],
+          title: 'Senior Platform Engineer',
+          hiringOrganization: { '@type': 'Organization', name: 'Northwind Labs' },
+          jobLocation: { '@type': 'Place', address: { addressLocality: 'Bengaluru', addressCountry: 'IN' } },
+          description: '<p>' + LONG_JD + '</p>',
+        },
+      ],
+    }) +
+    '</script><body>irrelevant page chrome</body></html>'
+  const structured = jobPostingFromHtml(ldHtml)
+  check('a schema.org JobPosting is preferred over the page text, however it is nested',
+    structured && structured.structured && structured.title === 'Senior Platform Engineer' &&
+    structured.company === 'Northwind Labs' && structured.location === 'Bengaluru, IN' &&
+    structured.text.includes('own production Kubernetes clusters'), JSON.stringify(structured))
+  check('a page with no JobPosting, or a stub of one, falls through to the text',
+    jobPostingFromHtml('<script type="application/ld+json">{"@type":"Article","description":"' + LONG_JD + '"}</script>') === null &&
+    jobPostingFromHtml('<script type="application/ld+json">{"@type":"JobPosting","description":"too short"}</script>') === null &&
+    jobPostingFromHtml('<script type="application/ld+json">not json at all</script>') === null)
+
+  // ---- fetching, hop by hop
+  const direct = await fetchJobPosting('https://jobs.example.com/pe', { fetchImpl: stubFetch({ 'https://jobs.example.com/pe': { body: ldHtml } }), resolveHost: stubResolver() })
+  check('a posting is read from the link, with its structured data',
+    direct.structured && direct.company === 'Northwind Labs' && direct.url === 'https://jobs.example.com/pe')
+
+  const hops = stubFetch({
+    'https://short.example/x': { status: 302, headers: { location: 'https://jobs.example.com/real' } },
+    'https://jobs.example.com/real': { body: ldHtml },
+  })
+  const redirected = await fetchJobPosting('https://short.example/x', { fetchImpl: hops, resolveHost: stubResolver() })
+  check('a redirect is followed by hand and the destination is read',
+    redirected.url === 'https://jobs.example.com/real' && hops.seen.length === 2)
+
+  const toPrivate = stubFetch({ 'https://short.example/x': { status: 302, headers: { location: 'http://169.254.169.254/latest/' } } })
+  let blocked = null
+  await fetchJobPosting('https://short.example/x', { fetchImpl: toPrivate, resolveHost: stubResolver() }).catch((err) => (blocked = err))
+  check('a redirect into a private network is refused, and never fetched',
+    blocked instanceof JobSourceError && blocked.kind === 'blocked' && toPrivate.seen.length === 1,
+    blocked && blocked.kind)
+
+  const failures = {
+    type: { 'https://x.example/a': { body: 'PK', headers: { 'content-type': 'application/pdf' } } },
+    empty: { 'https://x.example/a': { body: '<html><body><p>Loading…</p></body></html>' } },
+    fetch: { 'https://x.example/a': { status: 404, body: 'gone' } },
+    too_big: { 'https://x.example/a': { body: 'x', headers: { 'content-length': String(9 * 1024 * 1024) } } },
+  }
+  const kinds = {}
+  for (const [name, pages] of Object.entries(failures)) {
+    await fetchJobPosting('https://x.example/a', { fetchImpl: stubFetch(pages), resolveHost: stubResolver() }).catch((err) => (kinds[name] = err.kind))
+  }
+  check('a PDF, a page with no posting on it, a dead link and an enormous page each say what to do instead',
+    kinds.type === 'type' && kinds.empty === 'empty' && kinds.fetch === 'fetch' && kinds.too_big === 'too_big',
+    JSON.stringify(kinds))
+
+  let pastedShort = null
+  try {
+    postingFromText('Platform Engineer')
+  } catch (err) {
+    pastedShort = err
+  }
+  check('a pasted posting has to be the whole thing',
+    pastedShort instanceof JobSourceError && postingFromText(LONG_JD).text.includes('Kubernetes'))
+
+  // ---- one reading, shared
+  const { describeRole, leadKeywords, roleLabel } = applyRole
+  const posting = { url: 'https://x', title: 'Senior Platform Engineer', company: 'Northwind Labs', location: 'Bengaluru', text: LONG_JD, structured: true }
+  const fromPosting = describeRole(posting, { company: 'Recruiter Co' }, { jobTitle: 'Read Title', company: 'Read Co' }, 'Typed Title')
+  const fromText = describeRole(
+    { ...posting, structured: false, title: 'BoardCo | jobs', company: '' },
+    { company: 'Recruiter Co' },
+    { jobTitle: 'Platform Engineer', company: '' },
+    'Typed Title'
+  )
+  const bare = describeRole({ ...posting, structured: false, title: '', company: '', location: '' }, { company: 'Recruiter Co' }, {}, '')
+  check('the employer’s own words describe the role, and the recruiter’s company is only the last resort',
+    fromPosting.title === 'Senior Platform Engineer' && fromPosting.company === 'Northwind Labs' &&
+    fromText.title === 'Platform Engineer' && fromText.company === 'Recruiter Co' && bare.company === 'Recruiter Co',
+    JSON.stringify({ fromPosting, fromText, bare }))
+  const keywords = [
+    { term: 'Kubernetes', kind: 'tool', required: true, aliases: [] },
+    { term: 'nice to have', kind: 'skill', required: false, aliases: [] },
+    { term: 'Terraform', kind: 'tool', required: true, aliases: [] },
+  ]
+  check('the email speaks to the required keywords the resume covers',
+    JSON.stringify(leadKeywords({ keywords })) === JSON.stringify(['Kubernetes', 'Terraform']) &&
+    roleLabel({ title: 'Platform Engineer', company: 'Northwind' }) === 'Platform Engineer at Northwind' &&
+    roleLabel({ title: '', company: '' }) === 'this role')
+
+  // ---- what Premium is
+  check('Premium costs more than Pro and is the only tier with the combined run',
+    applyPlans.PREMIUM_PLAN.pricePaise === 49_900 && applyPlans.PREMIUM_PLAN.pricePaise > applyPlans.PRO_PLAN.pricePaise &&
+    applyPlans.tierHasApply('premium') && !applyPlans.tierHasApply('pro') &&
+    applyPlans.isPaidTier('premium') && !applyPlans.isPaidTier('plus') &&
+    applyPlans.formatPrice(applyPlans.PREMIUM_PLAN.pricePaise) === '₹499')
+}
+
 importTests()
   .then(tailorTests)
   .then(billingTests)
@@ -1980,6 +2171,7 @@ importTests()
   .then(usageTests)
   .then(featureTests)
   .then(outreachTests)
+  .then(applyTests)
   .then(summary, (err) => {
     check('the async tests ran to completion', false, err && err.stack)
     summary()

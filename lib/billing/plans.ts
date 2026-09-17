@@ -23,6 +23,40 @@ export const PRO_PLAN = {
   runsPerCycle: 100,
 } as const
 
+/**
+ * Premium: the whole application in one run. The user gives a recruiter and the
+ * posting they are hiring for; ResMod reads that posting, tailors the resume to
+ * it, and writes the recruiter email from the same reading, so the resume and
+ * the email say the same thing. The email still waits to be sent.
+ *
+ * It costs more than Pro because one run is several model calls where a
+ * tailoring is one, and because it replaces work the user would otherwise do by
+ * hand across both halves of the product.
+ */
+export const PREMIUM_PLAN = {
+  label: 'Premium',
+  pricePaise: 49_900,
+  runsPerCycle: 100,
+  /** Complete applications — posting read, resume tailored, email written — each cycle. */
+  appliesPerCycle: 40,
+} as const
+
+/** The subscriptions ResMod sells, cheapest first. */
+export const PAID_TIERS = ['pro', 'premium'] as const
+export type PaidTier = (typeof PAID_TIERS)[number]
+
+export const TIERS: Record<PaidTier, { label: string; pricePaise: number; runsPerCycle: number; appliesPerCycle: number; envPlanId: string }> = {
+  pro: { ...PRO_PLAN, appliesPerCycle: 0, envPlanId: 'RAZORPAY_PRO_PLAN_ID' },
+  premium: { ...PREMIUM_PLAN, envPlanId: 'RAZORPAY_PREMIUM_PLAN_ID' },
+}
+
+export function isPaidTier(value: unknown): value is PaidTier {
+  return typeof value === 'string' && (PAID_TIERS as readonly string[]).includes(value)
+}
+
+/** Whether a tier includes the combined workflow. Only Premium does. */
+export const tierHasApply = (tier: PaidTier) => TIERS[tier].appliesPerCycle > 0
+
 export interface CreditPack {
   id: string
   runs: number
