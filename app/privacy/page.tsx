@@ -4,10 +4,10 @@ import { getPlatformAi } from '@/lib/billing/platform-ai'
 import { getProvider } from '@/lib/providers'
 
 export const metadata = {
-  title: 'Privacy Policy | ResMod',
+  title: 'Privacy Policy | Chills',
 }
 
-// The page names the provider ResMod AI runs on, which the owner can change at any time.
+// The page names the provider Chills AI runs on, which the owner can change at any time.
 export const dynamic = 'force-dynamic'
 
 const LAST_UPDATED = '17 September 2026'
@@ -20,7 +20,7 @@ export default async function PrivacyPolicy() {
     <PolicyPage title="Privacy Policy" updated={LAST_UPDATED}>
       <PolicySection title="1. What this covers">
         <p>
-          ResMod is an online service that tailors resumes to job descriptions. This policy explains what ResMod
+          Chills is an online service that tailors resumes to job descriptions. This policy explains what Chills
           stores, why, who else handles it, and how you delete it. Questions go to the address on the{' '}
           <Link href="/contact" className="text-[var(--color-primary)] hover:underline">Contact</Link> page.
         </p>
@@ -30,7 +30,7 @@ export default async function PrivacyPolicy() {
         <ul className="list-disc pl-5 space-y-2">
           <li>
             <strong className="text-[var(--color-text)]">Your Google sign-in.</strong> Your name, email address and
-            Google account ID. ResMod asks only for the <code>openid</code>, <code>email</code> and{' '}
+            Google account ID. Chills asks only for the <code>openid</code>, <code>email</code> and{' '}
             <code>profile</code> scopes, so it cannot see your Google Drive, Docs, Gmail or anything else in your
             Google account.
           </li>
@@ -68,8 +68,8 @@ export default async function PrivacyPolicy() {
 
       <PolicySection title="3. How we use it">
         <p>
-          Only to run ResMod: to show and tailor your resumes, write and send the emails you ask for, count your
-          usage, take payments and prevent abuse. ResMod never emails anyone unless you press Send. ResMod does not sell your data, show advertising, or use your resumes to train AI models.
+          Only to run Chills: to show and tailor your resumes, write and send the emails you ask for, count your
+          usage, take payments and prevent abuse. Chills never emails anyone unless you press Send. Chills does not sell your data, show advertising, or use your resumes to train AI models.
         </p>
       </PolicySection>
 
@@ -77,7 +77,7 @@ export default async function PrivacyPolicy() {
         <ul className="list-disc pl-5 space-y-2">
           <li>
             <strong className="text-[var(--color-text)]">An AI provider.</strong> Resume text and job descriptions
-            go to the AI provider ResMod AI runs on{platformProvider ? `, currently ${platformProvider}` : ''}, to
+            go to the AI provider Chills AI runs on{platformProvider ? `, currently ${platformProvider}` : ''}, to
             import and tailor your resumes, find a job&apos;s keywords, write cover letters and recruiter emails, and
             read the recruiter replies you paste in. It handles that data under its own terms.
           </li>
@@ -87,13 +87,13 @@ export default async function PrivacyPolicy() {
           </li>
           <li>
             <strong className="text-[var(--color-text)]">The recruiters you email</strong> receive what you send them. When open tracking is on, each email
-            carries a tiny image; when a recipient&apos;s mail app loads it, ResMod records that the email was opened
+            carries a tiny image; when a recipient&apos;s mail app loads it, Chills records that the email was opened
             and nothing else about the recipient. Some mail apps load images on their own, so an open is a hint rather
             than proof.
           </li>
           <li>
             <strong className="text-[var(--color-text)]">Razorpay</strong> processes payments. Your card, UPI or bank
-            details go to Razorpay, never to ResMod.
+            details go to Razorpay, never to Chills.
           </li>
           <li>
             <strong className="text-[var(--color-text)]">Vercel</strong> hosts the app and{' '}
@@ -125,14 +125,14 @@ export default async function PrivacyPolicy() {
       <PolicySection title="6. The people you email">
         <p>
           You add recruiters&apos; contact details yourself and decide whom to email. Only add people you have a
-          legitimate reason to contact about a job, and remove anyone who asks not to be contacted: in ResMod,
+          legitimate reason to contact about a job, and remove anyone who asks not to be contacted: in Chills,
           removing a recruiter deletes their details and the emails to them.
         </p>
       </PolicySection>
 
       <PolicySection title="7. Cookies and browser storage">
         <p>
-          ResMod sets a cookie to keep you signed in. Razorpay Checkout sets its own cookies when you pay. ResMod
+          Chills sets a cookie to keep you signed in. Razorpay Checkout sets its own cookies when you pay. Chills
           uses no advertising or analytics cookies.
         </p>
       </PolicySection>

@@ -128,6 +128,6 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ email: sent })
   } catch (err) {
     console.error('[outreach/send] sent but not recorded:', err instanceof Error ? err.message : err)
-    return fail(500, 'The email was sent, but ResMod couldn’t record it. Check your Sent folder before sending it again.')
+    return fail(500, 'The email was sent, but Chills couldn’t record it. Check your Sent folder before sending it again.')
   }
 }

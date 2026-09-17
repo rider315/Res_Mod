@@ -233,7 +233,7 @@ export default function Dashboard() {
   const [compiling, setCompiling] = useState(false)
   const [compileHost, setCompileHost] = useState('texlive.net')
   const [themeMode, setThemeMode] = useState<'light' | 'dark'>('light')
-  // AI settings opened from the "Set up ResMod AI" warning go straight to that section.
+  // AI settings opened from the "Set up Chills AI" warning go straight to that section.
   const [focusPlatformAi, setFocusPlatformAi] = useState(false)
 
   useEffect(() => {
@@ -535,7 +535,7 @@ export default function Dashboard() {
       <header className="sticky top-0 z-10 border-b-[1.6px] border-[var(--color-ink)] bg-[var(--color-surface)] px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <LogoMark size={34} />
-          <span className="text-xl font-black tracking-tight text-[var(--color-text)]">ResMod</span>
+          <span className="text-xl font-black tracking-tight text-[var(--color-text)]">Chills</span>
         </div>
         <StepIndicator currentStep={state.step} />
         <div className="flex items-center gap-3">

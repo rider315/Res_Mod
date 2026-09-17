@@ -6,7 +6,7 @@ import { CREDIT_PACKS, EMAIL_DRAFTS_PER_MONTH, EMAIL_SENDS_PER_DAY, formatPrice,
 import { DAILY_AI_REQUESTS } from '@/lib/billing/quota'
 
 export const metadata = {
-  title: 'Pricing | ResMod',
+  title: 'Pricing | Chills',
 }
 
 function Points({ items }: { items: string[] }) {

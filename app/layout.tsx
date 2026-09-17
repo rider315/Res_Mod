@@ -6,9 +6,9 @@ import AuthProvider from '@/components/AuthProvider'
 const sans = DM_Sans({ subsets: ['latin'], variable: '--font-sans', display: 'swap' })
 
 export const metadata: Metadata = {
-  title: 'ResMod — Tailor your resume to every job',
+  title: 'Chills — Tailor your resume and email the recruiter',
   description:
-    'Upload your resume in any format and tailor it to any job description, with every required ATS keyword covered and every change reviewed by you.',
+    'Tailor your resume to any job description, with every required ATS keyword covered and every change reviewed by you, then email the recruiter from that same resume with it attached.',
   verification: {
     google: 'LPHid01QwGiUuOYs8wcALwDnimdPSWkz8fE6YuIajj8',
   },

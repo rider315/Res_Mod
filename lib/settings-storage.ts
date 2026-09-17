@@ -61,7 +61,7 @@ export function loadAISettings(): AISettings {
   return { provider, apiKeys, models }
 }
 
-/** Forget everything ResMod keeps in this browser: AI keys, models and choices. */
+/** Forget everything Chills keeps in this browser: AI keys, models and choices. */
 export function clearLocalAppData(): void {
   if (typeof window === 'undefined') return
   for (const key of Object.keys(localStorage)) {

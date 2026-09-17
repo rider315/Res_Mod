@@ -1,5 +1,5 @@
 /**
- * What ResMod sells, and what every account gets for free.
+ * What Chills sells, and what every account gets for free.
  *
  * Client-safe: the billing screen shows the same numbers the server charges by.
  * Amounts are in paise. PRO_PLAN's price must match the plan created in the
@@ -25,7 +25,7 @@ export const PRO_PLAN = {
 
 /**
  * Premium: the whole application in one run. The user gives a recruiter and the
- * posting they are hiring for; ResMod reads that posting, tailors the resume to
+ * posting they are hiring for; Chills reads that posting, tailors the resume to
  * it, and writes the recruiter email from the same reading, so the resume and
  * the email say the same thing. The email still waits to be sent.
  *
@@ -41,7 +41,7 @@ export const PREMIUM_PLAN = {
   appliesPerCycle: 40,
 } as const
 
-/** The subscriptions ResMod sells, cheapest first. */
+/** The subscriptions Chills sells, cheapest first. */
 export const PAID_TIERS = ['pro', 'premium'] as const
 export type PaidTier = (typeof PAID_TIERS)[number]
 
@@ -70,7 +70,7 @@ export const CREDIT_PACKS: readonly CreditPack[] = [
 ]
 
 /**
- * Importing a resume on ResMod AI costs no run, but it is capped per calendar
+ * Importing a resume on Chills AI costs no run, but it is capped per calendar
  * month so the free tier can't become a general transcription service. Accounts
  * that pay — Pro, or credits left — get the higher cap.
  */
@@ -84,7 +84,7 @@ export const EMAIL_DRAFTS_PER_MONTH = { free: 10, paid: 200 } as const
 
 /**
  * Recruiter emails any account can send in a UTC day. Sending goes through the
- * user's own mailbox and costs ResMod nothing; the cap protects that mailbox,
+ * user's own mailbox and costs Chills nothing; the cap protects that mailbox,
  * because a burst of cold emails is what gets an address flagged as spam.
  */
 export const EMAIL_SENDS_PER_DAY = 50

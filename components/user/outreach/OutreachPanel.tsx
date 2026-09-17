@@ -150,7 +150,7 @@ export default function OutreachPanel(props: OutreachPanelProps) {
 
   async function removeSelected() {
     const count = selected.size
-    if (!window.confirm(`Remove ${count} recruiter${count === 1 ? '' : 's'}? Their drafts, sent-email history and replies in ResMod go too.`)) return
+    if (!window.confirm(`Remove ${count} recruiter${count === 1 ? '' : 's'}? Their drafts, sent-email history and replies in Chills go too.`)) return
     try {
       await outreachApi.removeRecruiters(Array.from(selected))
       if (focusedId && selected.has(focusedId)) setFocusedId(null)
@@ -449,7 +449,7 @@ function GettingStarted({
   const steps = [
     {
       done: hasResume,
-      title: 'Have a resume in ResMod',
+      title: 'Have a resume in Chills',
       detail: 'Every email is written from it, and it goes along as a PDF. Tailored copies work too.',
       action: hasResume ? null : (
         <button onClick={onImportResume} className={linkButton}>
@@ -518,7 +518,7 @@ function PickSomeone({ mailbox, onSetup }: { mailbox: string | null; onSetup: ()
       </p>
       {!mailbox && (
         <p className="text-sm">
-          To send from ResMod,{' '}
+          To send from Chills,{' '}
           <button onClick={onSetup} className={linkButton}>
             connect your mailbox
           </button>

@@ -54,7 +54,7 @@ function MailboxCard({ setup, onSetupChange }: SenderSetupProps) {
       onSetupChange({ ...setup, mailbox })
       setPassword('')
       setEditing(false)
-      setNotice('Connected. ResMod signed in to your mailbox without sending anything.')
+      setNotice('Connected. Chills signed in to your mailbox without sending anything.')
     } catch (err) {
       setError(errorText(err))
     } finally {
@@ -63,7 +63,7 @@ function MailboxCard({ setup, onSetupChange }: SenderSetupProps) {
   }
 
   async function disconnect() {
-    if (!window.confirm('Disconnect this mailbox? ResMod forgets its app password. Your drafts and sent emails stay.')) return
+    if (!window.confirm('Disconnect this mailbox? Chills forgets its app password. Your drafts and sent emails stay.')) return
     setBusy('disconnect')
     setError(null)
     try {

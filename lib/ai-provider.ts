@@ -168,7 +168,7 @@ function buildHeaders(config: ProviderConfig, apiKey: string): Record<string, st
     // Optional attribution headers — they put the app on your OpenRouter activity page.
     headers['HTTP-Referer'] =
       process.env.OPENROUTER_SITE_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000'
-    headers['X-Title'] = process.env.OPENROUTER_SITE_NAME || 'ResMod Resume Optimizer'
+    headers['X-Title'] = process.env.OPENROUTER_SITE_NAME || 'Chills Resume Optimizer'
   }
   return headers
 }

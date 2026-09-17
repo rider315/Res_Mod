@@ -27,7 +27,7 @@ async function call<T>(path: string, fallback: string, init: { method?: string; 
   return (res.status === 204 ? undefined : await res.json()) as T
 }
 
-/** The owner writes with their own AI settings; everyone else runs on ResMod AI and sends nothing. */
+/** The owner writes with their own AI settings; everyone else runs on Chills AI and sends nothing. */
 export function ownerAi(isOwner: boolean, settings: AISettings) {
   return isOwner
     ? { provider: settings.provider, apiKey: settings.apiKeys[settings.provider], model: settings.models[settings.provider] }

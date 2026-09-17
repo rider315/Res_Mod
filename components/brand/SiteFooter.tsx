@@ -36,7 +36,7 @@ export default function SiteFooter() {
       </div>
       <div className="border-t border-[var(--color-divider)]">
         <p className="max-w-6xl mx-auto px-4 sm:px-6 py-5 text-xs text-[var(--color-text-faint)]">
-          © {new Date().getFullYear()} ResMod. Google is used for sign-in only; payments are handled by Razorpay.
+          © {new Date().getFullYear()} Chills. Google is used for sign-in only; payments are handled by Razorpay.
         </p>
       </div>
     </footer>

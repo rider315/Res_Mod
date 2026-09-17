@@ -124,7 +124,7 @@ export default function ThreadDialog(props: ThreadDialogProps) {
     })
 
   const remove = () => {
-    if (!window.confirm('Delete this conversation? Its emails, follow-ups and replies are removed from ResMod. Emails already sent stay in your mailbox.')) return
+    if (!window.confirm('Delete this conversation? Its emails, follow-ups and replies are removed from Chills. Emails already sent stay in your mailbox.')) return
     run('delete', async () => {
       await outreachApi.remove(threadId)
       props.onChanged()
@@ -333,7 +333,7 @@ function SentEmail({ email, label }: { email: EmailDetail; label: string }) {
           {sent ? (
             <span className="text-[var(--color-text-muted)]">
               sent {relativeDay(email.sentAt)}
-              {!email.tracked && ' · sent outside ResMod or not tracked'}
+              {!email.tracked && ' · sent outside Chills or not tracked'}
             </span>
           ) : (
             <StatusChip status={email.status} />

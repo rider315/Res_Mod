@@ -2,7 +2,7 @@ import Link from 'next/link'
 import PolicyPage, { PolicySection } from '@/components/PolicyPage'
 
 export const metadata = {
-  title: 'Cancellation and Refund Policy | ResMod',
+  title: 'Cancellation and Refund Policy | Chills',
 }
 
 export default function Refunds() {
@@ -38,7 +38,7 @@ export default function Refunds() {
       <PolicySection title="How to ask for a refund">
         <p>
           Write to the address on the <Link href="/contact" className="text-[var(--color-primary)] hover:underline">Contact</Link>{' '}
-          page with the email address of your ResMod account and the Razorpay payment ID from your receipt. Approved refunds
+          page with the email address of your Chills account and the Razorpay payment ID from your receipt. Approved refunds
           go back to the original payment method through Razorpay, usually within 5–7 working days, depending on your bank.
         </p>
       </PolicySection>

@@ -268,7 +268,7 @@ export default function KeywordFinderPanel({
                 <p className="font-black">What to do next</p>
                 <p className="mt-2 text-sm leading-relaxed">
                   Put the must-haves in your summary and your strongest bullets, using the job&apos;s own wording, and back each one with
-                  something you actually did. Add a few nice-to-haves to your skills. Or let ResMod do it: tailor a resume to this job and
+                  something you actually did. Add a few nice-to-haves to your skills. Or let Chills do it: tailor a resume to this job and
                   every must-have ends up in it.
                 </p>
               </div>

@@ -12,14 +12,14 @@ import { backLinkClass, cardClass, errorBox, inputClass, primaryButton } from '@
 /**
  * Importing a resume: a file or pasted text, turned into a structured resume.
  *
- * Text extraction always runs on the server. Structuring runs on ResMod AI, free
+ * Text extraction always runs on the server. Structuring runs on Chills AI, free
  * within a monthly import limit. The owner uses their own AI settings instead:
  * through /api/import/structure for key-based providers, or entirely in the
  * browser for Puter.
  */
 
 interface ImportPanelProps {
-  /** The owner runs on their own AI settings; everyone else on ResMod AI. */
+  /** The owner runs on their own AI settings; everyone else on Chills AI. */
   isOwner: boolean
   settings: AISettings
   /** undefined while loading; null when it couldn't be loaded, and always for the owner. */
@@ -100,7 +100,7 @@ export default function ImportPanel({
       })
     }
 
-    // Regular accounts always run on ResMod AI, so only the owner sends AI settings.
+    // Regular accounts always run on Chills AI, so only the owner sends AI settings.
     const ai = isOwner ? { provider: settings.provider, apiKey: settings.apiKeys[settings.provider], model } : {}
     const res = await fetch('/api/import/structure', {
       method: 'POST',
@@ -268,7 +268,7 @@ export default function ImportPanel({
         <p className="text-lg font-black">What happens next</p>
         <ol className="space-y-3">
           {[
-            'ResMod reads the text of your file. Nothing is rewritten at this stage.',
+            'Chills reads the text of your file. Nothing is rewritten at this stage.',
             'The AI sorts it into sections: summary, skills, experience, projects and education.',
             'You check every field, fix anything that came through wrong, and save.',
             'Then paste a job description and tailor it.',

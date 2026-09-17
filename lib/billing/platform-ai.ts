@@ -13,7 +13,7 @@ import {
 import type { PlatformAiStatus } from '@/lib/billing/types'
 
 /**
- * ResMod AI as the owner chooses it in AI settings: the provider, model and key
+ * Chills AI as the owner chooses it in AI settings: the provider, model and key
  * every regular account runs on: they have no AI settings of their own.
  *
  * The setting lives in the database, one row per deployment environment, so a
@@ -45,7 +45,7 @@ async function readSetting(fresh = false): Promise<Setting> {
   return setting
 }
 
-/** The model every regular account runs on, or null while ResMod AI is off. */
+/** The model every regular account runs on, or null while Chills AI is off. */
 export async function getPlatformAi(): Promise<PlatformAiConfig | null> {
   const fromEnv = platformAiFromEnv()
   if (fromEnv) return fromEnv

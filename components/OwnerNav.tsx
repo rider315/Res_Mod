@@ -9,7 +9,7 @@ import type { PlatformAiStatus } from '@/lib/billing/types'
  * The owner's links: between the resume profiles and the workspace every other
  * account uses, and to the Business overview.
  *
- * While ResMod AI is off, every other account can't import or tailor at all, so
+ * While Chills AI is off, every other account can't import or tailor at all, so
  * that is flagged here, on every owner screen, until it is set.
  */
 
@@ -18,7 +18,7 @@ const link =
 
 interface OwnerNavProps {
   inUserWorkspace?: boolean
-  /** Opens AI settings at the ResMod AI section. */
+  /** Opens AI settings at the Chills AI section. */
   onOpenAiSettings?: () => void
 }
 
@@ -51,7 +51,7 @@ export default function OwnerNav({ inUserWorkspace = false, onOpenAiSettings }: 
           title="Every other account can't import or tailor until you choose the AI they run on."
           className="nb-btn nb-btn-sm nb-btn-yellow px-3 py-1.5 text-xs"
         >
-          <span aria-hidden>⚠</span> Set up ResMod AI
+          <span aria-hidden>⚠</span> Set up Chills AI
         </button>
       )}
       <Link

@@ -25,10 +25,10 @@ const schema = z.object({
 
 const failed = (route: string, err: unknown) => {
   console.error(`[admin/platform-ai] ${route}:`, err instanceof Error ? err.message : err)
-  return NextResponse.json({ error: 'ResMod AI could not be updated right now. Try again in a moment.' }, { status: 500 })
+  return NextResponse.json({ error: 'Chills AI could not be updated right now. Try again in a moment.' }, { status: 500 })
 }
 
-/** ResMod AI as it is set now. Owner only, and the key itself is never sent. */
+/** Chills AI as it is set now. Owner only, and the key itself is never sent. */
 export async function GET() {
   const auth = await requireOwner()
   if (!auth.ok) return auth.response
@@ -40,7 +40,7 @@ export async function GET() {
 }
 
 /**
- * Make a provider, model and key from AI settings the ResMod AI that regular
+ * Make a provider, model and key from AI settings the Chills AI that regular
  * accounts run on. The connection is checked first, without spending tokens, so
  * a mistyped key can't switch paid runs on.
  */
@@ -55,7 +55,7 @@ export async function PUT(req: NextRequest) {
 
   if (config.clientSide) {
     return NextResponse.json(
-      { error: `${config.label} runs in each person's browser, so it can't power ResMod AI. Pick another provider.` },
+      { error: `${config.label} runs in each person's browser, so it can't power Chills AI. Pick another provider.` },
       { status: 400 }
     )
   }
@@ -84,7 +84,7 @@ export async function PUT(req: NextRequest) {
   }
 }
 
-/** Switch ResMod AI off. Buying runs switches off with it. */
+/** Switch Chills AI off. Buying runs switches off with it. */
 export async function DELETE() {
   const auth = await requireOwner()
   if (!auth.ok) return auth.response

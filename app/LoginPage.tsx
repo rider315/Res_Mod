@@ -25,14 +25,14 @@ import {
 import { CREDIT_PACKS, EMAIL_DRAFTS_PER_MONTH, formatPrice, IMPORTS_PER_MONTH, PREMIUM_PLAN, PRO_PLAN } from '@/lib/billing/plans'
 
 /**
- * The public home page: what ResMod does, how, reaching recruiters with the
+ * The public home page: what Chills does, how, reaching recruiters with the
  * result, an example of the changes it makes, answers to the usual questions,
  * and the prices. Every "start" button
  * signs in with Google.
  */
 
 interface LoginPageProps {
-  /** Free tailorings every account gets; null while ResMod AI isn't switched on. */
+  /** Free tailorings every account gets; null while Chills AI isn't switched on. */
   freeTailorings: number | null
   /** Arrived here straight after deleting an account. */
   accountDeleted: boolean
@@ -42,7 +42,7 @@ const FEATURES: Array<{ icon: React.ReactNode; title: string; text: string }> = 
   {
     icon: <KeyIcon />,
     title: 'Every required keyword',
-    text: 'ResMod picks out the terms an ATS screens the job for, works them into your resume, and shows a score so you can see nothing is missing.',
+    text: 'Chills picks out the terms an ATS screens the job for, works them into your resume, and shows a score so you can see nothing is missing.',
   },
   {
     icon: <Sliders />,
@@ -82,13 +82,13 @@ const WAYS: Array<{ icon: React.ReactNode; name: string; title: string; text: st
     icon: <Mail size={22} />,
     name: 'On its own',
     title: 'Recruiter emails',
-    text: 'Import the recruiters you want to reach, and ResMod writes each a short email from your resume. Send from your own mailbox, then track who opened, who replied, and what to say next.',
+    text: 'Import the recruiters you want to reach, and Chills writes each a short email from your resume. Send from your own mailbox, then track who opened, who replied, and what to say next.',
   },
   {
     icon: <Layers size={22} />,
     name: 'Both, in one run',
     title: 'The whole application',
-    text: 'Give ResMod a recruiter and the job they’re hiring for. It reads that posting, tailors your resume to it, and writes the email from the same reading — so the email and the resume attached to it say the same thing.',
+    text: 'Give Chills a recruiter and the job they’re hiring for. It reads that posting, tailors your resume to it, and writes the email from the same reading — so the email and the resume attached to it say the same thing.',
     premium: true,
   },
 ]
@@ -113,7 +113,7 @@ const OUTREACH_POINTS: Array<{ icon: React.ReactNode; title: string; text: strin
 
 const FAQ: Array<[string, React.ReactNode]> = [
   [
-    'How does ResMod tailor my resume?',
+    'How does Chills tailor my resume?',
     <>
       It reads the job description, picks out the <strong>keywords an ATS screens for</strong>, and rewrites your summary, skills and
       bullets around them at the level you choose. You then see <strong>every change next to the original</strong> and decide what goes in.
@@ -123,7 +123,7 @@ const FAQ: Array<[string, React.ReactNode]> = [
     'Will it change my experience or invent anything?',
     <>
       No. Your <strong>employers, job titles, dates, degrees and contact details never change</strong>, and your metrics are kept. If a
-      skill ends up listed with no bullet behind it, ResMod flags it so you can remove it or be ready to talk about it.
+      skill ends up listed with no bullet behind it, Chills flags it so you can remove it or be ready to talk about it.
     </>,
   ],
   [
@@ -134,9 +134,9 @@ const FAQ: Array<[string, React.ReactNode]> = [
     </>,
   ],
   [
-    'What is an ATS, and how does ResMod help with it?',
+    'What is an ATS, and how does Chills help with it?',
     <>
-      An Applicant Tracking System is the software many employers use to collect and filter applications. ResMod&apos;s resume template
+      An Applicant Tracking System is the software many employers use to collect and filter applications. Chills&apos;s resume template
       is plain, selectable text that these systems read well, and every <strong>required keyword</strong> from the job ends up in your
       resume.
     </>,
@@ -163,17 +163,17 @@ const FAQ: Array<[string, React.ReactNode]> = [
     </>,
   ],
   [
-    'Can ResMod email recruiters for me?',
+    'Can Chills email recruiters for me?',
     <>
-      Yes. Add the recruiters you want to reach, and ResMod writes each one a <strong>short email from your resume</strong>. You read and
+      Yes. Add the recruiters you want to reach, and Chills writes each one a <strong>short email from your resume</strong>. You read and
       edit it, then send it from <strong>your own mailbox with the tailored PDF attached</strong>, or open it in Gmail or Outlook and send it
-      there. ResMod never emails anyone without you pressing Send.
+      there. Chills never emails anyone without you pressing Send.
     </>,
   ],
   [
     'Is it safe to connect my mailbox?',
     <>
-      ResMod uses an <strong>app password</strong>, a separate password your email provider makes for one app, never your real one. It is
+      Chills uses an <strong>app password</strong>, a separate password your email provider makes for one app, never your real one. It is
       stored encrypted, used only to send the emails you send, and you can disconnect it or delete it at your provider at any time.
     </>,
   ],
@@ -183,7 +183,7 @@ const FAQ: Array<[string, React.ReactNode]> = [
   ],
   [
     'Does it work in other languages?',
-    <>ResMod works best with resumes and job descriptions written in English.</>,
+    <>Chills works best with resumes and job descriptions written in English.</>,
   ],
   [
     'What happens to my data?',
@@ -218,7 +218,7 @@ export default function LoginPage({ freeTailorings, accountDeleted }: LoginPageP
             and email it to the recruiter
           </h1>
           <p className="mt-7 text-lg sm:text-2xl text-[var(--color-text-muted)] max-w-3xl mx-auto leading-relaxed">
-            Paste a job and get a resume that speaks to it, with every required keyword in and nothing made up. Then let ResMod write
+            Paste a job and get a resume that speaks to it, with every required keyword in and nothing made up. Then let Chills write
             the recruiter an email from that same resume, with it attached. Use either on its own, or both in one run.
           </p>
           <div className="mt-9 flex flex-col items-center gap-3">
@@ -266,7 +266,7 @@ export default function LoginPage({ freeTailorings, accountDeleted }: LoginPageP
       {/* ── How it works ─────────────────────────────────── */}
       <section id="how-it-works" className="scroll-mt-20 bg-[var(--color-periwinkle)] border-y-[1.6px] border-[var(--color-ink)] px-4 sm:px-6 py-20">
         <div className="max-w-5xl mx-auto">
-          <h2 className="text-3xl sm:text-4xl font-black text-center">How ResMod works</h2>
+          <h2 className="text-3xl sm:text-4xl font-black text-center">How Chills works</h2>
           <div className="mt-12 grid gap-10 md:grid-cols-3">
             <Step n={1} label="Import your resume">
               <div className="flex items-center gap-3">
@@ -568,7 +568,7 @@ function PricingCards({ freeTailorings }: { freeTailorings: number | null }) {
       note: 'The whole application in one run',
       points: [
         `${PREMIUM_PLAN.appliesPerCycle} complete applications a month`,
-        'ResMod reads the posting you point it at',
+        'Chills reads the posting you point it at',
         'Resume and recruiter email from that one reading',
         `Everything in ${PRO_PLAN.label}, including ${PREMIUM_PLAN.runsPerCycle} tailorings`,
         'Every email waits for you to send it',

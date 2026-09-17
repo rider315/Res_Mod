@@ -64,7 +64,7 @@ export default function AccountPanel({ email, onBack, onOpenHistory }: AccountPa
           </li>
           <li>So are the recruiters you add and the emails you write to them. A connected mailbox’s app password is stored encrypted.</li>
           <li>Job descriptions you check in the keyword finder aren&apos;t saved.</li>
-          <li>Payments are handled by Razorpay; ResMod keeps only the payment records.</li>
+          <li>Payments are handled by Razorpay; Chills keeps only the payment records.</li>
         </ul>
         <p className="text-xs text-[var(--color-text-muted)] mt-3">
           The{' '}

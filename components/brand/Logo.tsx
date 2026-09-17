@@ -1,6 +1,6 @@
 import Link from 'next/link'
 
-/** ResMod's mark: a page with a pencil, on a mint tile with a hard shadow. */
+/** Chills's mark: a page with a pencil, on a mint tile with a hard shadow. */
 export function LogoMark({ size = 40 }: { size?: number }) {
   return (
     <span
@@ -21,11 +21,11 @@ export default function Logo({ href = '/', size = 40 }: { href?: string | null; 
   const content = (
     <span className="inline-flex items-center gap-2.5">
       <LogoMark size={size} />
-      <span className="text-xl font-black tracking-tight text-[var(--color-text)]">ResMod</span>
+      <span className="text-xl font-black tracking-tight text-[var(--color-text)]">Chills</span>
     </span>
   )
   return href ? (
-    <Link href={href} aria-label="ResMod home" className="inline-flex">
+    <Link href={href} aria-label="Chills home" className="inline-flex">
       {content}
     </Link>
   ) : (

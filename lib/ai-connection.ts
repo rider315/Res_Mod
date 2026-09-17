@@ -6,7 +6,7 @@ import { describeClaudeModel } from '@/lib/claude'
 /**
  * Checking that a key works, and where possible that the model exists, without
  * spending a token. Used by the "Test connection" button in AI settings, and
- * before the owner's choice of ResMod AI is saved. Throws with a message the
+ * before the owner's choice of Chills AI is saved. Throws with a message the
  * user can act on; returns a one-line description when all is well.
  */
 export async function checkConnection(providerId: AIProvider, key: string, model: string): Promise<string> {

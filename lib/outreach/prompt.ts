@@ -175,6 +175,30 @@ export function composeEmailBody(parts: Omit<EmailParts, 'subject'>, signature: 
   return [parts.greeting, ...parts.paragraphs, [parts.closing, ...signature].join('\n')].join('\n\n')
 }
 
+/**
+ * Both answers were unusable. This is not the AI being unreachable — it answered,
+ * twice, and neither answer passed the checks. The user is told which, because
+ * "try again" on its own sends them round the same loop.
+ */
+export class UnusableAnswerError extends Error {
+  /** What went wrong, in words a user can act on. */
+  readonly reason: string
+  constructor(what: string, problems: string[]) {
+    super(`The AI could not write a usable ${what} (${problems.slice(0, 2).join('; ')}).`)
+    this.name = 'UnusableAnswerError'
+    const all = problems.join(' ').toLowerCase()
+    this.reason = all.includes('too long')
+      ? 'it kept coming out too long'
+      : all.includes('links')
+        ? 'it kept putting links in the text'
+        : all.includes('placeholder')
+          ? 'it kept leaving placeholders in'
+          : all.includes('json') || all.includes('format')
+            ? 'it kept answering in the wrong format'
+            : 'it didn’t pass Chills’s checks'
+  }
+}
+
 /** Ask, check, and ask once more with the problems if the first answer doesn't pass. */
 async function askTwice<T>(
   generate: GenerateFn,
@@ -190,7 +214,7 @@ async function askTwice<T>(
     if (result.ok) return result.value
     problems = result.problems
   }
-  throw new Error(`The AI could not write a usable ${what} (${problems.slice(0, 2).join('; ')}). Try again.`)
+  throw new UnusableAnswerError(what, problems)
 }
 
 export async function writeOutreachEmail({

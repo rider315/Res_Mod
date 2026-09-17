@@ -1,4 +1,4 @@
-/** Small line icons, drawn for ResMod. They take the text colour. */
+/** Small line icons, drawn for Chills. They take the text colour. */
 
 interface IconProps {
   size?: number

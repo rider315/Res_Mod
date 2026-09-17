@@ -256,7 +256,7 @@ export const mailAccounts = pgTable('mail_accounts', {
 // record. Run counters and credits go with the account.
 
 /**
- * Counters for metered use of ResMod AI: a month's free runs and imports, and a
+ * Counters for metered use of Chills AI: a month's free runs and imports, and a
  * Pro cycle's runs. One row per account per bucket (lib/billing/quota.ts), so a
  * new month or cycle simply starts a new row.
  */
@@ -380,7 +380,7 @@ export const webhookEvents = pgTable('webhook_events', {
 
 /**
  * Settings the owner changes from the app instead of the environment, such as
- * ResMod AI (lib/billing/platform-ai.ts). One row per setting; secrets inside a
+ * Chills AI (lib/billing/platform-ai.ts). One row per setting; secrets inside a
  * value are encrypted (lib/secrets.ts).
  */
 export const appSettings = pgTable('app_settings', {

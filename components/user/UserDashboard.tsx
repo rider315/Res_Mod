@@ -49,7 +49,7 @@ import { ResumeDoc, SourceFormat } from '@/lib/resume-doc'
  * isn't the owner lands here, and the owner can open it from the profile
  * dashboard.
  *
- * Regular accounts always run on ResMod AI, the model the owner picks in AI
+ * Regular accounts always run on Chills AI, the model the owner picks in AI
  * settings, and have no AI settings of their own. Each gets a few free
  * tailorings once, then Pro or a credit pack, which can be bought at any time.
  * The owner runs on their own AI settings here and is never counted.
@@ -78,7 +78,7 @@ const FORMAT_LABEL: Record<string, string> = { pdf: 'PDF', docx: 'Word', latex: 
 
 const STEPS: Array<[string, string]> = [
   ['Import your resume', 'A PDF, Word, LaTeX or text file becomes a clean resume you can check and edit.'],
-  ['Paste a job description', 'Choose Soft, Hard or Hardest, and a tone, and ResMod tailors your resume to the job.'],
+  ['Paste a job description', 'Choose Soft, Hard or Hardest, and a tone, and Chills tailors your resume to the job.'],
   ['Apply and reach out', 'Keep, edit or skip each change, then download the PDF or email it to recruiters, with replies tracked.'],
 ]
 
@@ -117,7 +117,7 @@ export default function UserDashboard({ name, email, isOwner = false, openKeywor
   useEffect(() => {
     // The workspace has one look, whatever the device's theme.
     document.documentElement.setAttribute('data-theme', 'light')
-    // Only the owner has AI settings; everyone else runs on ResMod AI.
+    // Only the owner has AI settings; everyone else runs on Chills AI.
     if (isOwner) setSettings(loadAISettings())
   }, [isOwner])
 
@@ -250,7 +250,7 @@ export default function UserDashboard({ name, email, isOwner = false, openKeywor
         <div className="max-w-6xl mx-auto px-4 sm:px-6 min-h-[64px] py-2 flex flex-wrap items-center gap-x-1.5 gap-y-2">
           <button onClick={goHome} className="mr-auto inline-flex items-center gap-2.5" aria-label="Your resumes">
             <LogoMark size={36} />
-            <span className="hidden sm:inline text-xl font-black tracking-tight">ResMod</span>
+            <span className="hidden sm:inline text-xl font-black tracking-tight">Chills</span>
           </button>
           {!isOwner && billing?.platformAi && (
             <button

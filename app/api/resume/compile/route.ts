@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
     // a free LaTeX build proxy.
     if (auth.role !== 'owner') {
       return NextResponse.json(
-        { error: 'This part of ResMod is only available to the account owner.' },
+        { error: 'This part of Chills is only available to the account owner.' },
         { status: 403 }
       )
     }

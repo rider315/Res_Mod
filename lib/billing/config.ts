@@ -5,7 +5,7 @@ import { DEFAULT_FREE_TAILORINGS } from '@/lib/billing/plans'
 
 /**
  * Billing settings from the environment (see .env.example), and the rules for
- * ResMod AI, which the owner chooses in AI settings. Each returns null while it
+ * Chills AI, which the owner chooses in AI settings. Each returns null while it
  * isn't set, and whatever needs it switches off rather than half-working.
  */
 
@@ -47,10 +47,10 @@ export interface PlatformAiConfig {
 }
 
 /**
- * ResMod AI from PLATFORM_AI_* environment variables. Usually these are unset,
- * because the owner chooses ResMod AI in AI settings (lib/billing/platform-ai.ts).
+ * Chills AI from PLATFORM_AI_* environment variables. Usually these are unset,
+ * because the owner chooses Chills AI in AI settings (lib/billing/platform-ai.ts).
  * When they are set they take precedence, which is how the local checks point
- * ResMod AI at a stand-in model.
+ * Chills AI at a stand-in model.
  */
 export function platformAiFromEnv(): PlatformAiConfig | null {
   const provider = env('PLATFORM_AI_PROVIDER')
@@ -74,7 +74,7 @@ const StoredPlatformAiSchema = z.object({
   keyHint: z.string().optional(),
 })
 
-/** ResMod AI as the owner saved it in AI settings. The key is encrypted (lib/secrets.ts). */
+/** Chills AI as the owner saved it in AI settings. The key is encrypted (lib/secrets.ts). */
 export type StoredPlatformAi = z.infer<typeof StoredPlatformAiSchema>
 
 export function parseStoredPlatformAi(value: unknown): StoredPlatformAi | null {

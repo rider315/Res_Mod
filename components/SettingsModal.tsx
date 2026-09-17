@@ -32,11 +32,11 @@ interface SettingsModalProps {
    */
   serverKeys?: boolean
   /**
-   * The owner's dialog also chooses ResMod AI: the provider, model and key that
+   * The owner's dialog also chooses Chills AI: the provider, model and key that
    * every regular account runs on.
    */
   platformAdmin?: boolean
-  /** Opened to set ResMod AI up: scroll straight to that section. */
+  /** Opened to set Chills AI up: scroll straight to that section. */
   focusPlatformAi?: boolean
 }
 

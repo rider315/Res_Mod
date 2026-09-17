@@ -16,7 +16,7 @@ const schema = z.object({
     .trim()
     .min(80, 'Paste the whole job description.')
     .max(20_000, 'That job description is longer than 20,000 characters.'),
-  /** The owner's own AI settings. Everyone else always runs on ResMod AI, and these are ignored. */
+  /** The owner's own AI settings. Everyone else always runs on Chills AI, and these are ignored. */
   provider: z.enum(PROVIDER_ORDER as [AIProvider, ...AIProvider[]]).optional(),
   apiKey: z.string().optional(),
   model: z.string().optional(),

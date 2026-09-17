@@ -4,7 +4,7 @@ import { sanitizeFileName } from '@/lib/resume-filename'
 
 /**
  * What goes out with a recruiter email besides its text: the resume as a PDF,
- * and the image that tells ResMod the email was opened. Server-only.
+ * and the image that tells Chills the email was opened. Server-only.
  */
 
 /** Built PDFs, by the LaTeX they came from, so a batch of emails with one resume builds it once. */

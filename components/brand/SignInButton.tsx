@@ -4,7 +4,7 @@ import { signIn, useSession } from 'next-auth/react'
 import { ArrowRight } from '@/components/brand/Icons'
 
 /**
- * Sign-in buttons. ResMod signs in with Google only, so every "start" button on
+ * Sign-in buttons. Chills signs in with Google only, so every "start" button on
  * the public pages goes to Google and then on to the dashboard, or straight to
  * the dashboard for someone already signed in.
  */

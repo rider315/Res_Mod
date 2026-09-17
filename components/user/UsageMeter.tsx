@@ -19,9 +19,9 @@ interface UsageMeterProps {
   label?: string
   /** When the run started, for the clock. */
   startedAt?: number
-  /** What it runs on: ResMod AI, or the owner's own key or Puter. */
+  /** What it runs on: Chills AI, or the owner's own key or Puter. */
   source: 'platform' | 'own' | 'puter'
-  /** Tailorings left after this one, when it is running on ResMod AI. */
+  /** Tailorings left after this one, when it is running on Chills AI. */
   runsLeft?: number | null
 }
 

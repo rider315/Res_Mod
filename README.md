@@ -1,4 +1,4 @@
-# ResMod — ATS Resume Optimizer
+# Chills — ATS Resume Optimizer
 
 Your resume is a LaTeX file. Paste a job description and
 the app parses that `.tex` into sections, asks an LLM for ATS-targeted rewrites,
@@ -18,12 +18,17 @@ anything you add must use them:
 
 | Macro | Holds | Editable? |
 | --- | --- | --- |
-| `esumeSummary{...}` | the summary paragraph | yes |
+| `
+esumeSummary{...}` | the summary paragraph | yes |
 | `\skillLine{...}` | one skills line | yes |
-| `esumeItem{...}` | one bullet point | yes |
-| `esumeSubheading{}{}{}{}` | employer, dates, role, location | **frozen** |
-| `esumeProjectHeading{}{}` | project title, link, stack | **frozen** |
-| `esumeGroupHeading{...}` | a client engagement inside one employer | **frozen** |
+| `
+esumeItem{...}` | one bullet point | yes |
+| `
+esumeSubheading{}{}{}{}` | employer, dates, role, location | **frozen** |
+| `
+esumeProjectHeading{}{}` | project title, link, stack | **frozen** |
+| `
+esumeGroupHeading{...}` | a client engagement inside one employer | **frozen** |
 
 Frozen lines are still shown to the model — tagged `[Role]`, `[Project]`,
 `[Group]` — so it knows which job a bullet belongs to, but any change targeting

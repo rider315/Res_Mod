@@ -1,7 +1,7 @@
 import type { RazorpayConfig } from '@/lib/billing/config'
 
 /**
- * The few Razorpay REST calls ResMod makes, over fetch with Basic auth
+ * The few Razorpay REST calls Chills makes, over fetch with Basic auth
  * (https://razorpay.com/docs/api/). Amounts are in paise.
  */
 

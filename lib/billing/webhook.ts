@@ -28,7 +28,7 @@ export async function applyWebhookAction(config: RazorpayConfig, action: Webhook
 
   if (action.kind === 'order_payment') {
     const order = action.payment.orderId ? await findOrder(action.payment.orderId) : null
-    if (!order) return 'ignored: not a ResMod credit pack order'
+    if (!order) return 'ignored: not a Chills credit pack order'
 
     const payment = await readIfItExists(RAZORPAY_ID.payment.test(action.payment.id), () =>
       razorpay.fetchPayment(config, action.payment.id)
@@ -53,7 +53,7 @@ export async function applyWebhookAction(config: RazorpayConfig, action: Webhook
   if (!synced) return 'ignored: Razorpay has no such subscription'
 
   const row = await findSubscription(subscription.id)
-  if (!row) return 'ignored: not a ResMod subscription'
+  if (!row) return 'ignored: not a Chills subscription'
 
   // The charge goes into the payment history only as Razorpay reports it.
   if (action.payment && RAZORPAY_ID.payment.test(action.payment.id)) {

@@ -2,7 +2,7 @@ import { createCipheriv, createDecipheriv, hkdfSync, randomBytes } from 'node:cr
 
 /**
  * Encrypting secrets the app keeps in its database, such as the AI key the owner
- * saves for ResMod AI: AES-256-GCM, with a key derived from NEXTAUTH_SECRET, so a
+ * saves for Chills AI: AES-256-GCM, with a key derived from NEXTAUTH_SECRET, so a
  * copy of the database alone doesn't reveal them.
  *
  * Changing NEXTAUTH_SECRET makes values saved before it unreadable. decryptSecret

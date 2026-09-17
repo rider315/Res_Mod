@@ -114,14 +114,14 @@ export async function payWithCheckout(start: CheckoutStart): Promise<PaymentProo
     const color = themeColor()
     const checkout = new Razorpay({
       key: start.keyId,
-      name: 'ResMod',
+      name: 'Chills',
       description: start.description,
       ...(start.kind === 'order'
         ? { order_id: start.orderId, amount: start.amount, currency: start.currency }
         : { subscription_id: start.subscriptionId }),
       prefill: start.prefill,
       ...(color ? { theme: { color } } : {}),
-      // The ids come from ResMod's own server, never from Checkout's reply.
+      // The ids come from Chills's own server, never from Checkout's reply.
       handler: (response: CheckoutSuccess) =>
         resolve(
           start.kind === 'order'

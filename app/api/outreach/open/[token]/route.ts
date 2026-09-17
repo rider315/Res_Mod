@@ -10,7 +10,7 @@ type Params = { params: { token: string } }
 
 /**
  * The image inside a sent recruiter email. Loading it marks the email opened.
- * It is public, as a recipient's mail app has no ResMod session; the random
+ * It is public, as a recipient's mail app has no Chills session; the random
  * token is the only thing that identifies the email, and it reveals nothing.
  * The image is always returned, whatever happens, so an email never shows a
  * broken picture.

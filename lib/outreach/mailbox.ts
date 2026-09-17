@@ -11,7 +11,7 @@ export { isPublicAddress }
  *
  * Emails go out as the user, from their real address, so replies land in their
  * inbox and a copy sits in their Sent folder. The password is an app password
- * the user made for ResMod; it is decrypted only here, for the length of one
+ * the user made for Chills; it is decrypted only here, for the length of one
  * connection.
  *
  * The server only ever connects to a known provider, or to a custom server whose
@@ -73,7 +73,7 @@ export async function resolveSmtpTarget(setting: { provider: MailProviderId; hos
     throw new MailboxError(`The server ${host} couldn’t be found. Check its name.`, 'settings')
   }
   if (addresses.length === 0 || !addresses.every(({ address }) => isPublicAddress(address))) {
-    throw new MailboxError(`${host} isn’t a public mail server, so ResMod can’t send through it.`, 'settings')
+    throw new MailboxError(`${host} isn’t a public mail server, so Chills can’t send through it.`, 'settings')
   }
   // Connecting to the address just checked, so the name can't be pointed somewhere else in between.
   return { connectHost: addresses[0].address, port: setting.port, secure: setting.port === 465, servername: host, plain: false }
@@ -120,7 +120,7 @@ export function explainSmtpError(err: unknown): MailboxError {
     )
   }
   if (['ECONNECTION', 'ETIMEDOUT', 'ESOCKET', 'EDNS', 'ECONNREFUSED', 'ECONNRESET', 'ETLS', 'EPROTOCOL'].includes(code)) {
-    return new MailboxError('ResMod couldn’t connect to the mail server. Check the provider settings, then try again.', 'connection')
+    return new MailboxError('Chills couldn’t connect to the mail server. Check the provider settings, then try again.', 'connection')
   }
   if (code === 'EENVELOPE' || (status >= 450 && status < 600)) {
     return new MailboxError(`The mail server didn’t accept the email${serverSays ? `: “${serverSays}”` : '.'}`, 'rejected')

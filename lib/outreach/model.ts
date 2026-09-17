@@ -157,7 +157,7 @@ export const MAIL_PROVIDERS = {
     label: 'Gmail',
     host: 'smtp.gmail.com',
     port: 465,
-    help: 'Turn on 2-Step Verification for your Google account, then create an app password named "ResMod" and paste the 16 letters here. Your normal Gmail password won’t work.',
+    help: 'Turn on 2-Step Verification for your Google account, then create an app password named "Chills" and paste the 16 letters here. Your normal Gmail password won’t work.',
     helpUrl: 'https://myaccount.google.com/apppasswords',
   },
   outlook: {

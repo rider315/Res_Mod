@@ -156,7 +156,7 @@ const timestamp = (date: Date | null) => (date ? date.toISOString() : null)
 /**
  * Store a subscription's state as Razorpay reported it at `asOf`. A state older
  * than the stored one is ignored, because webhooks can arrive out of order. A
- * subscription ResMod has no row for is added when its notes name a known account.
+ * subscription Chills has no row for is added when its notes name a known account.
  */
 export async function saveSubscriptionState(facts: SubscriptionFacts, asOf: Date): Promise<void> {
   const updated = await getDb()

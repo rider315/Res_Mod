@@ -14,16 +14,16 @@ export const maxDuration = 300
 
 const schema = z.object({
   text: z.string().trim().min(40, 'That is too little text to be a resume.').max(MAX_RESUME_TEXT),
-  /** The owner's own AI settings. Everyone else always runs on ResMod AI, and these are ignored. */
+  /** The owner's own AI settings. Everyone else always runs on Chills AI, and these are ignored. */
   provider: z.enum(PROVIDER_ORDER as [AIProvider, ...AIProvider[]]).optional(),
   apiKey: z.string().optional(),
   model: z.string().optional(),
-  /** The owner only: run on ResMod AI instead. */
+  /** The owner only: run on Chills AI instead. */
   usePlatform: z.boolean().optional(),
 })
 
 /**
- * Turn a resume's text into a structured resume. Regular accounts run on ResMod
+ * Turn a resume's text into a structured resume. Regular accounts run on Chills
  * AI, counted against the month's import allowance; the owner uses their own AI
  * settings.
  */

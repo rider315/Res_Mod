@@ -4,7 +4,7 @@ import { EMAIL_DRAFTS_PER_MONTH, IMPORTS_PER_MONTH } from '@/lib/billing/plans'
  * The arithmetic of tailorings, kept apart from the database so it can be tested
  * on its own.
  *
- * Every tailoring by a regular account runs on ResMod AI and spends one run from
+ * Every tailoring by a regular account runs on Chills AI and spends one run from
  * the first source that has one left:
  *   1. the Pro plan's runs for the current cycle, which lapse when the cycle ends
  *   2. the account's free tailorings, given once and never renewed

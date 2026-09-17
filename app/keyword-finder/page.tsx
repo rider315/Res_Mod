@@ -5,7 +5,7 @@ import { CheckCircle, ChevronDown, Search, Target } from '@/components/brand/Ico
 import { DAILY_AI_REQUESTS } from '@/lib/billing/quota'
 
 export const metadata = {
-  title: 'Job description keyword finder | ResMod',
+  title: 'Job description keyword finder | Chills',
   description:
     'Find the keywords a job description screens for, scored and split into must-haves and nice-to-haves, and check your resume against them.',
 }
@@ -28,7 +28,7 @@ const FAQ: Array<[string, string]> = [
   ],
   [
     'Is it free?',
-    `Yes, with a free ResMod account. Finding keywords uses no tailoring, only one of the ${DAILY_AI_REQUESTS} AI requests every account can make each day.`,
+    `Yes, with a free Chills account. Finding keywords uses no tailoring, only one of the ${DAILY_AI_REQUESTS} AI requests every account can make each day.`,
   ],
   [
     'Can it check my resume?',

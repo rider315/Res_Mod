@@ -4,7 +4,7 @@ import { COVER_LETTER_TONES } from '@/lib/cover-letter'
 import { aiFailureMessage, chooseAi } from '@/lib/billing/ai-access'
 import { releaseReservation } from '@/lib/billing/store'
 import { LIMITS } from '@/lib/outreach/model'
-import { composeEmailBody, signatureLines, writeOutreachEmail } from '@/lib/outreach/prompt'
+import { UnusableAnswerError, composeEmailBody, signatureLines, writeOutreachEmail } from '@/lib/outreach/prompt'
 import {
   createEmail,
   getEmailRow,
@@ -25,7 +25,7 @@ import {
   resolveSource,
 } from '@/lib/outreach/server'
 
-export const maxDuration = 120
+export const maxDuration = 300
 
 /** Every thread for the tracker, and how many emails each tailored copy has led to. */
 export async function GET() {
@@ -123,6 +123,10 @@ export async function POST(req: NextRequest) {
       if (ai.reservation) await releaseReservation(ai.reservation)
       const message = err instanceof Error ? err.message : String(err)
       console.error('[outreach/emails] writing failed:', message)
+      if (err instanceof UnusableAnswerError) {
+        // It answered; the answer was unusable. Saying which beats "try again".
+        return fail(502, `The AI wrote something Chills couldn’t use: ${err.reason}. Nothing was counted — try again, or write it yourself.`, 'ai_unusable')
+      }
       return fail(/429|rate limit/i.test(message) ? 429 : 502, aiFailureMessage(auth.role, message))
     }
   }

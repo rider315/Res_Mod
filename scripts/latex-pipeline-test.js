@@ -35,7 +35,7 @@
  *                     webhook payloads, prices, and the environment switches
  *  13. history      — the keyword score kept with a tailored copy, the daily
  *                     AI cap's counter, and resume text kept out of production logs
- *  14. settings     — ResMod AI chosen in AI settings: its key encrypted at rest,
+ *  14. settings     — Chills AI chosen in AI settings: its key encrypted at rest,
  *                     and which saved settings can actually run
  *  15. resolving    — the last step of a run: every change points at a real line,
  *                     a rewrite of a rewrite folds into one, and a proposal the
@@ -931,7 +931,7 @@ function billingTests() {
   try {
     for (const name of ['NODE_ENV', 'RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET', 'RAZORPAY_WEBHOOK_SECRET', 'RAZORPAY_PRO_PLAN_ID',
       'RAZORPAY_API_BASE', 'PLATFORM_AI_PROVIDER', 'PLATFORM_AI_MODEL', 'PLATFORM_AI_KEY', 'FREE_TAILORINGS']) delete process.env[name]
-    check('without Razorpay keys payments are off, and without a platform provider ResMod AI is off',
+    check('without Razorpay keys payments are off, and without a platform provider Chills AI is off',
       billingConfig.razorpayConfig() === null && billingConfig.platformAiFromEnv() === null)
 
     Object.assign(process.env, { RAZORPAY_KEY_ID: 'rzp_test_abc', RAZORPAY_KEY_SECRET: 'secret', RAZORPAY_API_BASE: 'http://localhost:4010/v1/' })
@@ -946,7 +946,7 @@ function billingTests() {
     Object.assign(process.env, { PLATFORM_AI_KEY: 'key', PLATFORM_AI_MODEL: 'gemini-2.5-flash' })
     const keyed = billingConfig.platformAiFromEnv()
     process.env.PLATFORM_AI_PROVIDER = 'puter'
-    check('ResMod AI needs a key for a keyed provider, and is never the browser-only Puter',
+    check('Chills AI needs a key for a keyed provider, and is never the browser-only Puter',
       keyless === null && keyed !== null && keyed.model === 'gemini-2.5-flash' && billingConfig.platformAiFromEnv() === null)
 
     const unset = billingConfig.freeTailorings()
@@ -1009,7 +1009,7 @@ function historyTests() {
 const secrets = require(BUILD + '/lib/secrets')
 
 function settingsTests() {
-  console.log('\n=== ResMod AI chosen in AI settings ===')
+  console.log('\n=== Chills AI chosen in AI settings ===')
 
   const savedEnv = { ...process.env }
   try {
@@ -1031,15 +1031,15 @@ function settingsTests() {
     const decrypt = (value) => (value === 'sealed-ok' ? 'saved-key' : null)
     const resolve = (stored) => billingConfig.resolveStoredPlatformAi(stored, { GEMINI_API_KEY: 'server-gemini-key' }, decrypt)
     const saved = resolve({ provider: 'gemini', model: 'gemini-2.5-flash', keySource: 'saved', encryptedKey: 'sealed-ok' })
-    check('a saved key powers ResMod AI',
+    check('a saved key powers Chills AI',
       saved !== null && saved.provider === 'gemini' && saved.apiKey === 'saved-key' && saved.model === 'gemini-2.5-flash', JSON.stringify(saved))
     const server = resolve({ provider: 'gemini', model: ' ', keySource: 'server' })
     check("with no saved key the server's own key is used, and a blank model means the default",
       server !== null && server.apiKey === 'server-gemini-key' && server.model === undefined, JSON.stringify(server))
-    check('ResMod AI is off when its key is missing or unreadable',
+    check('Chills AI is off when its key is missing or unreadable',
       resolve({ provider: 'groq', model: '', keySource: 'server' }) === null &&
       resolve({ provider: 'gemini', model: '', keySource: 'saved', encryptedKey: 'sealed-bad' }) === null)
-    check('ResMod AI is never the browser-only Puter, nor an unknown provider',
+    check('Chills AI is never the browser-only Puter, nor an unknown provider',
       resolve({ provider: 'puter', model: '', keySource: 'server' }) === null &&
       resolve({ provider: 'nope', model: '', keySource: 'server' }) === null && resolve(null) === null)
     check('junk in the database reads as no setting',

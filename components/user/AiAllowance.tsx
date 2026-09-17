@@ -7,7 +7,7 @@ import { formatDay, tailorings } from '@/components/user/billing-client'
 /**
  * What an AI step runs on, shown above its button.
  *
- * A regular account always runs on ResMod AI, the model the owner chose in AI
+ * A regular account always runs on Chills AI, the model the owner chose in AI
  * settings, so all it needs to see is what it has left: tailorings, or this
  * month's imports. The owner, visiting this workspace, runs on their own AI
  * settings instead, and is never counted.

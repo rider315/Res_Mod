@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { aiFailureMessage, chooseAi } from '@/lib/billing/ai-access'
 import { isThreadStage, LIMITS, stageAfterReply } from '@/lib/outreach/model'
-import { analyzeReply } from '@/lib/outreach/prompt'
+import { UnusableAnswerError, analyzeReply } from '@/lib/outreach/prompt'
 import { getOutreachProfile, getThread, saveReply } from '@/lib/db/outreach'
 import { fail, firstIssue, generatorFor, OwnerAiFields, puterRefusal, requireOutreachAccount, resolveSource } from '@/lib/outreach/server'
 
-export const maxDuration = 120
+export const maxDuration = 300
 
 type Params = { params: { id: string } }
 
@@ -63,6 +63,10 @@ export async function POST(req: NextRequest, { params }: Params) {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     console.error('[outreach/replies] reading failed:', message)
+    if (err instanceof UnusableAnswerError) {
+      // It answered; the answer was unusable. Saying which beats "try again".
+      return fail(502, `The AI wrote something Chills couldn’t use: ${err.reason}. Nothing was counted — try again.`, 'ai_unusable')
+    }
     return fail(/429|rate limit/i.test(message) ? 429 : 502, aiFailureMessage(auth.role, message))
   }
 }

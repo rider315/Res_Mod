@@ -8,7 +8,7 @@ import { fail, firstIssue, requireOutreachAccount } from '@/lib/outreach/server'
 export const maxDuration = 60
 
 /**
- * Connect the mailbox recruiter emails are sent from. ResMod signs in to it
+ * Connect the mailbox recruiter emails are sent from. Chills signs in to it
  * first and saves it only if that works, so a typo is caught here rather than
  * on the first send. The password is stored encrypted and never sent back.
  */

@@ -252,7 +252,7 @@ export async function fetchJobPosting(rawUrl: string, deps: FetchDeps = {}): Pro
         redirect: 'manual',
         headers: {
           // Identifying, and asking for the page a reader would get.
-          'User-Agent': 'ResMod/1.0 (+https://chills.pro; job posting reader)',
+          'User-Agent': 'Chills/1.0 (+https://chills.pro; job posting reader)',
           Accept: 'text/html,application/xhtml+xml',
           'Accept-Language': 'en',
         },
@@ -273,7 +273,7 @@ export async function fetchJobPosting(rawUrl: string, deps: FetchDeps = {}): Pro
         response.status === 404
           ? 'That posting is gone — it may have been filled.'
           : response.status === 403 || response.status === 401
-            ? 'That site won’t let ResMod read the posting. Paste the job text instead.'
+            ? 'That site won’t let Chills read the posting. Paste the job text instead.'
             : 'That job posting couldn’t be read. Paste the job text instead.'
       throw new JobSourceError(why, 'fetch')
     }

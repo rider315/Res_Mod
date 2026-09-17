@@ -28,7 +28,7 @@ export interface AiRequest {
   provider?: AIProvider
   apiKey?: string
   model?: string
-  /** The owner only: run on ResMod AI, to see what users get. Everyone else always does. */
+  /** The owner only: run on Chills AI, to see what users get. Everyone else always does. */
   usePlatform?: boolean
 }
 
@@ -50,7 +50,7 @@ const dailyLimitReached = () =>
 const unavailable = () =>
   refuse(
     503,
-    "ResMod's AI isn't available right now. Please try again later.",
+    "Chills's AI isn't available right now. Please try again later.",
     BILLING_CODES.platformUnavailable
   )
 
@@ -65,9 +65,9 @@ export type AiMeter = 'run' | 'import' | 'draft' | 'free'
  * Which model an AI route runs on, and who pays for it.
  *
  * The owner uses their own AI settings, falling back to the server's provider
- * keys, or ResMod AI with `usePlatform`, and is never counted or capped.
+ * keys, or Chills AI with `usePlatform`, and is never counted or capped.
  *
- * Everyone else always runs on ResMod AI: the model the owner chose in AI
+ * Everyone else always runs on Chills AI: the model the owner chose in AI
  * settings. A provider or key in their request is ignored. A tailoring takes one
  * run (Pro, then the free tailorings, then credits), and an import or a recruiter
  * email takes one from that month's allowance, before any model is called — pass
@@ -134,7 +134,7 @@ export async function chooseAi(account: Account, request: AiRequest, meter: AiMe
 export function aiFailureMessage(role: Role, message: string): string {
   if (role === 'owner') return message
   if (/429|rate limit/i.test(message)) {
-    return "ResMod AI is busy right now. Wait a minute and try again; this one wasn't counted."
+    return "Chills AI is busy right now. Wait a minute and try again; this one wasn't counted."
   }
   return "The AI couldn't finish this just now. It wasn't counted, so please try again."
 }

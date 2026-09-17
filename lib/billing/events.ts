@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 /**
- * Reading a Razorpay webhook into the few facts ResMod acts on. Pure, so the
+ * Reading a Razorpay webhook into the few facts Chills acts on. Pure, so the
  * routing can be tested with sample payloads.
  *
  * - payment.captured and order.paid carry the payment for a credit pack order.
@@ -72,7 +72,7 @@ export interface SubscriptionFacts {
   status: string
   currentStart: Date | null
   currentEnd: Date | null
-  /** The account ResMod created it for, from the subscription's notes. */
+  /** The account Chills created it for, from the subscription's notes. */
   userId: string | null
 }
 

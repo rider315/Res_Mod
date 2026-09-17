@@ -22,7 +22,7 @@ export function firstIssue(error: z.ZodError): string {
   return error.issues[0]?.message ?? 'Invalid request'
 }
 
-/** The owner's own AI settings, sent with AI requests. Everyone else runs on ResMod AI and these are ignored. */
+/** The owner's own AI settings, sent with AI requests. Everyone else runs on Chills AI and these are ignored. */
 export const OwnerAiFields = {
   provider: z.enum(PROVIDER_ORDER as [AIProvider, ...AIProvider[]]).optional(),
   apiKey: z.string().optional(),

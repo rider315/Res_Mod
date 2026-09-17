@@ -4,14 +4,14 @@ import { Briefcase, CheckCircle, Paperclip, Send, Users } from '@/components/bra
 
 /**
  * The hero: a job post becoming a tailored resume, and that resume becoming the
- * email that carries it to the recruiter — the two halves of ResMod in one
+ * email that carries it to the recruiter — the two halves of Chills in one
  * unbroken chain, drawn with the real thing rather than a diagram of it.
  *
  * The job's requirements lift off the post and land in the resume, where the
  * bullets rewrite themselves and the coverage climbs. The finished resume then
  * hops across into the email, whose lines say the same words the resume now
  * carries, with the tailored PDF attached. It ends on "ready to send", never
- * sent: nothing ResMod writes reaches a recruiter until the user presses Send.
+ * sent: nothing Chills writes reaches a recruiter until the user presses Send.
  *
  * Decorative — the heading beside it says this in words — so it is hidden from
  * screen readers and holds still for anyone who asks for less motion. The

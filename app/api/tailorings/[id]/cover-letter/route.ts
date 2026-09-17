@@ -26,7 +26,7 @@ const schema = z.object({
   length: z.enum(COVER_LETTER_LENGTHS).default('standard'),
   recipient: z.string().trim().max(120).default(''),
   notes: z.string().trim().max(600).default(''),
-  /** The owner's own AI settings. Everyone else always runs on ResMod AI, and these are ignored. */
+  /** The owner's own AI settings. Everyone else always runs on Chills AI, and these are ignored. */
   provider: z.enum(PROVIDER_ORDER as [AIProvider, ...AIProvider[]]).optional(),
   apiKey: z.string().optional(),
   model: z.string().optional(),

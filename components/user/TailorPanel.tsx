@@ -56,7 +56,7 @@ interface TailorPanelProps {
   resumeTitle: string
   /** A job description already pasted on the dashboard. */
   initialJobDescription?: string
-  /** The owner runs on their own AI settings; everyone else on ResMod AI. */
+  /** The owner runs on their own AI settings; everyone else on Chills AI. */
   isOwner: boolean
   settings: AISettings
   /** undefined while loading; null when it couldn't be loaded, and always for the owner. */
@@ -197,7 +197,7 @@ export default function TailorPanel({
   }
 
   async function tailorOnServer(): Promise<{ result: OptimizationResult; resume: ParsedResume }> {
-    // Regular accounts always run on ResMod AI, so only the owner sends AI settings.
+    // Regular accounts always run on Chills AI, so only the owner sends AI settings.
     const ai = isOwner ? { provider: settings.provider, apiKey: settings.apiKeys[settings.provider], model } : {}
     const res = await fetch(`/api/resumes/${resumeId}/tailor`, {
       method: 'POST',
@@ -338,7 +338,7 @@ export default function TailorPanel({
             <label className="block">
               <span className="block text-lg font-black">Job description</span>
               <span className="block text-sm text-[var(--color-text-muted)] mb-2">
-                Paste the full posting. ResMod picks out the keywords an ATS screens for.
+                Paste the full posting. Chills picks out the keywords an ATS screens for.
               </span>
               <textarea
                 rows={11}
@@ -661,7 +661,7 @@ export default function TailorPanel({
               <div>
                 <h2 className="text-xl sm:text-2xl font-black leading-tight">Email a recruiter about this job</h2>
                 <p className="text-sm text-[var(--color-text-muted)] max-w-xl">
-                  ResMod writes a short email from this tailored resume and the job post, sends it from your own mailbox with
+                  Chills writes a short email from this tailored resume and the job post, sends it from your own mailbox with
                   this PDF attached, and keeps track of the reply.
                 </p>
               </div>

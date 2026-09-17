@@ -53,7 +53,7 @@ export async function requireOwner(): Promise<AuthSuccess | AuthFailure> {
     return {
       ok: false,
       response: NextResponse.json(
-        { error: 'This part of ResMod is only available to the account owner.' },
+        { error: 'This part of Chills is only available to the account owner.' },
         { status: 403 }
       ),
     }

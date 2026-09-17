@@ -3,7 +3,7 @@ import { useEffect, useId, useRef } from 'react'
 import { Close } from '@/components/brand/Icons'
 
 /**
- * A modal in ResMod's style: a blurred backdrop, a bold card, Escape or a click
+ * A modal in Chills's style: a blurred backdrop, a bold card, Escape or a click
  * outside to close (unless it is busy), and the page behind it held still.
  */
 

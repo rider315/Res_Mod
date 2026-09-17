@@ -28,21 +28,21 @@ async function setupChecks(): Promise<SetupCheck[]> {
 
   const ai = await getPlatformAiStatus()
   if (ai.overriddenByEnv) {
-    checks.push({ label: 'ResMod AI', state: 'ok', detail: 'Set by PLATFORM_AI_* variables on this server.' })
+    checks.push({ label: 'Chills AI', state: 'ok', detail: 'Set by PLATFORM_AI_* variables on this server.' })
   } else if (ai.current && ai.working) {
     const provider = getProvider(ai.current.provider)
-    checks.push({ label: 'ResMod AI', state: 'ok', detail: `Users run on ${provider.label}${ai.current.model ? ` · ${ai.current.model}` : ''}.` })
+    checks.push({ label: 'Chills AI', state: 'ok', detail: `Users run on ${provider.label}${ai.current.model ? ` · ${ai.current.model}` : ''}.` })
   } else if (ai.current) {
     checks.push({
-      label: 'ResMod AI',
+      label: 'Chills AI',
       state: 'missing',
       detail: "Saved, but it can't run, so users can't import or tailor. Save the key again in AI settings.",
     })
   } else {
     checks.push({
-      label: 'ResMod AI',
+      label: 'Chills AI',
       state: 'missing',
-      detail: `Not set, so users can't import or tailor, and nothing can be bought. Open AI settings → "ResMod AI for your users".`,
+      detail: `Not set, so users can't import or tailor, and nothing can be bought. Open AI settings → "Chills AI for your users".`,
     })
   }
 

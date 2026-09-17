@@ -15,7 +15,7 @@ export const BILLING_CODES = {
 /** GET /api/billing for a regular account. */
 export interface BillingStatus {
   role: 'user'
-  /** ResMod AI is configured, so accounts can import and tailor, and plans can be sold. */
+  /** Chills AI is configured, so accounts can import and tailor, and plans can be sold. */
   platformAi: boolean
   checkout: {
     /** Credit packs can be bought. */
@@ -62,7 +62,7 @@ export type CheckoutStart =
   | { kind: 'order'; keyId: string; orderId: string; amount: number; currency: string; description: string; prefill: Prefill }
   | { kind: 'subscription'; keyId: string; subscriptionId: string; description: string; prefill: Prefill }
 
-/** /api/admin/platform-ai: ResMod AI as the owner set it in AI settings. The key is never included. */
+/** /api/admin/platform-ai: Chills AI as the owner set it in AI settings. The key is never included. */
 export interface PlatformAiStatus {
   current: {
     provider: AIProvider

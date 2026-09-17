@@ -28,11 +28,11 @@ const schema = z.object({
   tone: z.enum(TAILOR_TONES).default('balanced'),
   /** What the candidate says must not change. */
   instructions: z.string().max(2_000).default(''),
-  /** The owner's own AI settings. Everyone else always runs on ResMod AI, and these are ignored. */
+  /** The owner's own AI settings. Everyone else always runs on Chills AI, and these are ignored. */
   provider: z.enum(PROVIDER_ORDER as [AIProvider, ...AIProvider[]]).optional(),
   apiKey: z.string().optional(),
   model: z.string().optional(),
-  /** The owner only: run on ResMod AI instead. */
+  /** The owner only: run on Chills AI instead. */
   usePlatform: z.boolean().optional(),
 })
 

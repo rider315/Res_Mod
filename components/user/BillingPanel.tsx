@@ -365,7 +365,7 @@ export default function BillingPanel({ billing, onBillingChange, onBack }: Billi
       )}
 
       <p className="text-xs text-[var(--color-text-faint)]">
-        Payments are handled by Razorpay; ResMod never sees your card, UPI or bank details. Refunds and cancellation are covered in the{' '}
+        Payments are handled by Razorpay; Chills never sees your card, UPI or bank details. Refunds and cancellation are covered in the{' '}
         <a href="/refunds" className="underline font-semibold hover:text-[var(--color-text-muted)]">
           Cancellation and Refund Policy
         </a>
