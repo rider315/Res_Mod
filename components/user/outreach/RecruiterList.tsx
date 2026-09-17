@@ -1,4 +1,5 @@
 'use client'
+import { useEffect, useRef } from 'react'
 import { Plus, Search, Trash, Users } from '@/components/brand/Icons'
 import { cardClass, inputClass, linkButton, secondaryButton } from '@/components/user/shared'
 import type { RecruiterSummary } from '@/lib/outreach/types'
@@ -56,7 +57,14 @@ interface RecruiterListProps {
 export default function RecruiterList(props: RecruiterListProps) {
   const { recruiters, shown, selected, focusedId, locked } = props
   const allShownSelected = shown.length > 0 && shown.every((recruiter) => selected.has(recruiter.id))
+  const someShownSelected = shown.some((recruiter) => selected.has(recruiter.id))
   const counts = Object.fromEntries(FILTERS.map(({ value }) => [value, recruiters.filter((r) => matchesFilter(r, value)).length]))
+
+  // A part-selected list shows the dash, not an empty box, which would read as "none selected".
+  const selectAll = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (selectAll.current) selectAll.current.indeterminate = someShownSelected && !allShownSelected
+  }, [someShownSelected, allShownSelected])
 
   function toggle(id: string) {
     const next = new Set(selected)
@@ -112,7 +120,15 @@ export default function RecruiterList(props: RecruiterListProps) {
 
       <div className="flex items-center justify-between gap-2 px-4 py-2 bg-[var(--color-surface-offset)] border-b-[1.6px] border-[var(--color-ink)] text-sm">
         <label className="flex items-center gap-2 font-bold cursor-pointer">
-          <input type="checkbox" checked={allShownSelected} onChange={toggleAll} disabled={shown.length === 0 || locked} className="w-4 h-4 accent-[var(--color-primary)]" />
+          <input
+            ref={selectAll}
+            type="checkbox"
+            checked={allShownSelected}
+            onChange={toggleAll}
+            disabled={shown.length === 0 || locked}
+            aria-label={allShownSelected ? 'Clear the selection' : 'Select every recruiter shown'}
+            className="w-4 h-4 accent-[var(--color-primary)]"
+          />
           {selected.size > 0 ? `${selected.size} selected` : 'Select all'}
         </label>
         {selected.size > 0 && (

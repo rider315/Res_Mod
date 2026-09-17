@@ -1,5 +1,5 @@
 'use client'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Copy, ExternalLink, Inbox, Refresh, Reply, Trash, Wand } from '@/components/brand/Icons'
 import { ApiError } from '@/components/user/billing-client'
 import { errorBox, inputClass, linkButton, primaryButton, ResumeSummary, secondaryButton, successBox } from '@/components/user/shared'
@@ -47,6 +47,11 @@ interface ThreadDialogProps {
 }
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err))
+
+/** A follow-up or a reply, placed on the thread's timeline by when it happened. */
+type TimelineEntry =
+  | { kind: 'email'; key: string; at: number; email: EmailDetail; label: string; isDraft: boolean }
+  | { kind: 'reply'; key: string; at: number; reply: ReplyRecord }
 
 const INTENT_FILL: Record<string, string> = {
   interested: 'bg-[var(--color-accent)]',
@@ -127,6 +132,32 @@ export default function ThreadDialog(props: ThreadDialogProps) {
     })
   }
 
+  /**
+   * Follow-ups and replies in the order they actually happened, rather than all
+   * the follow-ups and then all the replies. A draft hasn't been sent, so it
+   * sits at the end, and only sent follow-ups are numbered.
+   */
+  const timeline = useMemo<TimelineEntry[]>(() => {
+    if (!thread) return []
+    let sent = 0
+    const entries: TimelineEntry[] = thread.followUps.map((email) => {
+      const isDraft = email.status === 'draft'
+      if (!isDraft) sent++
+      return {
+        kind: 'email',
+        key: email.id,
+        at: email.sentAt ? new Date(email.sentAt).getTime() : Number.MAX_SAFE_INTEGER,
+        email,
+        label: isDraft ? 'Follow-up draft' : `Follow-up ${sent}`,
+        isDraft,
+      }
+    })
+    for (const reply of thread.replies) {
+      entries.push({ kind: 'reply', key: reply.id, at: new Date(reply.createdAt).getTime(), reply })
+    }
+    return entries.sort((a, b) => a.at - b.at)
+  }, [thread])
+
   const recruiter = thread?.recruiter
   const first = thread?.email
   const sentFollowUps = thread?.followUps.filter((email) => email.sentAt) ?? []
@@ -194,16 +225,19 @@ export default function ThreadDialog(props: ThreadDialogProps) {
 
           <ol className="relative space-y-4 pl-6 before:absolute before:left-[9px] before:top-2 before:bottom-2 before:w-[2px] before:bg-[var(--color-border-soft)]">
             {first && <SentEmail email={first} label="First email" />}
-            {thread.followUps.map((email, i) =>
-              email.status === 'draft' ? (
-                <li key={email.id} className="relative">
+            {timeline.map((entry) =>
+              entry.kind === 'reply' ? (
+                <ReplyItem key={entry.key} reply={entry.reply} to={thread.recruiter.email} subject={followUpSubject(first?.subject ?? '')} />
+              ) : entry.isDraft ? (
+                <li key={entry.key} className="relative">
                   <Dot fill="bg-[var(--color-yellow)]" />
-                  <p className="text-xs font-black uppercase tracking-wider text-[var(--color-text-faint)] mb-2">Follow-up draft</p>
+                  <p className="text-xs font-black uppercase tracking-wider text-[var(--color-text-faint)] mb-2">{entry.label}</p>
                   <EmailEditor
-                    email={email}
+                    key={entry.key}
+                    email={entry.email}
                     recruiter={thread.recruiter}
                     mailbox={props.mailbox}
-                    attachment={attachmentLabel(email.source, resumes, tailorings)}
+                    attachment={attachmentLabel(entry.email.source, resumes, tailorings)}
                     onChange={() => {
                       load()
                       props.onChanged()
@@ -216,12 +250,9 @@ export default function ThreadDialog(props: ThreadDialogProps) {
                   />
                 </li>
               ) : (
-                <SentEmail key={email.id} email={email} label={`Follow-up ${i + 1}`} />
+                <SentEmail key={entry.key} email={entry.email} label={entry.label} />
               )
             )}
-            {thread.replies.map((item) => (
-              <ReplyItem key={item.id} reply={item} to={thread.recruiter.email} subject={followUpSubject(first?.subject ?? '')} />
-            ))}
           </ol>
 
           {stage && (
@@ -325,15 +356,22 @@ function SentEmail({ email, label }: { email: EmailDetail; label: string }) {
 
 function ReplyItem({ reply, to, subject }: { reply: ReplyRecord; to: string; subject: string }) {
   const [showOriginal, setShowOriginal] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useState<'yes' | 'failed' | null>(null)
   const compose = { to, subject, body: reply.suggestedReply }
+
+  // "Copied" goes back to "Copy", so the button says what it will do next time.
+  useEffect(() => {
+    if (!copied) return
+    const timer = setTimeout(() => setCopied(null), 2500)
+    return () => clearTimeout(timer)
+  }, [copied])
 
   async function copy() {
     try {
       await navigator.clipboard.writeText(reply.suggestedReply)
-      setCopied(true)
+      setCopied('yes')
     } catch {
-      setCopied(false)
+      setCopied('failed')
     }
   }
 
@@ -357,8 +395,13 @@ function ReplyItem({ reply, to, subject }: { reply: ReplyRecord; to: string; sub
             <p className="text-sm whitespace-pre-wrap leading-relaxed">{reply.suggestedReply}</p>
             <div className="flex flex-wrap gap-2">
               <button onClick={copy} className={secondaryButton}>
-                <Copy size={14} /> {copied ? 'Copied' : 'Copy'}
+                <Copy size={14} /> {copied === 'yes' ? 'Copied' : 'Copy'}
               </button>
+              {copied === 'failed' && (
+                <span className="text-xs font-semibold text-[var(--color-error)] self-center">
+                  Copying was blocked. Select the text and copy it instead.
+                </span>
+              )}
               <a href={gmailComposeUrl(compose)} target="_blank" rel="noopener noreferrer" className={secondaryButton}>
                 Reply in Gmail <ExternalLink size={14} />
               </a>

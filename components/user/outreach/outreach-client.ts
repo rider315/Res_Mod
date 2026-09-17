@@ -59,6 +59,16 @@ export interface OutreachSummary {
   mailboxConnected: boolean
 }
 
+/** A tailored copy an email can be written from and attach. */
+export interface TailoringOption {
+  id: string
+  resumeId: string | null
+  resumeTitle: string
+  jobTitle: string
+  company: string
+  createdAt: string
+}
+
 export const outreachApi = {
   setup: () => call<OutreachSetup>('/api/outreach/setup', 'Your outreach settings couldn’t be loaded.'),
   saveProfile: (profile: OutreachProfile) =>
@@ -110,6 +120,10 @@ export const outreachApi = {
       json: { reply, ...ai },
     }),
   summary: () => call<OutreachSummary>('/api/outreach/summary', 'Your outreach couldn’t be loaded.'),
+
+  /** The tailored copies an email can be written from. Loaded with the recruiters, never separately. */
+  tailorings: async () =>
+    (await call<{ tailorings: TailoringOption[] }>('/api/tailorings', 'Your tailored copies couldn’t be loaded.')).tailorings ?? [],
 }
 
 /** What the Outreach screen was opened for, when it came from a tailored copy. */

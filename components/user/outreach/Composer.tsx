@@ -11,7 +11,7 @@ import type { EmailDetail, EmailSource, RecruiterSummary, ThreadSummary } from '
 import { AISettings } from '@/lib/settings-storage'
 import EmailEditor from '@/components/user/outreach/EmailEditor'
 import { Field, relativeDay, StatusChip, Toggle } from '@/components/user/outreach/controls'
-import { describeTailoring, outreachApi, OutreachContext, ownerAi } from '@/components/user/outreach/outreach-client'
+import { describeTailoring, outreachApi, OutreachContext, ownerAi, TailoringOption } from '@/components/user/outreach/outreach-client'
 
 /**
  * Everything for one recruiter: writing an email (from a saved resume or a
@@ -19,14 +19,7 @@ import { describeTailoring, outreachApi, OutreachContext, ownerAi } from '@/comp
  * conversation stands.
  */
 
-export interface TailoringOption {
-  id: string
-  resumeId: string | null
-  resumeTitle: string
-  jobTitle: string
-  company: string
-  createdAt: string
-}
+export type { TailoringOption }
 
 export interface ComposerProps {
   recruiter: RecruiterSummary

@@ -58,7 +58,9 @@ export function BatchWriteDialog({
   onClose: () => void
 }) {
   const [options, setOptions] = useState<BatchWriteOptions>({
-    source: context ? `tailoring:${context.tailoringId}` : 'best',
+    // Only preselect the copy the screen was opened for if it is still there: a key
+    // with no matching option looks like "best match" but fails every email.
+    source: context && tailorings.some((t) => t.id === context.tailoringId) ? `tailoring:${context.tailoringId}` : 'best',
     tone: 'professional',
     jobTitle: '',
     notes: '',
@@ -222,7 +224,8 @@ export function BatchProgress({ batch, onStop, onDismiss }: { batch: BatchState;
         <p className="font-black">
           {batch.finished
             ? `${succeeded} of ${batch.total} ${pastVerb}${batch.stopped ? ', then stopped' : ''}`
-            : `${verb} ${batch.done + 1} of ${batch.total}${batch.current ? `: ${batch.current}` : ''}`}
+            : // Clamped: after the last one is done the count would otherwise read "6 of 5".
+              `${verb} ${Math.min(batch.done + 1, batch.total)} of ${batch.total}${batch.current ? `: ${batch.current}` : ''}`}
         </p>
         {batch.finished ? (
           <button onClick={onDismiss} className={secondaryButton} aria-label="Dismiss">

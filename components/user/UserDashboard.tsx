@@ -448,7 +448,7 @@ export default function UserDashboard({ name, email, isOwner = false, openKeywor
         {overlay === 'history' && <HistoryPanel {...aiProps} onEmailRecruiters={openOutreach} onBack={() => setOverlay(null)} />}
         {overlay === 'outreach' && (
           <OutreachPanel
-            resumes={resumes ?? []}
+            resumes={resumes}
             isOwner={isOwner}
             settings={settings}
             billing={billing}

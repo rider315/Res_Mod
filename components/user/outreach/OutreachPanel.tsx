@@ -28,7 +28,8 @@ import { describeTailoring, outreachApi, OutreachContext, ownerAi } from '@/comp
 type Tab = 'write' | 'tracker' | 'setup'
 
 interface OutreachPanelProps {
-  resumes: ResumeSummary[]
+  /** Null while they load: an email is written from one of these, so nothing that picks one renders until they are here. */
+  resumes: ResumeSummary[] | null
   isOwner: boolean
   settings: AISettings
   billing: BillingStatus | null | undefined
@@ -57,12 +58,12 @@ const STOPPERS = new Set<string>([
 ])
 
 export default function OutreachPanel(props: OutreachPanelProps) {
-  const { resumes, isOwner, settings, billing, context } = props
+  const { isOwner, settings, billing, context } = props
   const [tab, setTab] = useState<Tab>('write')
   const [recruiters, setRecruiters] = useState<RecruiterSummary[] | null>(null)
   const [threads, setThreads] = useState<ThreadSummary[]>([])
   const [setup, setSetup] = useState<OutreachSetup | null>(null)
-  const [tailorings, setTailorings] = useState<TailoringOption[]>([])
+  const [tailorings, setTailorings] = useState<TailoringOption[] | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
 
   const [focusedId, setFocusedId] = useState<string | null>(null)
@@ -77,15 +78,23 @@ export default function OutreachPanel(props: OutreachPanelProps) {
   const running = batch !== null && !batch.finished
 
   const { onBillingChanged } = props
+  // The tailored copies load with the recruiters, not beside them: a draft written
+  // from one reads as "the resume was deleted" until its copy is here.
   const refresh = useCallback(async () => {
     try {
-      const [recruiterList, threadList] = await Promise.all([outreachApi.recruiters(), outreachApi.threads()])
+      const [recruiterList, threadList, tailoringList] = await Promise.all([
+        outreachApi.recruiters(),
+        outreachApi.threads(),
+        outreachApi.tailorings(),
+      ])
       setRecruiters(recruiterList.recruiters)
       setThreads(threadList.threads)
+      setTailorings(tailoringList)
       setLoadError(null)
     } catch (err) {
       setLoadError(errorText(err))
       setRecruiters((current) => current ?? [])
+      setTailorings((current) => current ?? [])
     }
     onBillingChanged()
   }, [onBillingChanged])
@@ -96,10 +105,6 @@ export default function OutreachPanel(props: OutreachPanelProps) {
       .setup()
       .then(setSetup)
       .catch((err) => setLoadError(errorText(err)))
-    fetch('/api/tailorings', { cache: 'no-store' })
-      .then((res) => (res.ok ? res.json() : { tailorings: [] }))
-      .then((data) => setTailorings(data.tailorings ?? []))
-      .catch(() => setTailorings([]))
   }, [refresh])
 
   // A batch keeps going only while this screen is open; leaving asks first.
@@ -121,6 +126,11 @@ export default function OutreachPanel(props: OutreachPanelProps) {
 
   const threadById = useMemo(() => new Map(threads.map((thread) => [thread.id, thread])), [threads])
   const list = recruiters ?? []
+  // What an email can be written from. Until both are here, anything that picks one waits:
+  // choosing from an empty list would quietly write from the wrong resume, or none.
+  const resumes = props.resumes ?? []
+  const tailoringList = tailorings ?? []
+  const sourcesReady = props.resumes !== null && tailorings !== null
   const shown = list.filter((recruiter) => matchesFilter(recruiter, filter) && matchesQuery(recruiter, query))
   const focused = list.find((recruiter) => recruiter.id === focusedId) ?? null
   const selectedRecruiters = list.filter((recruiter) => selected.has(recruiter.id))
@@ -130,7 +140,7 @@ export default function OutreachPanel(props: OutreachPanelProps) {
   const mailbox = setup?.mailbox?.address ?? null
   const draftsLeft = isOwner || !billing ? null : Math.max(0, billing.emailDrafts.limit - billing.emailDrafts.used)
   const sendsLeft = isOwner || !billing ? null : Math.max(0, billing.emailSends.limit - billing.emailSends.used)
-  const contextCopy = context ? tailorings.find((t) => t.id === context.tailoringId) : undefined
+  const contextCopy = context ? tailoringList.find((t) => t.id === context.tailoringId) : undefined
 
   function leave() {
     if (running && !window.confirm('Emails are still being processed. Stop and leave?')) return
@@ -187,7 +197,7 @@ export default function OutreachPanel(props: OutreachPanelProps) {
 
   const startWrite = (options: BatchWriteOptions) =>
     runBatch('write', toWrite, async (recruiter) => {
-      const key = options.source === 'best' ? defaultSourceKey(recruiter, context, tailorings, resumes) : options.source
+      const key = options.source === 'best' ? defaultSourceKey(recruiter, context, tailoringList, resumes) : options.source
       const [kind, id] = key.split(':')
       if (!id) throw new Error('Import a resume first.')
       await outreachApi.write(
@@ -295,7 +305,7 @@ export default function OutreachPanel(props: OutreachPanelProps) {
       )}
 
       {tab === 'write' &&
-        (recruiters === null ? (
+        (recruiters === null || !sourcesReady ? (
           <p className="text-sm font-semibold text-[var(--color-text-muted)]">Loading your recruiters…</p>
         ) : list.length === 0 ? (
           <GettingStarted
@@ -349,7 +359,7 @@ export default function OutreachPanel(props: OutreachPanelProps) {
                     recruiter={focused}
                     thread={focused.latestThread ? threadById.get(focused.latestThread.id) ?? null : null}
                     resumes={resumes}
-                    tailorings={tailorings}
+                    tailorings={tailoringList}
                     context={context}
                     mailbox={mailbox}
                     billing={billing}
@@ -379,11 +389,11 @@ export default function OutreachPanel(props: OutreachPanelProps) {
         ))}
 
       {adding && <AddRecruitersDialog onClose={() => setAdding(false)} onAdded={refresh} />}
-      {openThread && (
+      {openThread && sourcesReady && (
         <ThreadDialog
           threadId={openThread}
           resumes={resumes}
-          tailorings={tailorings}
+          tailorings={tailoringList}
           mailbox={mailbox}
           billing={billing}
           isOwner={isOwner}
@@ -402,7 +412,7 @@ export default function OutreachPanel(props: OutreachPanelProps) {
           recruiters={toWrite}
           skipped={selectedRecruiters.length - toWrite.length}
           resumes={resumes}
-          tailorings={tailorings}
+          tailorings={tailoringList}
           context={context}
           draftsLeft={draftsLeft}
           onStart={startWrite}
