@@ -1,53 +1,128 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
-import { Briefcase, CheckCircle, FileText, Mail, Send, Sparkles, Users } from '@/components/brand/Icons'
+import { Briefcase, CheckCircle, Paperclip, Send, Users } from '@/components/brand/Icons'
 
 /**
- * The hero: two halves of the product becoming one run.
+ * The hero: a job post becoming a tailored resume, and that resume becoming the
+ * email that carries it to the recruiter — the two halves of ResMod in one
+ * unbroken chain, drawn with the real thing rather than a diagram of it.
  *
- * It opens on what ResMod used to be — tailoring on one track, recruiter
- * outreach on another, each doing half the job. The two tracks then close
- * together and turn into a single pipeline, which runs: the recruiter and the
- * posting they are hiring for, the role read from that posting, the resume
- * tailored to it, the email written from the same reading, and the email
- * waiting to be sent.
+ * The job's requirements lift off the post and land in the resume, where the
+ * bullets rewrite themselves and the coverage climbs. The finished resume then
+ * hops across into the email, whose lines say the same words the resume now
+ * carries, with the tailored PDF attached. It ends on "ready to send", never
+ * sent: nothing ResMod writes reaches a recruiter until the user presses Send.
  *
- * The last step says "waiting for you" on purpose. Nothing ResMod writes
- * reaches a recruiter until the user presses Send, and the hero should not
- * imply otherwise.
- *
- * Decorative: the heading beside it says this in words, so it is hidden from
- * screen readers, holds still for anyone who asks for less motion, and stops
- * while it is off screen or the tab is in the background.
+ * Decorative — the heading beside it says this in words — so it is hidden from
+ * screen readers and holds still for anyone who asks for less motion. The
+ * observer may only pause it, never gate it: in a webview that never reports,
+ * it must still play rather than freeze on its first frame.
  */
 
-interface Stage {
-  label: string
-  detail: string
-  icon: React.ReactNode
-  tint: string
+interface Bullet {
+  before: string
+  after: [string, string, string]
 }
 
-const PIPELINE: Stage[] = [
-  { label: 'Recruiter and posting', detail: 'You give a name and the job they’re hiring for', icon: <Users size={17} />, tint: 'var(--color-sky)' },
-  { label: 'The role, read', detail: 'From the posting itself, not from a guess', icon: <Briefcase size={17} />, tint: 'var(--color-yellow)' },
-  { label: 'Resume tailored', detail: 'Every requirement it asks for, none invented', icon: <FileText size={17} />, tint: 'var(--color-accent)' },
-  { label: 'Email written', detail: 'From that same resume, so the two agree', icon: <Mail size={17} />, tint: 'var(--color-periwinkle)' },
-  { label: 'Waiting for you', detail: 'Nothing sends until you press Send', icon: <Send size={17} />, tint: 'var(--color-accent-strong)' },
+interface Job {
+  role: string
+  company: string
+  place: string
+  recruiter: string
+  keywords: [string, string, string]
+  summary: Array<{ text: string; mark?: boolean }>
+  bullets: [Bullet, Bullet, Bullet]
+  subject: string
+  /** The email, a line at a time, with the words the resume now carries marked. */
+  lines: [Array<{ text: string; mark?: boolean }>, Array<{ text: string; mark?: boolean }>]
+  candidate: string
+  from: number
+}
+
+const JOBS: Job[] = [
+  {
+    role: 'Senior Platform Engineer',
+    company: 'Northwind Labs',
+    place: 'Bengaluru',
+    recruiter: 'Priya Rao',
+    keywords: ['Kubernetes', 'Terraform', 'incident response'],
+    summary: [
+      { text: 'Own our ' },
+      { text: 'Kubernetes', mark: true },
+      { text: ' clusters, write ' },
+      { text: 'Terraform', mark: true },
+      { text: ', lead ' },
+      { text: 'incident response', mark: true },
+      { text: '.' },
+    ],
+    bullets: [
+      { before: 'Deployed services to the cloud', after: ['Ran production ', 'Kubernetes', ', cutting deploy time 40%'] },
+      { before: 'Managed infrastructure', after: ['Defined every environment in ', 'Terraform', ''] },
+      { before: 'Fixed production bugs on call', after: ['Led ', 'incident response', ' for 2M users'] },
+    ],
+    subject: 'Platform Engineer — Kubernetes and Terraform',
+    lines: [
+      [{ text: 'Hi Priya, I saw you’re hiring a Platform Engineer at Northwind.' }],
+      [
+        { text: 'I run production ' },
+        { text: 'Kubernetes', mark: true },
+        { text: ', define environments in ' },
+        { text: 'Terraform', mark: true },
+        { text: ', and led ' },
+        { text: 'incident response', mark: true },
+        { text: ' for 2M users.' },
+      ],
+    ],
+    candidate: 'Asha Menon',
+    from: 3,
+  },
+  {
+    role: 'Site Reliability Engineer',
+    company: 'Fabrikam',
+    place: 'Pune',
+    recruiter: 'Karan Mehta',
+    keywords: ['observability', 'SLOs', 'Python'],
+    summary: [
+      { text: 'Improve ' },
+      { text: 'observability', mark: true },
+      { text: ', hold us to ' },
+      { text: 'SLOs', mark: true },
+      { text: ', automate in ' },
+      { text: 'Python', mark: true },
+      { text: '.' },
+    ],
+    bullets: [
+      { before: 'Set up monitoring dashboards', after: ['Rebuilt ', 'observability', ' around traces'] },
+      { before: 'Kept uptime high', after: ['Set error-budget ', 'SLOs', ' reviewed weekly'] },
+      { before: 'Automated manual work', after: ['Automated releases in ', 'Python', ', saving 6 hrs a week'] },
+    ],
+    subject: 'SRE — observability and error-budget SLOs',
+    lines: [
+      [{ text: 'Hi Karan, I saw Fabrikam is hiring an SRE in Pune.' }],
+      [
+        { text: 'I rebuilt ' },
+        { text: 'observability', mark: true },
+        { text: ' around traces, set error-budget ' },
+        { text: 'SLOs', mark: true },
+        { text: ', and automate in ' },
+        { text: 'Python', mark: true },
+        { text: '.' },
+      ],
+    ],
+    candidate: 'Asha Menon',
+    from: 3,
+  },
 ]
 
-/** apart · closing · one node per step · hold. */
-const STEP_MS = [2100, 1100, 850, 850, 850, 850, 950, 2300]
+/** read the post · three keywords across · scored · into the email · subject · two lines · ready · hold. */
+const STEP_MS = [1400, 800, 800, 800, 850, 800, 700, 750, 900, 2200]
 const LAST_STEP = STEP_MS.length - 1
-/** The step at which the tracks have finished merging and the pipeline runs. */
-const MERGED_AT = 2
+const RING = 2 * Math.PI * 22
 
 export default function HeroWorkflow() {
+  const [jobIndex, setJobIndex] = useState(0)
   const [step, setStep] = useState(0)
   const [still, setStill] = useState(false)
-  // Starts true: the observer below may only pause it. Where an observer never
-  // reports — a webview that isn't compositing — the animation must still play
-  // rather than freeze on its first frame.
   const [running, setRunning] = useState(true)
   const frame = useRef<HTMLDivElement>(null)
 
@@ -66,10 +141,6 @@ export default function HeroWorkflow() {
     const element = frame.current
     if (!element) return
     let onScreen = true
-    // Being on screen is what decides this. A hidden page only stops it once the
-    // page has reported itself visible at least once: some in-app browsers — the
-    // ones people arrive in from LinkedIn — say "hidden" the whole time they are
-    // on screen, and the hero must not sit frozen there.
     let everVisible = false
     const sync = () => {
       if (document.visibilityState === 'visible') everVisible = true
@@ -80,7 +151,7 @@ export default function HeroWorkflow() {
         onScreen = entry.isIntersecting
         sync()
       },
-      { threshold: 0.15 }
+      { threshold: 0.1 }
     )
     observer.observe(element)
     document.addEventListener('visibilitychange', sync)
@@ -92,104 +163,207 @@ export default function HeroWorkflow() {
 
   useEffect(() => {
     if (still || !running) return
-    const timer = setTimeout(() => setStep(step >= LAST_STEP ? 0 : step + 1), STEP_MS[step])
+    const timer = setTimeout(() => {
+      if (step < LAST_STEP) setStep(step + 1)
+      else {
+        setStep(0)
+        setJobIndex((current) => (current + 1) % JOBS.length)
+      }
+    }, STEP_MS[step])
     return () => clearTimeout(timer)
   }, [step, still, running])
 
-  const closing = step >= 1
-  const merged = step >= MERGED_AT
-  /** How many pipeline stages have lit: all of them once it is holding. */
-  const lit = Math.min(Math.max(step - MERGED_AT + 1, 0), PIPELINE.length)
+  const job = JOBS[jobIndex]
+  const landed = Math.min(Math.max(step, 0), 3)
+  const tailored = step >= 4
+  const covered = tailored ? 9 : job.from
+  const handedOver = step >= 5
+  const emailLines = Math.min(Math.max(step - 5, 0), 2)
+  const attached = step >= 7
+  const ready = step >= 8
+  const cycle = `${jobIndex}-${step}`
 
   return (
-    <div ref={frame} aria-hidden className="relative max-w-5xl mx-auto mt-14">
-      <div className="relative min-h-[330px] sm:min-h-[260px]">
-        {/* ── Before: two tracks, each doing half the job ── */}
-        <div
-          className={`absolute inset-x-0 top-0 grid gap-3 sm:grid-cols-2 transition-all duration-700 ease-[cubic-bezier(0.65,0,0.35,1)] ${
-            merged ? 'opacity-0 scale-[0.97] pointer-events-none' : 'opacity-100'
-          }`}
-        >
-          <Track
-            name="Resume tailoring"
-            shift={closing ? 'sm:translate-x-[14%] translate-y-[14%]' : ''}
-            tint="var(--color-accent-soft)"
-            steps={['A job description you paste', 'A resume tailored to it']}
-          />
-          <Track
-            name="Recruiter outreach"
-            shift={closing ? 'sm:-translate-x-[14%] -translate-y-[14%]' : ''}
-            tint="var(--color-yellow-soft)"
-            steps={['A recruiter you add', 'An email written for them']}
-          />
-        </div>
-
-        {/* ── After: one run ── */}
-        <div
-          className={`absolute inset-x-0 top-0 transition-all duration-700 delay-150 ease-[cubic-bezier(0.34,1.4,0.64,1)] ${
-            merged ? 'opacity-100 scale-100' : 'opacity-0 scale-[0.94] pointer-events-none'
-          }`}
-        >
-          <div className="nb-card nb-rounded p-4 sm:p-5">
-            <div className="flex flex-wrap items-center justify-between gap-2 pb-3 mb-3 border-b-[1.6px] border-[var(--color-ink)]">
-              <p className="font-black flex items-center gap-2">
-                <span className="nb-badge w-8 h-8 bg-[var(--color-yellow)]">
-                  <Sparkles size={16} />
-                </span>
-                One run, start to finish
+    <div ref={frame} aria-hidden className="relative max-w-6xl mx-auto mt-14">
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_56px_minmax(0,1fr)_56px_minmax(0,1fr)] items-stretch">
+        {/* ── 1. The job, and who is hiring for it ── */}
+        <Card label="The job they’re hiring for" tone="var(--color-yellow-soft)">
+          {!still && step === 0 && <span key={cycle} className="hero-scan" />}
+          <div className="flex items-center gap-2.5">
+            <span className="nb-badge w-9 h-9 shrink-0 bg-[var(--color-yellow)]">
+              <Briefcase size={17} />
+            </span>
+            <div className="min-w-0">
+              <p className="font-extrabold text-sm leading-tight truncate">{job.role}</p>
+              <p className="text-[11px] text-[var(--color-text-muted)] truncate">
+                {job.company} · {job.place}
               </p>
-              <span className="nb-chip bg-[var(--color-accent)] whitespace-nowrap">
-                <CheckCircle size={13} /> Premium
-              </span>
             </div>
-            <ol className="grid gap-2 sm:grid-cols-5">
-              {PIPELINE.map((stage, i) => (
-                <li
-                  key={stage.label}
-                  className={`relative rounded-[9px] border-[1.6px] border-[var(--color-ink)] p-2.5 transition-all duration-500 ${
-                    lit > i ? 'shadow-[3px_3px_0_0_var(--color-ink)] -translate-y-px' : 'opacity-45'
-                  }`}
-                  style={{ background: lit > i ? stage.tint : 'var(--color-surface-offset)' }}
-                >
-                  <span className="flex items-center gap-1.5 text-[#0a0a0a]">
-                    {stage.icon}
-                    <span className="text-[11px] font-black uppercase tracking-wide tabular-nums opacity-70">{i + 1}</span>
-                  </span>
-                  <p className="mt-1.5 text-sm font-black leading-tight text-[#0a0a0a]">{stage.label}</p>
-                  <p className="mt-0.5 text-[11px] leading-snug text-[#0a0a0a] opacity-75">{stage.detail}</p>
-                </li>
-              ))}
-            </ol>
-            <p className="mt-3 text-xs font-bold text-[var(--color-text-muted)]">
-              The resume and the email come from the same reading of the job, so they say the same thing.
+          </div>
+          <p className="mt-3 text-[13px] text-[var(--color-text-muted)] leading-relaxed">
+            {job.summary.map((part, i) =>
+              part.mark ? (
+                <Mark key={i}>{part.text}</Mark>
+              ) : (
+                <span key={i}>{part.text}</span>
+              )
+            )}
+          </p>
+          <div className="mt-3 flex items-center gap-2 pt-2.5 border-t-[1.6px] border-[var(--color-border-soft)]">
+            <span className="nb-badge w-7 h-7 shrink-0 bg-[var(--color-sky)] text-[11px] font-black">{job.recruiter.charAt(0)}</span>
+            <p className="text-[11px] min-w-0 truncate">
+              <span className="font-bold">{job.recruiter}</span>
+              <span className="text-[var(--color-text-faint)]"> · recruiting</span>
             </p>
           </div>
-        </div>
+        </Card>
+
+        <Link active={!still && step >= 1 && step <= 3}>
+          {!still &&
+            job.keywords.map((keyword, i) =>
+              step === i + 1 ? (
+                <span key={`${cycle}-${keyword}`} className="hero-fly nb-chip bg-[var(--color-accent)] whitespace-nowrap text-[11px]">
+                  {keyword}
+                </span>
+              ) : null
+            )}
+        </Link>
+
+        {/* ── 2. The resume, tailored to it ── */}
+        <Card label="Your resume, tailored" tone="var(--color-surface)" lift={tailored}>
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="font-extrabold text-sm leading-tight truncate">{job.candidate}</p>
+              <p className="text-[11px] text-[var(--color-text-muted)] truncate">Platform Engineer</p>
+            </div>
+            <Ring covered={covered} done={tailored} />
+          </div>
+          <ul className="mt-3 space-y-2 text-[13px]">
+            {job.bullets.map((bullet, i) => (
+              <li key={`${jobIndex}-${i}`} className="leading-snug">
+                {landed > i ? (
+                  <span className="hero-bullet-in block font-medium">
+                    • {bullet.after[0]}
+                    <Mark>{bullet.after[1]}</Mark>
+                    {bullet.after[2]}
+                  </span>
+                ) : (
+                  <span className="block text-[var(--color-text-faint)]">• {bullet.before}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Card>
+
+        <Link active={!still && step === 5}>
+          {!still && step === 5 && (
+            <span key={`${cycle}-pdf`} className="hero-fly nb-chip bg-[var(--color-sky)] whitespace-nowrap text-[11px]">
+              <Paperclip size={12} /> PDF
+            </span>
+          )}
+        </Link>
+
+        {/* ── 3. The email that carries it ── */}
+        <Card label="The email to the recruiter" tone="var(--color-accent-soft)" lift={ready}>
+          <div className="flex items-center gap-2.5">
+            <span className="nb-badge w-9 h-9 shrink-0 bg-[var(--color-periwinkle)] text-white">
+              <Users size={17} />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[11px] text-[var(--color-text-faint)] font-bold uppercase tracking-wide">To</p>
+              <p className="font-extrabold text-sm leading-tight truncate">{job.recruiter}</p>
+            </div>
+          </div>
+          <div className="mt-3 min-h-[92px]">
+            {handedOver ? (
+              <p className="hero-bullet-in text-[13px] font-black leading-snug">{job.subject}</p>
+            ) : (
+              <p className="text-[13px] text-[var(--color-text-faint)]">Waiting for the tailored resume…</p>
+            )}
+            {job.lines.slice(0, emailLines).map((line, i) => (
+              <p key={`${jobIndex}-line-${i}`} className="hero-bullet-in mt-1.5 text-[13px] leading-snug text-[var(--color-text-muted)]">
+                {line.map((part, j) => (part.mark ? <Mark key={j}>{part.text}</Mark> : <span key={j}>{part.text}</span>))}
+              </p>
+            ))}
+          </div>
+          <div className="mt-2 pt-2.5 border-t-[1.6px] border-[var(--color-border-soft)] flex flex-wrap items-center gap-2">
+            {attached && (
+              <span className="hero-bullet-in nb-chip bg-[var(--color-surface)] text-[11px] whitespace-nowrap">
+                <Paperclip size={12} /> {job.candidate} Resume.pdf
+              </span>
+            )}
+            {ready && (
+              <span className="hero-bullet-in nb-chip bg-[var(--color-accent)] text-[11px] whitespace-nowrap">
+                <Send size={12} /> Ready to send
+              </span>
+            )}
+          </div>
+        </Card>
       </div>
 
-      <p className="mt-5 text-center text-xs font-bold uppercase tracking-[0.18em] text-[var(--color-text-faint)]">
-        Two halves of the job · one run · you still press Send
+      <p className="mt-6 text-center text-xs font-bold uppercase tracking-[0.16em] text-[var(--color-text-faint)]">
+        Tailored for the job · written from that resume · you press Send
       </p>
     </div>
   )
 }
 
-function Track({ name, shift, tint, steps }: { name: string; shift: string; tint: string; steps: [string, string] }) {
+function Mark({ children }: { children: React.ReactNode }) {
+  return <span className="bg-[var(--color-accent)] px-1 font-semibold text-[#0a0a0a]">{children}</span>
+}
+
+function Card({ label, tone, lift = false, children }: { label: string; tone: string; lift?: boolean; children: React.ReactNode }) {
   return (
-    <div
-      className={`nb-card nb-rounded p-4 transition-transform duration-700 ease-[cubic-bezier(0.65,0,0.35,1)] ${shift}`}
-      style={{ background: tint }}
+    <section
+      className={`nb-card nb-rounded relative overflow-hidden p-4 flex flex-col transition-all duration-500 ${
+        lift ? 'shadow-[6px_6px_0_0_var(--color-ink)] -translate-y-0.5' : ''
+      }`}
+      style={{ background: tone }}
     >
-      <p className="text-[11px] font-black uppercase tracking-wider text-[var(--color-text-faint)]">{name}</p>
-      <ol className="mt-3 space-y-2">
-        {steps.map((text, i) => (
-          <li key={text} className="flex items-center gap-2.5 text-sm font-semibold">
-            <span className="nb-badge w-7 h-7 shrink-0 text-xs bg-[var(--color-surface)]">{i + 1}</span>
-            {text}
-          </li>
-        ))}
-      </ol>
-      <p className="mt-3 text-xs text-[var(--color-text-muted)]">On its own, this is half an application.</p>
+      <p className="text-[10px] font-black uppercase tracking-wider text-[var(--color-text-faint)] mb-2.5">{label}</p>
+      {children}
+    </section>
+  )
+}
+
+/** The gap between two cards, and whatever is crossing it. */
+function Link({ active, children }: { active: boolean; children: React.ReactNode }) {
+  return (
+    <div className="hero-lane hero-lane-wide h-10 lg:h-auto flex items-center justify-center">
+      <span className={`hero-rail ${active ? 'hero-rail-live' : ''}`} />
+      {children}
     </div>
+  )
+}
+
+function Ring({ covered, done }: { covered: number; done: boolean }) {
+  return (
+    <span className="relative shrink-0 w-[52px] h-[52px] grid place-items-center">
+      <svg viewBox="0 0 52 52" className="absolute inset-0 -rotate-90" aria-hidden>
+        <circle cx="26" cy="26" r="22" fill="none" stroke="var(--color-border-soft)" strokeWidth="4.5" />
+        <circle
+          cx="26"
+          cy="26"
+          r="22"
+          fill="none"
+          stroke={done ? 'var(--color-accent-strong)' : 'var(--color-primary)'}
+          strokeWidth="4.5"
+          strokeLinecap="round"
+          strokeDasharray={RING}
+          strokeDashoffset={RING * (1 - covered / 9)}
+          style={{ transition: 'stroke-dashoffset 800ms cubic-bezier(0.22,1,0.36,1), stroke 300ms ease' }}
+        />
+      </svg>
+      <span className="relative text-center leading-none">
+        {done ? (
+          <CheckCircle size={17} className="mx-auto text-[var(--color-success)]" />
+        ) : (
+          <>
+            <span className="block text-sm font-black tabular-nums">{covered}</span>
+            <span className="block text-[8px] font-bold text-[var(--color-text-faint)]">of 9</span>
+          </>
+        )}
+      </span>
+    </span>
   )
 }

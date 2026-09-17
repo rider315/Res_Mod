@@ -464,6 +464,18 @@ body {
 
 /* The keywords fly over the cards, never under them. */
 .hero-lane { position: relative; z-index: 3; }
+.hero-rail-live { opacity: 0.6; }
+
+/* The three-card hero stacks until 1024px, so between the breakpoints its lanes
+   stay vertical while the two-card hero's have already turned. */
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  .hero-lane-wide .hero-fly { animation-name: hero-fly-down; }
+  .hero-lane-wide .hero-rail {
+    width: var(--nb-border);
+    height: 100%;
+    background: repeating-linear-gradient(180deg, var(--color-ink) 0 6px, transparent 6px 12px);
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

@@ -71,21 +71,25 @@ const FEATURES: Array<{ icon: React.ReactNode; title: string; text: string }> = 
   },
 ]
 
-const TOGETHER: Array<{ icon: React.ReactNode; title: string; text: string }> = [
+const WAYS: Array<{ icon: React.ReactNode; name: string; title: string; text: string; premium?: boolean }> = [
   {
-    icon: <Briefcase size={22} />,
-    title: 'The real posting, not a guess',
-    text: 'You point ResMod at the job the recruiter is hiring for and it reads that posting. It never asks a model what a company might want — that is how invented requirements end up in a real email.',
+    icon: <FileText size={22} />,
+    name: 'On its own',
+    title: 'Resume tailoring',
+    text: 'Paste a job description and get your resume rewritten toward it, every change shown next to the original for you to keep or drop. Download it as a PDF or .tex, with a cover letter to match.',
+  },
+  {
+    icon: <Mail size={22} />,
+    name: 'On its own',
+    title: 'Recruiter emails',
+    text: 'Import the recruiters you want to reach, and ResMod writes each a short email from your resume. Send from your own mailbox, then track who opened, who replied, and what to say next.',
   },
   {
     icon: <Layers size={22} />,
-    title: 'One reading behind both',
-    text: 'The resume and the email are built from the same reading of the role, so the skills you lead with in the email are the ones the recruiter finds in the resume attached to it.',
-  },
-  {
-    icon: <Send size={22} />,
-    title: 'Ready to send, never sent',
-    text: 'A run ends with the email in front of you, with the tailored PDF attached. Edit it, or bin it. ResMod has never emailed anyone without you pressing Send, and that does not change.',
+    name: 'Both, in one run',
+    title: 'The whole application',
+    text: 'Give ResMod a recruiter and the job they’re hiring for. It reads that posting, tailors your resume to it, and writes the email from the same reading — so the email and the resume attached to it say the same thing.',
+    premium: true,
   },
 ]
 
@@ -209,13 +213,13 @@ export default function LoginPage({ freeTailorings, accountDeleted }: LoginPageP
       <section className="px-4 sm:px-6 pt-14 sm:pt-20 pb-16 overflow-hidden">
         <div className="max-w-5xl mx-auto text-center">
           <h1 className="text-[2.6rem] leading-[1.15] sm:text-6xl sm:leading-[1.2] font-black tracking-tight">
-            <span className="nb-highlight">One run</span>
+            <span className="nb-highlight">Tailor your resume</span>
             <br />
-            from the job post to the recruiter
+            and email it to the recruiter
           </h1>
           <p className="mt-7 text-lg sm:text-2xl text-[var(--color-text-muted)] max-w-3xl mx-auto leading-relaxed">
-            Give ResMod a recruiter and the job they’re hiring for. It reads the posting, tailors your resume to it, and writes the
-            recruiter an email from that same resume — so the two say the same thing. You read it, then you press Send.
+            Paste a job and get a resume that speaks to it, with every required keyword in and nothing made up. Then let ResMod write
+            the recruiter an email from that same resume, with it attached. Use either on its own, or both in one run.
           </p>
           <div className="mt-9 flex flex-col items-center gap-3">
             <StartButton />
@@ -226,30 +230,36 @@ export default function LoginPage({ freeTailorings, accountDeleted }: LoginPageP
         <HeroWorkflow />
       </section>
 
-      {/* ── Why the two together ─────────────────────────── */}
+      {/* ── Three ways to use it ─────────────────────────── */}
       <section className="bg-[var(--color-cream)] border-y-[1.6px] border-[var(--color-ink)] px-4 sm:px-6 py-20">
-        <div className="max-w-5xl mx-auto">
+        <div className="max-w-6xl mx-auto">
           <div className="text-center max-w-3xl mx-auto">
-            <h2 className="text-3xl sm:text-4xl font-black">
-              A tailored resume nobody reads is <span className="nb-highlight">half a job done</span>
-            </h2>
+            <h2 className="text-3xl sm:text-4xl font-black">Use one half, or both</h2>
             <p className="mt-5 text-lg text-[var(--color-text-muted)]">
-              Most tools stop at the resume, and most outreach tools write emails that have never seen it. Doing both in one run is
-              what makes them agree.
+              Tailoring and recruiter emails each work on their own, on every plan. Run them together and they stop guessing at each
+              other.
             </p>
           </div>
-          <div className="mt-12 grid gap-6 md:grid-cols-3">
-            {TOGETHER.map((point) => (
-              <div key={point.title} className="nb-card p-6">
-                <span className="nb-badge w-11 h-11 bg-[var(--color-yellow)]">{point.icon}</span>
-                <h3 className="mt-4 text-xl font-extrabold leading-tight">{point.title}</h3>
-                <p className="mt-3 text-[var(--color-text-muted)] leading-relaxed">{point.text}</p>
+          <div className="mt-12 grid gap-6 md:grid-cols-3 items-stretch">
+            {WAYS.map((way) => (
+              <div
+                key={way.title}
+                className={`nb-card p-6 flex flex-col ${way.premium ? 'md:-translate-y-2 border-[3px] shadow-[6px_6px_0_0_#0a0a0a] bg-[var(--color-accent-soft)]' : ''}`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="nb-badge w-11 h-11 bg-[var(--color-yellow)]">{way.icon}</span>
+                  {way.premium && (
+                    <span className="nb-chip bg-[var(--color-accent)] whitespace-nowrap">
+                      <CheckCircle size={13} /> Premium
+                    </span>
+                  )}
+                </div>
+                <p className="mt-4 text-[11px] font-black uppercase tracking-wider text-[var(--color-text-faint)]">{way.name}</p>
+                <h3 className="mt-1 text-xl font-extrabold leading-tight">{way.title}</h3>
+                <p className="mt-3 text-[var(--color-text-muted)] leading-relaxed flex-1">{way.text}</p>
               </div>
             ))}
           </div>
-          <p className="mt-10 text-center text-[var(--color-text-muted)]">
-            Prefer to do one half at a time? Tailoring and recruiter emails still work on their own, on every plan.
-          </p>
         </div>
       </section>
 
