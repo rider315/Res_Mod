@@ -13,7 +13,7 @@ export default function TermsOfService() {
       </PolicySection>
 
       <PolicySection title="2. Description of Service">
-        <p>ResMod turns a resume you upload (PDF, Word, LaTeX or text) into a structured LaTeX resume, and tailors it to job descriptions with AI. The AI proposes changes, you approve or reject each one, and the approved changes go into a tailored copy you can download, typeset or open in Overleaf. ResMod can also write a cover letter for a tailored copy, and list the keywords a job description is screened for. The AI requests run on ResMod AI: a model from a third-party AI provider, chosen by ResMod.</p>
+        <p>ResMod turns a resume you upload (PDF, Word, LaTeX or text) into a structured LaTeX resume, and tailors it to job descriptions with AI. The AI proposes changes, you approve or reject each one, and the approved changes go into a tailored copy you can download, typeset or open in Overleaf. ResMod can also write a cover letter for a tailored copy, list the keywords a job description is screened for, and write emails to recruiters that you can send from your own mailbox. The AI requests run on ResMod AI: a model from a third-party AI provider, chosen by ResMod.</p>
       </PolicySection>
 
       <PolicySection title="3. User Responsibilities">
@@ -43,15 +43,26 @@ export default function TermsOfService() {
         <p>Current prices are on the <Link href="/pricing" className="text-[var(--color-primary)] hover:underline">Pricing</Link> page, and the full details of cancelling and refunds are in the <Link href="/refunds" className="text-[var(--color-primary)] hover:underline">Cancellation and Refund Policy</Link>.</p>
       </PolicySection>
 
-      <PolicySection title="6. Disclaimer of Warranties">
+      <PolicySection title="6. Recruiter Emails">
+        <ul className="list-disc pl-5 space-y-1">
+          <li>Emails you send through ResMod go out from your own mailbox, as you. You are responsible for what they say and for whom you send them to.</li>
+          <li>Only email people you have a legitimate reason to contact about a job. Don&apos;t use ResMod for marketing, bulk unsolicited email, or to contact anyone who has asked you not to.</li>
+          <li>Read every email before you send it. The AI writes drafts from your resume, and you decide what is sent.</li>
+          <li>Only connect a mailbox that is yours, with an app password you created for ResMod.</li>
+          <li>Each account can have the AI write a set number of recruiter emails a month and can send up to a daily limit, shown on the Pricing page. ResMod may pause sending from an account that is used to send spam.</li>
+          <li>Open tracking is approximate: some mail apps load images on their own, and others block them.</li>
+        </ul>
+      </PolicySection>
+
+      <PolicySection title="7. Disclaimer of Warranties">
         <p>ResMod is provided &quot;as is&quot; without any warranties, expressed or implied. We do not warrant that the service will be uninterrupted, secure, or error-free.</p>
       </PolicySection>
 
-      <PolicySection title="7. Limitation of Liability">
+      <PolicySection title="8. Limitation of Liability">
         <p>In no event shall ResMod or its developers be liable for any indirect, incidental, special, or consequential damages arising out of or in connection with your use of the service, including but not limited to loss of employment opportunities or data loss.</p>
       </PolicySection>
 
-      <PolicySection title="8. Contact">
+      <PolicySection title="9. Contact">
         <p>For questions about these terms, a payment or a refund, see the <Link href="/contact" className="text-[var(--color-primary)] hover:underline">Contact</Link> page. How ResMod handles your data is described in the <Link href="/privacy" className="text-[var(--color-primary)] hover:underline">Privacy Policy</Link>.</p>
       </PolicySection>
     </PolicyPage>

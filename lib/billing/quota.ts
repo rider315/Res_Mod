@@ -1,4 +1,4 @@
-import { IMPORTS_PER_MONTH } from '@/lib/billing/plans'
+import { EMAIL_DRAFTS_PER_MONTH, IMPORTS_PER_MONTH } from '@/lib/billing/plans'
 
 /**
  * The arithmetic of tailorings, kept apart from the database so it can be tested
@@ -46,6 +46,10 @@ export function importLimit(paying: boolean): number {
   return paying ? IMPORTS_PER_MONTH.paid : IMPORTS_PER_MONTH.free
 }
 
+export function draftLimit(paying: boolean): number {
+  return paying ? EMAIL_DRAFTS_PER_MONTH.paid : EMAIL_DRAFTS_PER_MONTH.free
+}
+
 /** The calendar month a counter belongs to, in UTC: "2026-09". */
 export function monthKey(now: Date): string {
   return now.toISOString().slice(0, 7)
@@ -54,6 +58,11 @@ export function monthKey(now: Date): string {
 /** When this month's counters start again: the first instant of next month, UTC. */
 export function nextMonthStart(now: Date): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1))
+}
+
+/** When today's counters start again: the next midnight, UTC. */
+export function nextDayStart(now: Date): Date {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1))
 }
 
 /**
@@ -68,6 +77,10 @@ export const buckets = {
   /** One row per account for life: the free tailorings never come back. */
   freeTailorings: () => 'runs:free',
   imports: (now: Date) => `imports:${monthKey(now)}`,
+  /** Recruiter emails written by the AI this month. */
+  emailDrafts: (now: Date) => `drafts:${monthKey(now)}`,
+  /** Recruiter emails sent today, UTC. */
+  emailSends: (now: Date) => `sends:${now.toISOString().slice(0, 10)}`,
   dailyAi: (now: Date) => `ai:${now.toISOString().slice(0, 10)}`,
   /** Keyed by the cycle's start, so a renewal starts a fresh count with no reset job. */
   subscriptionRuns: (subscriptionId: string, cycleStart: Date | null, now: Date) =>

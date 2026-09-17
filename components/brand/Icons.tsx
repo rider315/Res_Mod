@@ -208,3 +208,46 @@ export const Wand = (p: IconProps) => (
     <path d="M13 11l2 2" />
   </Svg>
 )
+
+export const Send = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M21 3L10 14M21 3l-7 18-4-7-7-4 18-7z" />
+  </Svg>
+)
+
+export const Reply = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M9 17l-5-5 5-5M4 12h11a5 5 0 0 1 5 5v2" />
+  </Svg>
+)
+
+export const Users = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="9" cy="8" r="3.5" />
+    <path d="M2.5 20c1-3.5 3.5-5.5 6.5-5.5s5.5 2 6.5 5.5M16 4.5a3.5 3.5 0 0 1 0 7M18.5 14.8c1.6.8 2.6 2.5 3 5.2" />
+  </Svg>
+)
+
+export const Refresh = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5" />
+  </Svg>
+)
+
+export const ExternalLink = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
+  </Svg>
+)
+
+export const Paperclip = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M20 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4l7.8-7.8" />
+  </Svg>
+)
+
+export const Inbox = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M3 13h5l1.5 3h5L16 13h5M5.5 5h13L21 13v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-6z" />
+  </Svg>
+)

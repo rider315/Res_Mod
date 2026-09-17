@@ -49,6 +49,16 @@ export default async function PrivacyPolicy() {
             into the keyword finder is used to find its keywords and is not saved.
           </li>
           <li>
+            <strong className="text-[var(--color-text)]">Recruiter outreach.</strong> The recruiters you add (their name, email address, company and job
+            title), the emails you write and send to them, the replies you paste in with what the AI made of them, and,
+            if you leave open tracking on, when and how often each email was opened.
+          </li>
+          <li>
+            <strong className="text-[var(--color-text)]">Your connected mailbox.</strong> If you connect one, its address, the mail server it uses and the
+            app password you give. The app password is encrypted before it is stored, is never shown again, and is used
+            only to send the emails you choose to send.
+          </li>
+          <li>
             <strong className="text-[var(--color-text)]">Usage and payments.</strong> How many tailorings and imports you
             have used, your credits and plan, and for each payment the Razorpay order, payment or subscription ID,
             amount and status.
@@ -58,8 +68,8 @@ export default async function PrivacyPolicy() {
 
       <PolicySection title="3. How we use it">
         <p>
-          Only to run ResMod: to show and tailor your resumes, count your tailorings, take payments and prevent
-          abuse. ResMod does not sell your data, show advertising, or use your resumes to train AI models.
+          Only to run ResMod: to show and tailor your resumes, write and send the emails you ask for, count your
+          usage, take payments and prevent abuse. ResMod never emails anyone unless you press Send. ResMod does not sell your data, show advertising, or use your resumes to train AI models.
         </p>
       </PolicySection>
 
@@ -68,8 +78,18 @@ export default async function PrivacyPolicy() {
           <li>
             <strong className="text-[var(--color-text)]">An AI provider.</strong> Resume text and job descriptions
             go to the AI provider ResMod AI runs on{platformProvider ? `, currently ${platformProvider}` : ''}, to
-            import and tailor your resumes, find a job&apos;s keywords and write cover letters. It handles that data
-            under its own terms.
+            import and tailor your resumes, find a job&apos;s keywords, write cover letters and recruiter emails, and
+            read the recruiter replies you paste in. It handles that data under its own terms.
+          </li>
+          <li>
+            <strong className="text-[var(--color-text)]">Your email provider</strong>, such as Google or Microsoft, sends the recruiter emails you send from
+            your connected mailbox, with the resume you chose attached, under its own terms.
+          </li>
+          <li>
+            <strong className="text-[var(--color-text)]">The recruiters you email</strong> receive what you send them. When open tracking is on, each email
+            carries a tiny image; when a recipient&apos;s mail app loads it, ResMod records that the email was opened
+            and nothing else about the recipient. Some mail apps load images on their own, so an open is a hint rather
+            than proof.
           </li>
           <li>
             <strong className="text-[var(--color-text)]">Razorpay</strong> processes payments. Your card, UPI or bank
@@ -91,31 +111,41 @@ export default async function PrivacyPolicy() {
 
       <PolicySection title="5. How long we keep it, and deleting it">
         <p>
-          Resumes, tailored copies and their cover letters stay until you delete them. You can delete any of them at any time, or delete
+          Resumes, tailored copies, cover letters, recruiters and emails stay until you delete them, and a connected
+          mailbox until you disconnect it. You can delete any of them at any time, or delete
           your whole account from Account in the dashboard.
         </p>
         <p>
-          Deleting your account deletes your resumes, your tailoring history and cover letters, and your name and
-          email, and forfeits unused credits. We keep payment records, which accounting requires, and your anonymous account ID with its
+          Deleting your account deletes your resumes, your tailoring history and cover letters, your recruiters,
+          emails and replies, your connected mailbox, and your name and email, and forfeits unused credits. We keep payment records, which accounting requires, and your anonymous account ID with its
           usage counts, so that deleting an account cannot be used to get free tailorings again.
         </p>
       </PolicySection>
 
-      <PolicySection title="6. Cookies and browser storage">
+      <PolicySection title="6. The people you email">
+        <p>
+          You add recruiters&apos; contact details yourself and decide whom to email. Only add people you have a
+          legitimate reason to contact about a job, and remove anyone who asks not to be contacted: in ResMod,
+          removing a recruiter deletes their details and the emails to them.
+        </p>
+      </PolicySection>
+
+      <PolicySection title="7. Cookies and browser storage">
         <p>
           ResMod sets a cookie to keep you signed in. Razorpay Checkout sets its own cookies when you pay. ResMod
           uses no advertising or analytics cookies.
         </p>
       </PolicySection>
 
-      <PolicySection title="7. Security">
+      <PolicySection title="8. Security">
         <p>
           Connections are encrypted with HTTPS, and every request for a resume or a tailored copy is checked against
-          the account that is signed in, so no account can reach another&apos;s data.
+          the account that is signed in, so no account can reach another&apos;s data. Mail is sent only over encrypted
+          connections, and only to known email providers or to public mail servers you name.
         </p>
       </PolicySection>
 
-      <PolicySection title="8. Changes to this policy">
+      <PolicySection title="9. Changes to this policy">
         <p>When this policy changes, the date at the top changes with it.</p>
       </PolicySection>
     </PolicyPage>

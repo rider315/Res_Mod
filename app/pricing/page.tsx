@@ -2,7 +2,7 @@ import Link from 'next/link'
 import PolicyPage from '@/components/PolicyPage'
 import { CheckCircle } from '@/components/brand/Icons'
 import { freeTailorings } from '@/lib/billing/config'
-import { CREDIT_PACKS, formatPrice, IMPORTS_PER_MONTH, PRO_PLAN } from '@/lib/billing/plans'
+import { CREDIT_PACKS, EMAIL_DRAFTS_PER_MONTH, EMAIL_SENDS_PER_DAY, formatPrice, IMPORTS_PER_MONTH, PRO_PLAN } from '@/lib/billing/plans'
 import { DAILY_AI_REQUESTS } from '@/lib/billing/quota'
 
 export const metadata = {
@@ -45,6 +45,7 @@ export default function Pricing() {
             items={[
               `${free} tailorings, once for every account`,
               'A cover letter for each one',
+              `${EMAIL_DRAFTS_PER_MONTH.free} AI-written recruiter emails a month`,
               `${IMPORTS_PER_MONTH.free} resume imports a month`,
               'Keyword finder and match check',
               'Tailoring history and PDF downloads',
@@ -62,6 +63,7 @@ export default function Pricing() {
             items={[
               `${PRO_PLAN.runsPerCycle} tailorings every month`,
               'A cover letter for each one',
+              `${EMAIL_DRAFTS_PER_MONTH.paid} AI-written recruiter emails a month`,
               `${IMPORTS_PER_MONTH.paid} resume imports a month`,
               'Renews monthly; cancel any time',
             ]}
@@ -78,14 +80,23 @@ export default function Pricing() {
               </div>
             ))}
           </div>
-          <Points items={['A one-time payment', 'Credits never expire', 'Used after your Pro and free tailorings']} />
+          <Points
+            items={[
+              'A one-time payment',
+              'Credits never expire',
+              'Used after your Pro and free tailorings',
+              `While you have credits, ${EMAIL_DRAFTS_PER_MONTH.paid} AI-written recruiter emails a month`,
+            ]}
+          />
         </div>
       </div>
 
       <div className="nb-card p-6 bg-[var(--color-yellow-soft)] text-[var(--color-text)]">
         <p>
           Prices are in Indian rupees, and payments are processed by Razorpay. A tailoring that fails without producing any changes is not
-          counted. Every account can make up to {DAILY_AI_REQUESTS} AI requests a day, to keep the service fair. Cancellation and refunds
+          counted. Every account can make up to {DAILY_AI_REQUESTS} AI requests a day, to keep the service fair. Recruiter emails are sent
+          from your own mailbox and cost nothing to send, up to {EMAIL_SENDS_PER_DAY} a day so your address stays clear of spam filters;
+          you can always write and send emails yourself, without the AI. Cancellation and refunds
           are covered in the{' '}
           <Link href="/refunds" className="font-bold underline underline-offset-4">
             Cancellation and Refund Policy

@@ -42,6 +42,19 @@ export const CREDIT_PACKS: readonly CreditPack[] = [
  */
 export const IMPORTS_PER_MONTH = { free: 10, paid: 30 } as const
 
+/**
+ * Recruiter emails the AI writes (first emails and follow-ups) per calendar
+ * month. Like imports they cost no tailoring, and paying accounts get more.
+ */
+export const EMAIL_DRAFTS_PER_MONTH = { free: 10, paid: 200 } as const
+
+/**
+ * Recruiter emails any account can send in a UTC day. Sending goes through the
+ * user's own mailbox and costs ResMod nothing; the cap protects that mailbox,
+ * because a burst of cold emails is what gets an address flagged as spam.
+ */
+export const EMAIL_SENDS_PER_DAY = 50
+
 export function findPack(id: string): CreditPack | undefined {
   return CREDIT_PACKS.find((pack) => pack.id === id)
 }

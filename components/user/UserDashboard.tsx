@@ -9,6 +9,7 @@ import {
   Download,
   FileText,
   History as HistoryIcon,
+  Mail,
   Pencil,
   Plus,
   Search,
@@ -21,6 +22,9 @@ import BillingPanel from '@/components/user/BillingPanel'
 import HistoryPanel from '@/components/user/HistoryPanel'
 import ImportPanel from '@/components/user/ImportPanel'
 import KeywordFinderPanel from '@/components/user/KeywordFinderPanel'
+import OutreachCard from '@/components/user/outreach/OutreachCard'
+import OutreachPanel from '@/components/user/outreach/OutreachPanel'
+import type { OutreachContext } from '@/components/user/outreach/outreach-client'
 import QuotaDialog from '@/components/user/QuotaDialog'
 import ResumeEditor from '@/components/user/ResumeEditor'
 import TailorPanel from '@/components/user/TailorPanel'
@@ -68,14 +72,14 @@ type View =
  * Screens that open over the current view. The view stays mounted underneath,
  * so a pasted job description survives a trip to buy tailorings or look something up.
  */
-type Overlay = 'billing' | 'history' | 'account' | 'keywords' | null
+type Overlay = 'billing' | 'history' | 'account' | 'keywords' | 'outreach' | null
 
 const FORMAT_LABEL: Record<string, string> = { pdf: 'PDF', docx: 'Word', latex: 'LaTeX', text: 'text' }
 
 const STEPS: Array<[string, string]> = [
   ['Import your resume', 'A PDF, Word, LaTeX or text file becomes a clean resume you can check and edit.'],
   ['Paste a job description', 'Choose Soft, Hard or Hardest, and a tone, and ResMod tailors your resume to the job.'],
-  ['Review and download', 'Keep, edit or skip each change, then download a PDF and write a matching cover letter.'],
+  ['Apply and reach out', 'Keep, edit or skip each change, then download the PDF or email it to recruiters, with replies tracked.'],
 ]
 
 interface LoadedResume {
@@ -105,6 +109,8 @@ export default function UserDashboard({ name, email, isOwner = false, openKeywor
   /** undefined while loading; null when it couldn't be loaded, or for the owner, who has no limits. */
   const [billing, setBilling] = useState<BillingStatus | null | undefined>(undefined)
   const [quotaDialog, setQuotaDialog] = useState<'run' | 'import' | null>(null)
+  /** What Outreach was opened for: a tailored copy's job, or any job. */
+  const [outreachContext, setOutreachContext] = useState<OutreachContext | null>(null)
 
   const firstName = name.trim().split(/\s+/)[0]
 
@@ -154,6 +160,11 @@ export default function UserDashboard({ name, email, isOwner = false, openKeywor
     setQuotaDialog(null)
     setOverlay(next)
     window.scrollTo({ top: 0 })
+  }
+
+  function openOutreach(context: OutreachContext | null) {
+    setOutreachContext(context)
+    openOverlay('outreach')
   }
 
   function goHome() {
@@ -261,6 +272,9 @@ export default function UserDashboard({ name, email, isOwner = false, openKeywor
             )}
             <NavButton active={overlay === 'keywords'} onClick={() => openOverlay('keywords')} icon={<Search size={16} />}>
               Keywords
+            </NavButton>
+            <NavButton active={overlay === 'outreach'} onClick={() => openOutreach(null)} icon={<Mail size={16} />}>
+              Outreach
             </NavButton>
             <NavButton active={overlay === 'history'} onClick={() => openOverlay('history')} icon={<HistoryIcon size={16} />}>
               History
@@ -380,6 +394,7 @@ export default function UserDashboard({ name, email, isOwner = false, openKeywor
                         </li>
                       ))}
                     </ul>
+                    <OutreachCard refreshKey={overlay} onOpen={() => openOutreach(null)} />
                   </section>
                 </div>
               )}
@@ -423,13 +438,31 @@ export default function UserDashboard({ name, email, isOwner = false, openKeywor
               {...aiProps}
               onQuotaExhausted={() => setQuotaDialog('run')}
               onOpenHistory={() => openOverlay('history')}
+              onEmailRecruiters={openOutreach}
               onBack={goHome}
             />
           )}
         </div>
 
         {overlay === 'billing' && <BillingPanel billing={billing} onBillingChange={setBilling} onBack={() => setOverlay(null)} />}
-        {overlay === 'history' && <HistoryPanel {...aiProps} onBack={() => setOverlay(null)} />}
+        {overlay === 'history' && <HistoryPanel {...aiProps} onEmailRecruiters={openOutreach} onBack={() => setOverlay(null)} />}
+        {overlay === 'outreach' && (
+          <OutreachPanel
+            resumes={resumes ?? []}
+            isOwner={isOwner}
+            settings={settings}
+            billing={billing}
+            context={outreachContext}
+            onClearContext={() => setOutreachContext(null)}
+            onBillingChanged={refreshBilling}
+            onOpenBilling={() => openOverlay('billing')}
+            onImportResume={() => {
+              setOverlay(null)
+              setView({ kind: 'import' })
+            }}
+            onBack={() => setOverlay(null)}
+          />
+        )}
         {overlay === 'keywords' && (
           <KeywordFinderPanel
             {...aiProps}

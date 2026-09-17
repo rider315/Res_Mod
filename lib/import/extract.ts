@@ -46,7 +46,8 @@ function detectFormat(name: string, type: string, bytes: Uint8Array): SourceForm
   throw new ImportError('Upload a PDF, Word (.docx), LaTeX (.tex) or plain text file.')
 }
 
-async function pdfText(bytes: Uint8Array): Promise<string> {
+/** The text of a PDF. Recruiter lists are read with it too (app/api/outreach/recruiters/import). */
+export async function pdfText(bytes: Uint8Array): Promise<string> {
   try {
     // A copy: pdf.js may take ownership of the buffer it is given.
     const { text } = await extractText(new Uint8Array(bytes), { mergePages: true })

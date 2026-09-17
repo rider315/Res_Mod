@@ -62,6 +62,7 @@ export default function AccountPanel({ email, onBack, onOpenHistory }: AccountPa
             </button>
             , with its cover letters, are stored with your account.
           </li>
+          <li>So are the recruiters you add and the emails you write to them. A connected mailbox’s app password is stored encrypted.</li>
           <li>Job descriptions you check in the keyword finder aren&apos;t saved.</li>
           <li>Payments are handled by Razorpay; ResMod keeps only the payment records.</li>
         </ul>
@@ -77,8 +78,8 @@ export default function AccountPanel({ email, onBack, onOpenHistory }: AccountPa
       <section className="nb-card rounded-[10px] p-5 space-y-3 bg-[var(--color-error-highlight)]">
         <h2 className="text-xl font-black text-[var(--color-error)]">Delete your account</h2>
         <p className="text-sm text-[var(--color-text)]">
-          This deletes your saved resumes, your tailoring history and cover letters, and your name and email, then signs
-          you out. It can&apos;t be undone.
+          This deletes your saved resumes, your tailoring history and cover letters, your recruiters and emails, your
+          connected mailbox, and your name and email, then signs you out. It can&apos;t be undone.
         </p>
         <ul className="text-sm text-[var(--color-text)] list-disc pl-5 space-y-1">
           <li>Unused credits are lost.</li>

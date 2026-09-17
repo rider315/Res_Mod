@@ -8,6 +8,8 @@ export const BILLING_CODES = {
   importLimit: 'import_limit_reached',
   platformUnavailable: 'platform_ai_unavailable',
   dailyLimit: 'daily_limit_reached',
+  draftLimit: 'email_draft_limit_reached',
+  sendLimit: 'email_send_limit_reached',
 } as const
 
 /** GET /api/billing for a regular account. */
@@ -32,6 +34,10 @@ export interface BillingStatus {
     credits: number
   }
   imports: Allowance & { resetsAt: string }
+  /** Recruiter emails the AI can write this month. */
+  emailDrafts: Allowance & { resetsAt: string }
+  /** Recruiter emails sent today; the count starts again at midnight UTC. */
+  emailSends: Allowance & { resetsAt: string }
   subscription: {
     status: string
     /** The plan's runs can be used right now. */

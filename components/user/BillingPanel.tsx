@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { formatPrice } from '@/lib/billing/plans'
+import { EMAIL_DRAFTS_PER_MONTH, formatPrice } from '@/lib/billing/plans'
 import type { BillingStatus, CheckoutStart } from '@/lib/billing/types'
 import {
   fetchBilling,
@@ -153,8 +153,9 @@ export default function BillingPanel({ billing, onBillingChange, onBack }: Billi
     )
   }
 
-  const { runs, imports, subscription, checkout: available } = billing
+  const { runs, imports, emailDrafts, subscription, checkout: available } = billing
   const importsLeft = Math.max(0, imports.limit - imports.used)
+  const draftsLeft = Math.max(0, emailDrafts.limit - emailDrafts.used)
   const proState = !subscription
     ? 'none'
     : subscription.status === 'authenticated'
@@ -195,7 +196,7 @@ export default function BillingPanel({ billing, onBillingChange, onBack }: Billi
                 </div>
               </div>
             </div>
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
               {runs.subscription && (
                 <Stat
                   label="Pro this month"
@@ -218,6 +219,11 @@ export default function BillingPanel({ billing, onBillingChange, onBack }: Billi
                 value={`${importsLeft} of ${imports.limit}`}
                 note={`Free · starts again on ${formatDay(imports.resetsAt)}`}
               />
+              <Stat
+                label="AI recruiter emails"
+                value={`${draftsLeft} of ${emailDrafts.limit}`}
+                note={`Free · starts again on ${formatDay(emailDrafts.resetsAt)}`}
+              />
             </div>
           </section>
 
@@ -239,6 +245,7 @@ export default function BillingPanel({ billing, onBillingChange, onBack }: Billi
                 {[
                   `${billing.pro.runsPerCycle} tailorings every month`,
                   'A cover letter for each one',
+                  `${EMAIL_DRAFTS_PER_MONTH.paid} AI-written recruiter emails a month`,
                   'More resume imports each month',
                   'Get it now or once your free tailorings are used; cancel any time',
                 ].map((point) => (

@@ -1,10 +1,12 @@
 import { and, desc, eq, gte, inArray, lte, ne, sql } from 'drizzle-orm'
 import { getDb, schema } from '@/lib/db'
-import { CREDIT_PACKS, CreditPack, PRO_PLAN } from '@/lib/billing/plans'
+import { CREDIT_PACKS, CreditPack, EMAIL_SENDS_PER_DAY, PRO_PLAN } from '@/lib/billing/plans'
 import {
   buckets,
   DAILY_AI_REQUESTS,
+  draftLimit,
   importLimit,
+  nextDayStart,
   nextMonthStart,
   QuotaState,
   RunSource,
@@ -222,6 +224,8 @@ export interface QuotaSnapshot {
   /** The counter the plan's runs come from; null without a plan in force. */
   subscriptionBucket: string | null
   imports: { used: number; limit: number }
+  emailDrafts: { used: number; limit: number }
+  emailSends: { used: number; limit: number }
 }
 
 export async function loadQuota(userId: string, now = new Date()): Promise<QuotaSnapshot> {
@@ -231,6 +235,8 @@ export async function loadQuota(userId: string, now = new Date()): Promise<Quota
     subscription && entitled ? buckets.subscriptionRuns(subscription.id, subscription.currentStart, now) : null
   const freeBucket = buckets.freeTailorings()
   const importBucket = buckets.imports(now)
+  const draftBucket = buckets.emailDrafts(now)
+  const sendBucket = buckets.emailSends(now)
 
   const [counters, balances] = await Promise.all([
     getDb()
@@ -239,7 +245,13 @@ export async function loadQuota(userId: string, now = new Date()): Promise<Quota
       .where(
         and(
           eq(schema.usageCounters.userId, userId),
-          inArray(schema.usageCounters.bucket, [freeBucket, importBucket, ...(subscriptionBucket ? [subscriptionBucket] : [])])
+          inArray(schema.usageCounters.bucket, [
+            freeBucket,
+            importBucket,
+            draftBucket,
+            sendBucket,
+            ...(subscriptionBucket ? [subscriptionBucket] : []),
+          ])
         )
       ),
     getDb()
@@ -261,12 +273,14 @@ export async function loadQuota(userId: string, now = new Date()): Promise<Quota
     entitled,
     subscriptionBucket,
     imports: { used: used(importBucket), limit: importLimit(entitled || credits > 0) },
+    emailDrafts: { used: used(draftBucket), limit: draftLimit(entitled || credits > 0) },
+    emailSends: { used: used(sendBucket), limit: EMAIL_SENDS_PER_DAY },
   }
 }
 
 export interface Reservation {
   userId: string
-  source: RunSource | 'import'
+  source: RunSource | 'import' | 'draft' | 'send'
   /** The counter it came from; null for a credit. */
   bucket: string | null
 }
@@ -294,6 +308,19 @@ export async function reserveImport(userId: string): Promise<Reservation | null>
   const quota = await loadQuota(userId)
   const bucket = buckets.imports(quota.now)
   return (await takeFromCounter(userId, bucket, quota.imports.limit)) ? { userId, source: 'import', bucket } : null
+}
+
+/** One recruiter email for the AI to write, from the month's allowance. Null when it is used up. */
+export async function reserveEmailDraft(userId: string): Promise<Reservation | null> {
+  const quota = await loadQuota(userId)
+  const bucket = buckets.emailDrafts(quota.now)
+  return (await takeFromCounter(userId, bucket, quota.emailDrafts.limit)) ? { userId, source: 'draft', bucket } : null
+}
+
+/** One recruiter email to send today. Null once today's sends are used up. */
+export async function reserveEmailSend(userId: string, now = new Date()): Promise<Reservation | null> {
+  const bucket = buckets.emailSends(now)
+  return (await takeFromCounter(userId, bucket, EMAIL_SENDS_PER_DAY)) ? { userId, source: 'send', bucket } : null
 }
 
 /** Count an AI request toward the account's daily cap, whichever AI it runs on. False once the cap is reached. */
@@ -432,6 +459,8 @@ export async function getBillingStatus(userId: string): Promise<BillingStatus> {
       credits: quota.state.credits,
     },
     imports: { ...quota.imports, resetsAt: importsResetAt },
+    emailDrafts: { ...quota.emailDrafts, resetsAt: importsResetAt },
+    emailSends: { ...quota.emailSends, resetsAt: nextDayStart(quota.now).toISOString() },
     subscription: subscription
       ? {
           status: subscription.status,

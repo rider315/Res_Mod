@@ -36,6 +36,13 @@
       "when": 1789583029483,
       "tag": "0004_freezing_leopardon",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789632616686,
+      "tag": "0005_conscious_omega_sentinel",
+      "breakpoints": true
     }
   ]
 }

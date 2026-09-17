@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm'
 import {
+  type AnyPgColumn,
   boolean,
   check,
   index,
@@ -112,6 +113,141 @@ export const coverLetters = pgTable(
   },
   (table) => [index('cover_letters_tailoring_id_created_at_idx').on(table.tailoringId, table.createdAt)]
 )
+
+// ─── Recruiter outreach ──────────────────────────────────────────────────────
+//
+// The recruiters an account emails about jobs, the emails themselves, and how
+// they are signed and sent (lib/outreach).
+
+/** The people an account emails about jobs: one row per address per account. */
+export const recruiters = pgTable(
+  'recruiters',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** Lower-cased, and checked when added (lib/outreach/email-check.ts). */
+    email: text('email').notNull(),
+    name: text('name').notNull().default(''),
+    company: text('company').notNull().default(''),
+    /** Their own job title, such as "Talent Acquisition Lead". */
+    title: text('title').notNull().default(''),
+    /** How it was added: manual, paste, csv, excel, pdf or sheets. */
+    source: text('source').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex('recruiters_user_id_email_key').on(table.userId, table.email)]
+)
+
+/**
+ * Emails to recruiters. A first email starts a thread: follow-ups point at it,
+ * replies hang off it, and the thread's progress (sent, opened, replied,
+ * interview, offer, rejected) is kept on it.
+ */
+export const outreachEmails = pgTable(
+  'outreach_emails',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    recruiterId: uuid('recruiter_id')
+      .notNull()
+      .references(() => recruiters.id, { onDelete: 'cascade' }),
+    /** For a follow-up: the first email of its thread. Null for a first email. */
+    threadId: uuid('thread_id').references((): AnyPgColumn => outreachEmails.id, { onDelete: 'cascade' }),
+    /** What it was written from and attaches: a saved resume, or else a tailored copy. */
+    resumeId: uuid('resume_id').references(() => resumes.id, { onDelete: 'set null' }),
+    tailoringId: uuid('tailoring_id').references(() => tailorings.id, { onDelete: 'set null' }),
+    /** The role it is about, when known. */
+    jobTitle: text('job_title').notNull().default(''),
+    /** A job post the user gave for an email not written from a tailored copy. */
+    jobDescription: text('job_description').notNull().default(''),
+    subject: text('subject').notNull(),
+    body: text('body').notNull(),
+    /** draft, sending, sent, opened, replied, interview, offer or rejected (lib/outreach/model.ts). */
+    status: text('status').notNull().default('draft'),
+    /** Whether the resume goes with it as a PDF. */
+    attachResume: boolean('attach_resume').notNull().default(true),
+    /** The random id in its open-tracking image; null when opens aren't tracked. */
+    trackingToken: text('tracking_token').unique(),
+    openCount: integer('open_count').notNull().default(0),
+    /** The mail server's id for the sent message. */
+    messageId: text('message_id'),
+    /** Why the last attempt to send it failed. */
+    lastError: text('last_error'),
+    sentAt: timestamp('sent_at', { withTimezone: true }),
+    openedAt: timestamp('opened_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('outreach_emails_user_id_updated_at_idx').on(table.userId, table.updatedAt),
+    index('outreach_emails_recruiter_id_idx').on(table.recruiterId),
+    index('outreach_emails_thread_id_idx').on(table.threadId),
+    index('outreach_emails_tailoring_id_idx').on(table.tailoringId),
+  ]
+)
+
+/** Recruiters' replies, pasted in by the user and read by the AI. */
+export const outreachReplies = pgTable(
+  'outreach_replies',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** The first email of the thread it answers. */
+    emailId: uuid('email_id')
+      .notNull()
+      .references(() => outreachEmails.id, { onDelete: 'cascade' }),
+    body: text('body').notNull(),
+    /** What the recruiter wants (REPLY_INTENTS in lib/outreach/model.ts). */
+    intent: text('intent').notNull(),
+    summary: text('summary').notNull().default(''),
+    suggestedReply: text('suggested_reply').notNull().default(''),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('outreach_replies_email_id_idx').on(table.emailId)]
+)
+
+/** How an account's recruiter emails are signed, and whether their opens are tracked. */
+export const outreachProfiles = pgTable('outreach_profiles', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  senderName: text('sender_name').notNull().default(''),
+  phone: text('phone').notNull().default(''),
+  /** [{ label, url }]: LinkedIn, a portfolio and the like, printed under the signature. */
+  links: jsonb('links').notNull().default(sql`'[]'::jsonb`),
+  /** When the user can start, such as "Can join immediately". */
+  availability: text('availability').notNull().default(''),
+  /** What every email should find a way to mention. */
+  highlights: text('highlights').notNull().default(''),
+  trackOpens: boolean('track_opens').notNull().default(true),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+/**
+ * The mailbox an account sends recruiter emails from, over SMTP. The password,
+ * usually an app password, is encrypted (lib/secrets.ts) and never leaves the server.
+ */
+export const mailAccounts = pgTable('mail_accounts', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  /** gmail, outlook, yahoo, zoho, zoho_in, icloud or custom (lib/outreach/mailbox.ts). */
+  provider: text('provider').notNull(),
+  host: text('host').notNull(),
+  port: integer('port').notNull(),
+  /** The address it signs in with, and sends from. */
+  address: text('address').notNull(),
+  password: text('password').notNull(),
+  verifiedAt: timestamp('verified_at', { withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
 
 // ─── Billing ─────────────────────────────────────────────────────────────────
 //

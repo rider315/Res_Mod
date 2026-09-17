@@ -55,7 +55,8 @@ export const TONE_LABELS: Record<CoverLetterTone, { label: string; hint: string 
   enthusiastic: { label: 'Enthusiastic', hint: 'Energetic about the role' },
 }
 
-const TONE_RULES: Record<CoverLetterTone, string> = {
+/** How each tone reads, as told to the model. Recruiter emails use the same tones (lib/outreach/prompt.ts). */
+export const TONE_RULES: Record<CoverLetterTone, string> = {
   professional: 'Polished, confident and measured. No slang, no exclamation marks.',
   warm: 'Friendly and personal, as if writing to someone the candidate would like to work with, while staying professional.',
   direct: 'Plain and to the point: short sentences, no filler, every sentence carrying a fact or a reason.',
@@ -136,6 +137,11 @@ export type CoverLetterParse = { ok: true; greeting: string; paragraphs: string[
 
 const PLACEHOLDER = /\[[^\]]{2,40}\]|\{\{|<[A-Za-z ]{3,30}>/
 
+/** Text a model left a fill-in-the-blank in, such as "[Company]" or "<Your Name>". */
+export function hasPlaceholder(text: string): boolean {
+  return PLACEHOLDER.test(text)
+}
+
 export function parseCoverLetterResponse(responseText: string): CoverLetterParse {
   let raw: unknown
   try {
@@ -149,7 +155,7 @@ export function parseCoverLetterResponse(responseText: string): CoverLetterParse
   }
   const { greeting, paragraphs, closing } = parsed.data
   const text = [greeting, ...paragraphs, closing].join('\n')
-  if (PLACEHOLDER.test(text)) {
+  if (hasPlaceholder(text)) {
     return { ok: false, problems: ['Remove the placeholders in square or angle brackets and write real text instead.'] }
   }
   return {

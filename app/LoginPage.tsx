@@ -14,15 +14,18 @@ import {
   Layers,
   Mail,
   Pencil,
+  Reply,
+  Send,
   Shield,
   Sliders,
   Upload,
 } from '@/components/brand/Icons'
-import { CREDIT_PACKS, formatPrice, IMPORTS_PER_MONTH, PRO_PLAN } from '@/lib/billing/plans'
+import { CREDIT_PACKS, EMAIL_DRAFTS_PER_MONTH, formatPrice, IMPORTS_PER_MONTH, PRO_PLAN } from '@/lib/billing/plans'
 
 /**
- * The public home page: what ResMod does, how, an example of the changes it
- * makes, answers to the usual questions, and the prices. Every "start" button
+ * The public home page: what ResMod does, how, reaching recruiters with the
+ * result, an example of the changes it makes, answers to the usual questions,
+ * and the prices. Every "start" button
  * signs in with Google.
  */
 
@@ -63,6 +66,24 @@ const FEATURES: Array<{ icon: React.ReactNode; title: string; text: string }> = 
     icon: <FileText />,
     title: 'Any format in, a clean resume out',
     text: 'Import a PDF, Word, LaTeX or text file. You get a clean LaTeX resume that ATS software can read, as a PDF or .tex.',
+  },
+]
+
+const OUTREACH_POINTS: Array<{ icon: React.ReactNode; title: string; text: string }> = [
+  {
+    icon: <Pencil size={18} />,
+    title: 'Written from your resume',
+    text: 'Short, specific emails built from your real experience and the job post. No invented facts, no made-up company news.',
+  },
+  {
+    icon: <Send size={18} />,
+    title: 'Sent as you, with the right resume',
+    text: 'Emails go out from your own Gmail, Outlook or Zoho, with the tailored PDF for that job attached. Replies land in your inbox.',
+  },
+  {
+    icon: <Reply size={18} />,
+    title: 'Every reply followed up',
+    text: 'See who opened and who answered, get a follow-up after a quiet week, and paste a reply to get an answer you can send.',
   },
 ]
 
@@ -115,6 +136,21 @@ const FAQ: Array<[string, React.ReactNode]> = [
     <>
       Yes. From any tailored resume you can write a <strong>matching cover letter</strong>, pick its tone, edit it, and download it as a PDF
       or copy it.
+    </>,
+  ],
+  [
+    'Can ResMod email recruiters for me?',
+    <>
+      Yes. Add the recruiters you want to reach, and ResMod writes each one a <strong>short email from your resume</strong>. You read and
+      edit it, then send it from <strong>your own mailbox with the tailored PDF attached</strong>, or open it in Gmail or Outlook and send it
+      there. ResMod never emails anyone without you pressing Send.
+    </>,
+  ],
+  [
+    'Is it safe to connect my mailbox?',
+    <>
+      ResMod uses an <strong>app password</strong>, a separate password your email provider makes for one app, never your real one. It is
+      stored encrypted, used only to send the emails you send, and you can disconnect it or delete it at your provider at any time.
     </>,
   ],
   [
@@ -244,6 +280,33 @@ export default function LoginPage({ freeTailorings, accountDeleted }: LoginPageP
             <StartButton />
             <p className="text-sm font-bold text-[var(--color-text-muted)]">{startNote}</p>
           </div>
+        </div>
+      </section>
+
+      {/* ── Outreach ─────────────────────────────────────── */}
+      <section id="outreach" className="scroll-mt-20 px-4 sm:px-6 py-20 bg-[var(--color-yellow-soft)] border-b-[1.6px] border-[var(--color-ink)]">
+        <div className="max-w-6xl mx-auto grid gap-12 lg:grid-cols-2 items-center">
+          <div>
+            <h2 className="text-3xl sm:text-4xl font-black">
+              Then get it in front of <span className="nb-highlight">a recruiter</span>
+            </h2>
+            <p className="mt-4 text-lg text-[var(--color-text-muted)]">
+              Import the recruiters you want to reach, from a spreadsheet, a PDF list or a Google Sheet, and send each one a personal email
+              with the resume tailored for their job.
+            </p>
+            <ul className="mt-8 space-y-5">
+              {OUTREACH_POINTS.map((point) => (
+                <li key={point.title} className="flex items-start gap-3">
+                  <span className="nb-badge w-10 h-10 shrink-0 bg-[var(--color-accent)]">{point.icon}</span>
+                  <span>
+                    <span className="block text-lg font-extrabold">{point.title}</span>
+                    <span className="block text-[var(--color-text-muted)] leading-relaxed">{point.text}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <OutreachVisual />
         </div>
       </section>
 
@@ -441,6 +504,37 @@ function ExampleResume() {
   )
 }
 
+/** A recruiter email and where it got to, drawn with the page's own pieces. */
+function OutreachVisual() {
+  return (
+    <div className="relative mx-auto w-full max-w-md" aria-hidden>
+      <div className="nb-card p-5 rotate-[-1.5deg] bg-[var(--color-surface)]">
+        <div className="flex items-center justify-between gap-2 text-xs">
+          <span className="font-bold text-[var(--color-text-muted)]">To: Priya Rao · Northwind</span>
+          <span className="nb-chip bg-[var(--color-sky)]">Sent</span>
+        </div>
+        <p className="mt-3 font-black">Platform Engineer: Kubernetes and Terraform experience</p>
+        <div className="mt-3 space-y-2">
+          <Line w="w-full" />
+          <Line w="w-11/12" />
+          <Line w="w-4/5" />
+        </div>
+        <div className="mt-4 inline-flex items-center gap-2 rounded-[8px] border-[1.6px] border-[var(--color-ink)] bg-[var(--color-bg)] px-3 py-1.5 text-xs font-bold">
+          <FileText size={14} /> Riya Patel Resume.pdf
+        </div>
+      </div>
+      <div className="nb-card p-4 mt-5 ml-10 rotate-[1.5deg] bg-[var(--color-accent-soft)]">
+        <div className="flex items-center gap-2 text-xs">
+          <span className="nb-chip bg-[var(--color-accent-strong)]">Wants an interview</span>
+          <span className="text-[var(--color-text-muted)] font-semibold">2 days later</span>
+        </div>
+        <p className="mt-2 text-sm font-semibold">&ldquo;Thanks Riya, are you free for a call on Tuesday?&rdquo;</p>
+        <p className="mt-2 text-xs text-[var(--color-text-muted)]">A suggested reply is ready to copy.</p>
+      </div>
+    </div>
+  )
+}
+
 function PricingCards({ freeTailorings }: { freeTailorings: number | null }) {
   const free = freeTailorings ?? 3
   const cards: Array<{ name: string; price: string; per?: string; points: string[]; highlight?: boolean }> = [
@@ -450,6 +544,7 @@ function PricingCards({ freeTailorings }: { freeTailorings: number | null }) {
       points: [
         `${free} tailorings, once for every account`,
         'A cover letter for each one',
+        `${EMAIL_DRAFTS_PER_MONTH.free} AI-written recruiter emails a month`,
         `${IMPORTS_PER_MONTH.free} resume imports a month`,
         'Keyword finder and match check',
         'History and PDF downloads',
@@ -463,6 +558,7 @@ function PricingCards({ freeTailorings }: { freeTailorings: number | null }) {
       points: [
         `${PRO_PLAN.runsPerCycle} tailorings every month`,
         'A cover letter for each one',
+        `${EMAIL_DRAFTS_PER_MONTH.paid} AI-written recruiter emails a month`,
         `${IMPORTS_PER_MONTH.paid} resume imports a month`,
         'Cancel any time',
       ],

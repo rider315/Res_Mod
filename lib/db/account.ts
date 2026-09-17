@@ -3,8 +3,9 @@ import { getDb } from '@/lib/db'
 
 /**
  * Delete an account's personal data, in one transaction: its resumes, its
- * tailoring history and cover letters, and its name and email. Unused credits are forfeited with a
- * ledger entry, so the ledger still adds up.
+ * tailoring history and cover letters, its recruiters, emails and replies, its
+ * outreach settings and connected mailbox, and its name and email. Unused
+ * credits are forfeited with a ledger entry, so the ledger still adds up.
  *
  * What stays holds nothing personal: payment, order and subscription records,
  * which accounting needs, and the usage counters, still under the anonymous
@@ -14,7 +15,12 @@ import { getDb } from '@/lib/db'
 export async function deleteAccountData(userId: string): Promise<void> {
   const db = getDb()
   await db.batch([
-    // History first: deleting a resume would otherwise update history rows this batch is deleting.
+    // Outreach and history first: deleting a resume would otherwise update rows this batch is deleting.
+    db.execute(sql`delete from outreach_replies where user_id = ${userId}`),
+    db.execute(sql`delete from outreach_emails where user_id = ${userId}`),
+    db.execute(sql`delete from recruiters where user_id = ${userId}`),
+    db.execute(sql`delete from outreach_profiles where user_id = ${userId}`),
+    db.execute(sql`delete from mail_accounts where user_id = ${userId}`),
     db.execute(sql`delete from cover_letters where user_id = ${userId}`),
     db.execute(sql`delete from tailorings where user_id = ${userId}`),
     db.execute(sql`delete from resumes where user_id = ${userId}`),

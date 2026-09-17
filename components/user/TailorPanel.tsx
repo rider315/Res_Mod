@@ -2,7 +2,8 @@
 import { useState } from 'react'
 import DiffViewer from '@/components/DiffViewer'
 import LatexPreview from '@/components/LatexPreview'
-import { ArrowLeft, ArrowRight, CheckCircle, Download, Mail, Sparkles } from '@/components/brand/Icons'
+import { ArrowLeft, ArrowRight, CheckCircle, Download, Mail, Send, Sparkles } from '@/components/brand/Icons'
+import type { OutreachContext } from '@/components/user/outreach/outreach-client'
 import AiAllowance from '@/components/user/AiAllowance'
 import CoverLetterPanel from '@/components/user/CoverLetterPanel'
 import KeywordCoverage from '@/components/user/KeywordCoverage'
@@ -65,6 +66,8 @@ interface TailorPanelProps {
   onBillingChanged: () => void
   onQuotaExhausted: () => void
   onOpenHistory: () => void
+  /** Opens Outreach for the tailored copy's job. */
+  onEmailRecruiters?: (context: OutreachContext) => void
   onBack: () => void
 }
 
@@ -111,6 +114,7 @@ export default function TailorPanel({
   onBillingChanged,
   onQuotaExhausted,
   onOpenHistory,
+  onEmailRecruiters,
   onBack,
 }: TailorPanelProps) {
   const [step, setStep] = useState<Step>('form')
@@ -647,6 +651,35 @@ export default function TailorPanel({
             )}
           </section>
         </div>
+
+        {applied.tailoringId && onEmailRecruiters && (
+          <section className="nb-card rounded-[10px] p-6 bg-[var(--color-sky-soft)] flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <span className="nb-badge w-11 h-11 shrink-0 bg-[var(--color-periwinkle)] text-white">
+                <Send size={20} />
+              </span>
+              <div>
+                <h2 className="text-xl sm:text-2xl font-black leading-tight">Email a recruiter about this job</h2>
+                <p className="text-sm text-[var(--color-text-muted)] max-w-xl">
+                  ResMod writes a short email from this tailored resume and the job post, sends it from your own mailbox with
+                  this PDF attached, and keeps track of the reply.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() =>
+                onEmailRecruiters({
+                  tailoringId: applied.tailoringId as string,
+                  jobTitle: result?.keywordReport?.jobTitle ?? '',
+                  company,
+                })
+              }
+              className={primaryButton}
+            >
+              Email recruiters <ArrowRight size={16} />
+            </button>
+          </section>
+        )}
 
         <LatexPreview latex={applied.latex} title="Tailored LaTeX" />
 

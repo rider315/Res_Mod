@@ -54,6 +54,51 @@ No LaTeX install is assumed, so there are three routes:
 The last two send your resume to a third party, so neither happens
 automatically — only on an explicit click.
 
+## Recruiter outreach
+
+A tailored resume is only worth something once it reaches someone, so the same
+account that tailors a resume also emails recruiters about it. Outreach lives in
+the dashboard next to Tailor and History, and a tailored copy carries straight
+into it: "Email recruiters" opens the composer with that job already filled in.
+
+**Recruiters** are imported from a CSV, an `.xlsx` workbook, a PDF table, a
+public Google Sheet, or a pasted list — one address per line, or
+`Neha Gupta, Contoso, neha@contoso.com, Talent Partner`. Columns are found by
+their headings, so `Company Name` becomes the company rather than the person.
+Every address is checked for format, a mistyped provider (`gmial.com` earns a
+suggestion), a throwaway domain, and an MX record before it is saved. Bad rows
+are reported back with a reason and never stored, so nothing unverified reaches
+the model or anyone's mailbox.
+
+**Emails** are written from a resume or a tailored copy, in the same tones as
+cover letters. The prompt carries the resume, the job post and anything the user
+adds, and forbids invented facts — including company news, which a model will
+happily make up about a real employer. A reply that leaks a placeholder, rambles
+or pads itself with links is sent back to the model once with the problems, and
+after two bad answers the run gives up rather than saving something unsendable.
+A blank draft costs no AI at all.
+
+**Sending** happens over SMTP from the user's own mailbox, connected under
+Sender setup, so replies land in their inbox and a copy sits in their Sent
+folder. The app password is verified at connection time, stored encrypted with
+`NEXTAUTH_SECRET`, and decrypted only for the length of one connection. A
+mailbox setting can never be used to make the server reach into a private
+network: a custom server must be a public hostname on a mail submission port,
+over TLS, and the connection is made to the address just resolved so the name
+cannot be repointed in between. The resume goes along as a PDF, built by the
+same service as the download button.
+
+**Tracking** is a 1×1 image carrying a random token, and only when the user
+leaves opens switched on. The thread then moves along a tracker — sent, opened,
+replied, interview, offer, rejected. Pasted replies are read for intent and get
+a suggested answer; a follow-up is offered after five quiet days, twice at most,
+and never after a reply. Batches of emails are written and sent one at a time
+from the browser with a progress dialog, so a slow model or a refused recipient
+stops that one email rather than the whole run.
+
+Regular accounts get a daily send limit, which exists to keep a user's own
+mailbox out of spam filters rather than to sell them anything.
+
 ## Getting Started
 
 ```bash
@@ -140,6 +185,15 @@ and `NEXTAUTH_URL`. Google is used for **sign-in only** — the app requests jus
 the `openid`, `email` and `profile` scopes and never touches Docs or Drive.
 `LATEX_COMPILE_URL` is optional and only affects the Compile PDF button.
 
+Outreach needs no credentials of its own — users connect their own mailbox in
+the app, and there is no shared sending account. `APP_URL` is worth setting if
+the deployment sits behind a custom domain, because it decides the address of
+the open-tracking image inside sent emails. `EMAIL_VALIDATION_MX=false` skips
+the DNS check on recruiter addresses when working offline, and
+`OUTREACH_SMTP_ALLOW_LOCAL=true` lets the local checks send through a stand-in
+on localhost. Both are development conveniences and the second is ignored in
+production.
+
 ## Project layout
 
 ```
@@ -167,6 +221,18 @@ lib/settings-storage.ts  per-provider keys and models in localStorage
 lib/db/schema.ts      database tables (Drizzle); migrations live in drizzle/
 lib/latex/source.ts   loads an owner profile's resume from the database
 app/api/health        database liveness check
+app/api/outreach/recruiters  the recruiter list, plus file/sheet/paste import
+app/api/outreach/emails      write, edit, send, follow up, read replies, track stage
+app/api/outreach/mailbox     connect or disconnect the user's sending mailbox
+app/api/outreach/open/[token]  the open-tracking image; public, session-free
+lib/outreach/prompt.ts       email + follow-up + reply prompts and their checks
+lib/outreach/mailbox.ts      SMTP: where it may connect, and the message it sends
+lib/outreach/email-check.ts  address format, typo, throwaway and MX checks
+lib/outreach/recruiter-import.ts  CSV, xlsx, PDF tables, pasted lists, Sheets
+lib/outreach/delivery.ts     resume PDF attachment + tracking token and URL
+lib/outreach/model.ts        limits, providers, thread stages, shared schemas
+lib/db/outreach.ts           recruiters, threads, replies, profile and mailbox
+components/user/outreach/    the Outreach screen: write, tracker, sender setup
 scripts/db-migrate.mjs          npm run db:migrate
 scripts/seed-owner-resumes.mjs  npm run db:seed-owner
 scripts/latex-pipeline-test.js  npm run test:latex

@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { ArrowLeft, Download, FileText, History as HistoryIcon, Mail, Trash } from '@/components/brand/Icons'
+import { ArrowLeft, Download, FileText, History as HistoryIcon, Mail, Send, Trash } from '@/components/brand/Icons'
+import { outreachApi, OutreachContext } from '@/components/user/outreach/outreach-client'
 import CoverLetterPanel from '@/components/user/CoverLetterPanel'
 import { LEVELS, TailorLevel } from '@/lib/tailor/levels'
 import type { HistoryCoverage } from '@/lib/tailor/history'
@@ -19,7 +20,7 @@ import {
 
 /**
  * The tailored copies a user applied, newest first, ready to download again,
- * each with its cover letter. Each copy is the finished document as it was
+ * each with its cover letter and the recruiter emails it went out with. Each copy is the finished document as it was
  * saved, so editing or deleting the resume it came from doesn't change it.
  */
 
@@ -43,6 +44,8 @@ interface TailoringDetail extends TailoringSummary {
 interface HistoryPanelProps {
   isOwner: boolean
   settings: AISettings
+  /** Opens Outreach for a copy's job. */
+  onEmailRecruiters?: (context: OutreachContext) => void
   onBack: () => void
 }
 
@@ -58,12 +61,25 @@ const fileName = (item: TailoringSummary) => `${item.resumeTitle} ${item.company
 
 type Open = { id: string; what: 'job' | 'letter' } | null
 
-export default function HistoryPanel({ isOwner, settings, onBack }: HistoryPanelProps) {
+export default function HistoryPanel({ isOwner, settings, onEmailRecruiters, onBack }: HistoryPanelProps) {
   const [items, setItems] = useState<TailoringSummary[] | null>(null)
   const [details, setDetails] = useState<Record<string, TailoringDetail>>({})
   const [error, setError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [open, setOpen] = useState<Open>(null)
+  /** Recruiter emails written from each copy. Nothing is shown if they can't be loaded. */
+  const [emails, setEmails] = useState<Record<string, { emails: number; sent: number }>>({})
+
+  useEffect(() => {
+    let cancelled = false
+    outreachApi
+      .summary()
+      .then((summary) => !cancelled && setEmails(summary.byTailoring))
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -195,6 +211,13 @@ export default function HistoryPanel({ isOwner, settings, onBack }: HistoryPanel
                           </span>
                         </p>
                       )}
+                      {emails[item.id]?.sent > 0 && (
+                        <p className="mt-2">
+                          <span className="nb-chip text-xs bg-[var(--color-sky-soft)]">
+                            <Send size={12} /> Sent to {emails[item.id].sent} recruiter{emails[item.id].sent === 1 ? '' : 's'}
+                          </span>
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -235,6 +258,14 @@ export default function HistoryPanel({ isOwner, settings, onBack }: HistoryPanel
                   >
                     {openHere === 'job' ? 'Hide the job description' : 'Job description'}
                   </button>
+                  {onEmailRecruiters && (
+                    <button
+                      onClick={() => onEmailRecruiters({ tailoringId: item.id, jobTitle: item.jobTitle, company: item.company })}
+                      className="nb-btn nb-btn-sm py-2 px-3.5 text-sm"
+                    >
+                      <Send size={15} /> Email recruiters
+                    </button>
+                  )}
                 </div>
 
                 {openHere === 'job' && full && (

@@ -5,7 +5,14 @@ import { resolveApiKey } from '@/lib/ai-provider'
 import type { PlatformAiConfig } from '@/lib/billing/config'
 import { getPlatformAi } from '@/lib/billing/platform-ai'
 import { DAILY_AI_REQUESTS } from '@/lib/billing/quota'
-import { releaseReservation, Reservation, reserveImport, reserveRun, takeDailyAiRequest } from '@/lib/billing/store'
+import {
+  releaseReservation,
+  Reservation,
+  reserveEmailDraft,
+  reserveImport,
+  reserveRun,
+  takeDailyAiRequest,
+} from '@/lib/billing/store'
 import { BILLING_CODES } from '@/lib/billing/types'
 import { ensureUser } from '@/lib/db/resumes'
 
@@ -48,10 +55,11 @@ const unavailable = () =>
   )
 
 /**
- * What a request spends: a tailoring, an import from the month's allowance, or
- * nothing beyond the daily cap (finding keywords, writing a cover letter).
+ * What a request spends: a tailoring, an import or a recruiter email from the
+ * month's allowance, or nothing beyond the daily cap (finding keywords, writing
+ * a cover letter, reading a recruiter's reply).
  */
-export type AiMeter = 'run' | 'import' | 'free'
+export type AiMeter = 'run' | 'import' | 'draft' | 'free'
 
 /**
  * Which model an AI route runs on, and who pays for it.
@@ -61,10 +69,10 @@ export type AiMeter = 'run' | 'import' | 'free'
  *
  * Everyone else always runs on ResMod AI: the model the owner chose in AI
  * settings. A provider or key in their request is ignored. A tailoring takes one
- * run (Pro, then the free tailorings, then credits) and an import takes one from
- * the month's import allowance, before any model is called — pass the
- * reservation to releaseReservation if the work then fails. Every request also
- * counts toward a daily cap.
+ * run (Pro, then the free tailorings, then credits), and an import or a recruiter
+ * email takes one from that month's allowance, before any model is called — pass
+ * the reservation to releaseReservation if the work then fails. Every request
+ * also counts toward a daily cap.
  */
 export async function chooseAi(account: Account, request: AiRequest, meter: AiMeter): Promise<AiChoice> {
   if (account.role === 'owner') return ownerAi(request)
@@ -94,6 +102,15 @@ export async function chooseAi(account: Account, request: AiRequest, meter: AiMe
           429,
           "You've reached this month's limit for importing resumes. It starts again next month.",
           BILLING_CODES.importLimit
+        )
+      }
+    } else if (meter === 'draft') {
+      reservation = await reserveEmailDraft(account.userId)
+      if (!reservation) {
+        return refuse(
+          429,
+          "You've used this month's AI-written recruiter emails. Pro or a credit pack raises the limit, and it starts again next month. You can still write and send emails yourself.",
+          BILLING_CODES.draftLimit
         )
       }
     }
