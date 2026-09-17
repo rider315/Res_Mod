@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import HeroTailoring from '@/components/brand/HeroTailoring'
 import SiteFooter from '@/components/brand/SiteFooter'
 import SiteHeader from '@/components/brand/SiteHeader'
 import { StartButton } from '@/components/brand/SignInButton'
@@ -11,7 +12,6 @@ import {
   ChevronDown,
   FileText,
   KeyIcon,
-  Layers,
   Mail,
   Pencil,
   Reply,
@@ -203,7 +203,7 @@ export default function LoginPage({ freeTailorings, accountDeleted }: LoginPageP
           </div>
         </div>
 
-        <HeroVisual />
+        <HeroTailoring />
       </section>
 
       {/* ── How it works ─────────────────────────────────── */}
@@ -379,67 +379,6 @@ function Step({ n, label, children }: { n: number; label: string; children: Reac
         <span className="nb-badge h-10 px-4 bg-[var(--color-yellow)]">{label}</span>
       </div>
       <div className="nb-card nb-rounded mt-5 w-full p-5">{children}</div>
-    </div>
-  )
-}
-
-/** Original artwork: a job post goes in, a tailored resume comes out. */
-function HeroVisual() {
-  return (
-    <div className="relative max-w-5xl mx-auto mt-16 grid gap-6 md:grid-cols-[1fr_auto_1fr] items-center">
-      <div className="nb-card nb-rounded p-5 md:-rotate-2">
-        <div className="flex items-center gap-3">
-          <span className="nb-badge w-10 h-10 bg-[var(--color-yellow)]">
-            <Briefcase size={20} />
-          </span>
-          <div>
-            <p className="font-extrabold">Senior Platform Engineer</p>
-            <p className="text-xs text-[var(--color-text-muted)]">Northwind Labs · Bengaluru</p>
-          </div>
-        </div>
-        <p className="mt-4 text-sm text-[var(--color-text-muted)] leading-relaxed">
-          We need someone who owns <Mark>Kubernetes</Mark> on <Mark>AWS</Mark>, writes <Mark>Terraform</Mark> and leads{' '}
-          <Mark>incident response</Mark>.
-        </p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {['Kubernetes', 'AWS', 'Terraform', 'Go'].map((k) => (
-            <span key={k} className="nb-chip bg-white">
-              {k}
-            </span>
-          ))}
-        </div>
-      </div>
-
-      <div className="flex md:flex-col items-center justify-center gap-3">
-        <span className="nb-badge px-4 py-2 bg-[var(--color-primary)] text-white text-sm">
-          <Layers size={16} /> Tailoring
-        </span>
-        <ArrowRight size={28} className="md:rotate-0 rotate-90" />
-      </div>
-
-      <div className="nb-card nb-rounded p-5 md:rotate-2">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="font-extrabold text-lg">Asha Menon</p>
-            <p className="text-xs text-[var(--color-text-muted)]">Platform Engineer · asha@example.com</p>
-          </div>
-          <span className="nb-chip bg-[var(--color-accent)] whitespace-nowrap">
-            <CheckCircle size={14} /> 9/9 keywords
-          </span>
-        </div>
-        <div className="mt-4 space-y-2.5 text-sm">
-          <p className="leading-relaxed">
-            • Ran production <Mark>Kubernetes</Mark> clusters on <Mark>AWS</Mark>, cutting deploy time by 40%
-          </p>
-          <p className="leading-relaxed">
-            • Led <Mark>incident response</Mark> for a payments platform serving 2M users
-          </p>
-          <div className="space-y-2 pt-1">
-            <Line w="w-full" />
-            <Line w="w-2/3" />
-          </div>
-        </div>
-      </div>
     </div>
   )
 }

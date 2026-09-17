@@ -354,9 +354,123 @@ body {
   100% { width: 100%; }
 }
 
+/* ── Hero: one resume, retailored for each job (components/brand/HeroTailoring.tsx) ── */
+
+/* The sweep that reads the job post. */
+@keyframes hero-scan {
+  0% { transform: translateY(-100%); opacity: 0; }
+  15% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { transform: translateY(560%); opacity: 0; }
+}
+.hero-scan {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 18%;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--color-accent) 55%, transparent), transparent);
+  animation: hero-scan 1.5s cubic-bezier(0.4, 0, 0.6, 1) forwards;
+}
+
+/* The track the keywords travel: down the lane on a phone, across it on a desktop. */
+.hero-rail {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: var(--nb-border);
+  height: 100%;
+  background: repeating-linear-gradient(180deg, var(--color-ink) 0 6px, transparent 6px 12px);
+  opacity: 0.25;
+}
+
+/* The core each keyword passes through. */
+.hero-core {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: var(--nb-border) solid var(--color-ink);
+  border-radius: 12px;
+  background: var(--color-primary);
+  color: #ffffff;
+  box-shadow: var(--nb-shadow-sm);
+  transition: transform 200ms ease, background 200ms ease;
+}
+@keyframes hero-core-pulse {
+  0%, 100% { transform: scale(1); }
+  40% { transform: scale(1.14) rotate(-4deg); }
+}
+.hero-core-live {
+  background: var(--color-accent-strong);
+  color: #0a0a0a;
+  animation: hero-core-pulse 900ms ease-in-out;
+}
+
+/* A keyword leaving the post, *through* the core — it vanishes into it as the
+   core pulses and comes out the far side — and on into the resume. */
+@keyframes hero-fly-down {
+  0% { transform: translate(-50%, -210%) scale(0.8); opacity: 0; }
+  16% { opacity: 1; }
+  44% { transform: translate(-50%, -105%) scale(0.92); opacity: 1; }
+  50% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+  56% { transform: translate(-50%, 5%) scale(0.92); opacity: 1; }
+  75% { opacity: 1; }
+  100% { transform: translate(-50%, 210%) scale(0.8); opacity: 0; }
+}
+@keyframes hero-fly-across {
+  0% { transform: translate(-250%, -50%) scale(0.8) rotate(-6deg); opacity: 0; }
+  16% { opacity: 1; }
+  44% { transform: translate(-95%, -50%) scale(0.92) rotate(-2deg); opacity: 1; }
+  50% { transform: translate(-50%, -50%) scale(0.5) rotate(0deg); opacity: 0; }
+  56% { transform: translate(-5%, -50%) scale(0.92) rotate(2deg); opacity: 1; }
+  75% { opacity: 1; }
+  100% { transform: translate(250%, -50%) scale(0.8) rotate(6deg); opacity: 0; }
+}
+.hero-fly {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 2;
+  box-shadow: var(--nb-shadow-sm);
+  animation: hero-fly-down 900ms cubic-bezier(0.45, 0, 0.35, 1) forwards;
+}
+@media (min-width: 768px) {
+  .hero-rail {
+    width: 100%;
+    height: var(--nb-border);
+    background: repeating-linear-gradient(90deg, var(--color-ink) 0 6px, transparent 6px 12px);
+  }
+  .hero-fly { animation-name: hero-fly-across; }
+}
+
+/* A bullet rewriting itself. It flips as the keyword clears the core, so the
+   line is only blank for a moment and the cause is obvious. */
+@keyframes hero-bullet-in {
+  0% { opacity: 0; transform: translateY(6px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.hero-bullet-in { animation: hero-bullet-in 380ms ease-out both; animation-delay: 460ms; }
+
+/* A card settling in when the job changes. Opacity only: the cards carry a
+   Tailwind rotate, and animating transform here would fight it. */
+@keyframes hero-card-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+.hero-card-in { animation: hero-card-in 450ms ease-out both; }
+
+/* The keywords fly over the cards, never under them. */
+.hero-lane { position: relative; z-index: 3; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+  /* The hero holds its finished state rather than flashing through the steps. */
+  .hero-scan, .hero-fly { display: none !important; }
+  .hero-bullet-in, .hero-card-in { animation: none !important; opacity: 1 !important; transform: none !important; }
 }
