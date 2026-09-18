@@ -97,7 +97,7 @@ export default function Pricing() {
               `${PREMIUM_PLAN.appliesPerCycle} complete applications a month`,
               'Chills reads the posting you point it at',
               'Resume and recruiter email from that one reading',
-              `Everything in ${PRO_PLAN.label}, including ${PREMIUM_PLAN.runsPerCycle} tailorings`,
+              `Everything in ${PRO_PLAN.label} — an application spends one of those same tailorings`,
               'Every email still waits for you to send it',
             ]}
           />

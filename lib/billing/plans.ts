@@ -29,15 +29,23 @@ export const PRO_PLAN = {
  * it, and writes the recruiter email from the same reading, so the resume and
  * the email say the same thing. The email still waits to be sent.
  *
- * It costs more than Pro because one run is several model calls where a
- * tailoring is one, and because it replaces work the user would otherwise do by
- * hand across both halves of the product.
+ * A complete application spends one of the same monthly runs a tailoring does,
+ * and one of the applications below — it is a tailoring that did more, not a
+ * second allowance beside it. So Premium is not "Pro plus another hundred
+ * tailorings": it is the same hundred runs, with up to forty of them able to
+ * read a posting and write the email as well. That is also why the billing page
+ * never prints Pro's number twice; a plan that costs more while including the
+ * same figure reads as a mistake, and stating one number keeps it honest.
+ *
+ * It costs more than Pro because those forty runs are several model calls each
+ * where a tailoring is one, and because they replace work the user would
+ * otherwise do by hand across both halves of the product.
  */
 export const PREMIUM_PLAN = {
   label: 'Premium',
   pricePaise: 49_900,
   runsPerCycle: 100,
-  /** Complete applications — posting read, resume tailored, email written — each cycle. */
+  /** How many of those runs may be complete applications — posting read, resume tailored, email written. */
   appliesPerCycle: 40,
 } as const
 
@@ -45,7 +53,16 @@ export const PREMIUM_PLAN = {
 export const PAID_TIERS = ['pro', 'premium'] as const
 export type PaidTier = (typeof PAID_TIERS)[number]
 
-export const TIERS: Record<PaidTier, { label: string; pricePaise: number; runsPerCycle: number; appliesPerCycle: number; envPlanId: string }> = {
+export interface TierSpec {
+  label: string
+  pricePaise: number
+  runsPerCycle: number
+  appliesPerCycle: number
+  /** The environment variable holding this tier's plan id in the Razorpay Dashboard. */
+  envPlanId: string
+}
+
+export const TIERS: Record<PaidTier, TierSpec> = {
   pro: { ...PRO_PLAN, appliesPerCycle: 0, envPlanId: 'RAZORPAY_PRO_PLAN_ID' },
   premium: { ...PREMIUM_PLAN, envPlanId: 'RAZORPAY_PREMIUM_PLAN_ID' },
 }
@@ -56,6 +73,9 @@ export function isPaidTier(value: unknown): value is PaidTier {
 
 /** Whether a tier includes the combined workflow. Only Premium does. */
 export const tierHasApply = (tier: PaidTier) => TIERS[tier].appliesPerCycle > 0
+
+/** The cheapest tier that includes the combined run, for the screens that offer it. */
+export const APPLY_TIER: PaidTier = PAID_TIERS.find((tier) => tierHasApply(tier)) ?? 'premium'
 
 export interface CreditPack {
   id: string

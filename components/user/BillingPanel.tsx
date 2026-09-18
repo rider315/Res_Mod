@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useConfirm } from '@/components/ConfirmProvider'
-import { PRO_PLAN, PREMIUM_PLAN, EMAIL_DRAFTS_PER_MONTH, formatPrice } from '@/lib/billing/plans'
+import { EMAIL_DRAFTS_PER_MONTH, formatPrice, PaidTier, PAID_TIERS, TIERS } from '@/lib/billing/plans'
 import { reportConversion } from '@/lib/analytics'
 import type { BillingStatus, CheckoutStart } from '@/lib/billing/types'
 import {
@@ -16,10 +16,15 @@ import { ArrowLeft, ArrowRight, CheckCircle, Layers, Sparkles } from '@/componen
 import { backLinkClass, errorBox, primaryButton, secondaryButton, successBox, warningBox } from '@/components/user/shared'
 
 /**
- * Plans for a regular account: the free tailorings every account gets once, Pro
- * and credit packs, both of which can be bought at any time. Payments open
- * Razorpay Checkout; the server verifies each one and answers with the new
- * balances, so this screen only ever shows what the server reports.
+ * Plans for a regular account: the free tailorings every account gets once, the
+ * subscriptions, and credit packs, all of which can be bought at any time.
+ * Payments open Razorpay Checkout; the server verifies each one and answers with
+ * the new balances, so this screen only ever shows what the server reports.
+ *
+ * Each tier gets the same card, filled from the server's own numbers. Premium's
+ * card deliberately doesn't restate Pro's monthly tailorings: a complete
+ * application spends one of those same runs, so printing the figure twice made
+ * the dearer plan look like it included nothing extra.
  */
 
 interface BillingPanelProps {
@@ -29,11 +34,31 @@ interface BillingPanelProps {
   onBack: () => void
 }
 
-type Busy = { kind: 'pack'; id: string } | { kind: 'pro' } | { kind: 'cancel' } | null
+type Busy = { kind: 'pack'; id: string } | { kind: 'tier'; tier: PaidTier } | { kind: 'cancel' } | null
 
 const card = 'nb-card rounded-[10px] p-5'
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err))
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/** What each plan is for, in its own terms. */
+function planPoints(tier: PaidTier, spec: { label: string; runsPerCycle: number; appliesPerCycle: number }): string[] {
+  if (tier === 'premium') {
+    return [
+      `${spec.appliesPerCycle} complete applications a month`,
+      'Chills reads the posting you point it at',
+      'Your resume and the recruiter email from that one reading',
+      `Everything in ${TIERS.pro.label}; runs you don't apply with stay ordinary tailorings`,
+      'Every email still waits for you to send it',
+    ]
+  }
+  return [
+    `${spec.runsPerCycle} tailorings every month`,
+    'A cover letter for each one',
+    `${EMAIL_DRAFTS_PER_MONTH.paid} AI-written recruiter emails a month`,
+    'More resume imports each month',
+    'Get it now or once your free tailorings are used; cancel any time',
+  ]
+}
 
 export default function BillingPanel({ billing, onBillingChange, onBack }: BillingPanelProps) {
   const confirm = useConfirm()
@@ -94,29 +119,32 @@ export default function BillingPanel({ billing, onBillingChange, onBack }: Billi
       }
     )
 
-  const subscribe = () =>
-    checkout(
-      { kind: 'pro' },
-      () => postBilling<CheckoutStart>('/api/billing/subscribe'),
+  const subscribe = (tier: PaidTier) => {
+    const label = TIERS[tier].label
+    return checkout(
+      { kind: 'tier', tier },
+      () => postBilling<CheckoutStart>('/api/billing/subscribe', { tier }),
       async (status) => {
-        reportConversion('purchase', { value: PRO_PLAN.pricePaise / 100 })
-        if (status.subscription?.entitled) return setNotice('Pro is on. Thank you!')
-        setNotice('Payment received. Pro switches on as soon as Razorpay confirms it, usually within a minute.')
+        reportConversion('purchase', { value: TIERS[tier].pricePaise / 100 })
+        if (status.subscription?.entitled) return setNotice(`${label} is on. Thank you!`)
+        setNotice(`Payment received. ${label} switches on as soon as Razorpay confirms it, usually within a minute.`)
         for (let attempt = 0; attempt < 12; attempt++) {
           await wait(5000)
           const latest = await reload()
-          if (latest?.subscription?.entitled) return setNotice('Pro is on. Thank you!')
+          if (latest?.subscription?.entitled) return setNotice(`${label} is on. Thank you!`)
         }
       }
     )
+  }
 
   async function cancel() {
+    const label = billing?.subscription?.tier ? TIERS[billing.subscription.tier].label : 'your plan'
     const until = billing?.subscription?.currentEnd ? `until ${formatDate(billing.subscription.currentEnd)}` : 'until this cycle ends'
     const ok = await confirm({
-      title: 'Cancel Pro?',
+      title: `Cancel ${label}?`,
       body: `You keep its runs ${until}, and it won’t renew after that.`,
-      confirmLabel: 'Cancel Pro',
-      cancelLabel: 'Keep Pro',
+      confirmLabel: `Cancel ${label}`,
+      cancelLabel: `Keep ${label}`,
       danger: true,
     })
     if (!ok) return
@@ -125,7 +153,7 @@ export default function BillingPanel({ billing, onBillingChange, onBack }: Billi
     setNotice(null)
     try {
       onBillingChange(await postBilling<BillingStatus>('/api/billing/cancel'))
-      setNotice("Pro is cancelled and won't renew.")
+      setNotice(`${label} is cancelled and won't renew.`)
     } catch (err) {
       setError(errorText(err))
     } finally {
@@ -169,10 +197,10 @@ export default function BillingPanel({ billing, onBillingChange, onBack }: Billi
     )
   }
 
-  const { runs, imports, emailDrafts, subscription, checkout: available } = billing
+  const { runs, applies, imports, emailDrafts, subscription, checkout: available } = billing
   const importsLeft = Math.max(0, imports.limit - imports.used)
   const draftsLeft = Math.max(0, emailDrafts.limit - emailDrafts.used)
-  const proState = !subscription
+  const heldState = !subscription
     ? 'none'
     : subscription.status === 'authenticated'
       ? 'activating'
@@ -185,6 +213,9 @@ export default function BillingPanel({ billing, onBillingChange, onBack }: Billi
         : subscription.status === 'halted'
           ? 'halted'
           : 'none'
+  // Only the plan actually in force shows its state; the other is simply on offer.
+  const stateFor = (tier: PaidTier) => (subscription?.tier === tier ? heldState : 'none')
+  const heldLabel = subscription?.tier ? TIERS[subscription.tier].label : TIERS.pro.label
 
   return (
     <div className="space-y-8 anim-page-enter">
@@ -208,20 +239,29 @@ export default function BillingPanel({ billing, onBillingChange, onBack }: Billi
                 <span className="nb-badge w-20 h-20 text-3xl bg-[var(--color-accent)] tabular-nums">{runs.left}</span>
                 <div>
                   <h2 className="text-2xl font-black">{runs.left === 1 ? 'Tailoring' : 'Tailorings'} left</h2>
-                  <p className="text-sm text-[var(--color-text-muted)]">Pro is used first, then your free tailorings, then credits.</p>
+                  <p className="text-sm text-[var(--color-text-muted)]">
+                    Your plan is used first, then your free tailorings, then credits.
+                  </p>
                 </div>
               </div>
             </div>
             <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
               {runs.subscription && (
                 <Stat
-                  label="Pro this month"
+                  label={`${heldLabel} this month`}
                   value={`${Math.max(0, runs.subscription.limit - runs.subscription.used)} of ${runs.subscription.limit}`}
                   note={
                     subscription?.currentEnd
                       ? `${subscription.cancelAtCycleEnd ? 'Ends' : 'Renews'} on ${formatDay(subscription.currentEnd)}`
                       : undefined
                   }
+                />
+              )}
+              {applies && (
+                <Stat
+                  label="Complete applications"
+                  value={`${Math.max(0, applies.limit - applies.used)} of ${applies.limit}`}
+                  note="Each one also spends a run above"
                 />
               )}
               <Stat
@@ -244,104 +284,107 @@ export default function BillingPanel({ billing, onBillingChange, onBack }: Billi
           </section>
 
           <div className="grid gap-6 lg:grid-cols-2 items-start">
-            <section className={`${card} space-y-5 border-[3px] shadow-[6px_6px_0_0_var(--color-ink)]`}>
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <span className="nb-badge w-11 h-11 bg-[var(--color-yellow)]">
-                    <Sparkles size={22} />
-                  </span>
-                  <h2 className="text-2xl font-black">{billing.pro.label}</h2>
-                </div>
-                <p>
-                  <span className="text-4xl font-black">{formatPrice(billing.pro.pricePaise)}</span>
-                  <span className="text-[var(--color-text-muted)]"> / month</span>
-                </p>
-              </div>
-              <ul className="space-y-2.5">
-                {[
-                  `${billing.pro.runsPerCycle} tailorings every month`,
-                  'A cover letter for each one',
-                  `${EMAIL_DRAFTS_PER_MONTH.paid} AI-written recruiter emails a month`,
-                  'More resume imports each month',
-                  'Get it now or once your free tailorings are used; cancel any time',
-                ].map((point) => (
-                  <li key={point} className="flex items-start gap-2.5">
-                    <CheckCircle size={20} className="text-[var(--color-success)] shrink-0 mt-0.5" />
-                    <span>{point}</span>
-                  </li>
-                ))}
-              </ul>
+            {PAID_TIERS.map((tier) => {
+              const spec = billing.tiers[tier]
+              const state = stateFor(tier)
+              const onSale = available.tiers.includes(tier)
+              const lead = tier === 'premium'
+              return (
+                <section
+                  key={tier}
+                  className={`${card} space-y-5 ${
+                    state === 'none' && !lead ? 'border-[3px] shadow-[6px_6px_0_0_var(--color-ink)]' : ''
+                  } ${lead ? 'bg-[var(--color-yellow-soft)]' : ''}`}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <span className={`nb-badge w-11 h-11 ${lead ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-yellow)]'}`}>
+                        <Sparkles size={22} />
+                      </span>
+                      <h2 className="text-2xl font-black">{spec.label}</h2>
+                      {!onSale && <span className="nb-chip bg-[var(--color-yellow)] text-[#0a0a0a]">Coming soon</span>}
+                    </div>
+                    <p>
+                      <span className="text-4xl font-black">{formatPrice(spec.pricePaise)}</span>
+                      <span className="text-[var(--color-text-muted)]"> / month</span>
+                    </p>
+                  </div>
 
-              {proState === 'active' && subscription && (
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-[10px] border-[1.6px] border-[var(--color-ink)] bg-[var(--color-accent-soft)] p-3">
-                  <p className="font-bold text-[var(--color-success)]">
-                    Active{subscription.currentEnd ? ` · renews on ${formatDate(subscription.currentEnd)}` : ''}
-                  </p>
-                  <button onClick={cancel} disabled={busy !== null} className={secondaryButton}>
-                    {busy?.kind === 'cancel' ? 'Cancelling…' : 'Cancel Pro'}
-                  </button>
-                </div>
-              )}
-              {proState === 'ending' && subscription && (
-                <p className={warningBox}>
-                  Cancelled. Your Pro tailorings last
-                  {subscription.currentEnd ? ` until ${formatDate(subscription.currentEnd)}` : ' until this month ends'}, and it won&apos;t
-                  renew.
-                </p>
-              )}
-              {proState === 'retrying' && (
-                <div className="space-y-3">
-                  <p className={warningBox}>
-                    Your renewal payment didn&apos;t go through. Razorpay is retrying it, and your Pro tailorings stay meanwhile.
-                  </p>
-                  <button onClick={cancel} disabled={busy !== null} className={secondaryButton}>
-                    {busy?.kind === 'cancel' ? 'Cancelling…' : 'Cancel Pro'}
-                  </button>
-                </div>
-              )}
-              {proState === 'activating' && (
-                <p className={warningBox}>Payment received. Pro is being switched on…</p>
-              )}
-              {(proState === 'none' || proState === 'halted') && (
-                <div className="space-y-3">
-                  {proState === 'halted' && (
-                    <p className={warningBox}>Renewal payments failed, so Pro stopped. Subscribe again to get it back.</p>
+                  {lead && (
+                    <p className="text-sm text-[var(--color-text-muted)]">
+                      The whole application in one run: you give a recruiter and the job they&apos;re hiring for, and Chills reads
+                      that posting, tailors your resume to it, and writes the email from the same reading.
+                    </p>
                   )}
-                  <button
-                    onClick={subscribe}
-                    disabled={busy !== null || !available.pro}
-                    className={`w-full ${primaryButton} py-3.5 text-base`}
-                  >
-                    {busy?.kind === 'pro' ? (
-                      'Opening checkout…'
-                    ) : (
-                      <>
-                        Get {billing.pro.label} <ArrowRight size={18} />
-                      </>
-                    )}
-                  </button>
-                  {!available.pro && <p className="text-xs text-[var(--color-text-muted)]">Pro isn&apos;t available yet.</p>}
-                </div>
-              )}
-            </section>
 
-            {/* Premium is on the public pages, so it must be accounted for here too —
-                otherwise it looks as though it vanished on signing in. */}
-            <section className={`${card} space-y-3 bg-[var(--color-yellow-soft)]`}>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-2xl font-black">{PREMIUM_PLAN.label}</h2>
-                <span className="nb-chip bg-[var(--color-yellow)] text-[#0a0a0a]">Coming soon</span>
-              </div>
-              <p className="text-sm text-[var(--color-text-muted)]">
-                The whole application in one run: you give a recruiter and the job they&apos;re hiring for, and Chills reads that
-                posting, tailors your resume to it, and writes the email from the same reading. It isn&apos;t on sale yet — nothing to
-                buy here, and nothing has been charged for it.
-              </p>
-              <p className="text-sm font-semibold">
-                {formatPrice(PREMIUM_PLAN.pricePaise)} a month when it opens, with {PREMIUM_PLAN.appliesPerCycle} complete applications
-                and everything in {PRO_PLAN.label}.
-              </p>
-            </section>
+                  <ul className="space-y-2.5">
+                    {planPoints(tier, spec).map((point) => (
+                      <li key={point} className="flex items-start gap-2.5">
+                        <CheckCircle size={20} className="text-[var(--color-success)] shrink-0 mt-0.5" />
+                        <span>{point}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  {state === 'active' && subscription && (
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-[10px] border-[1.6px] border-[var(--color-ink)] bg-[var(--color-accent-soft)] p-3">
+                      <p className="font-bold text-[var(--color-success)]">
+                        Active{subscription.currentEnd ? ` · renews on ${formatDate(subscription.currentEnd)}` : ''}
+                      </p>
+                      <button onClick={cancel} disabled={busy !== null} className={secondaryButton}>
+                        {busy?.kind === 'cancel' ? 'Cancelling…' : `Cancel ${spec.label}`}
+                      </button>
+                    </div>
+                  )}
+                  {state === 'ending' && subscription && (
+                    <p className={warningBox}>
+                      Cancelled. Your {spec.label} runs last
+                      {subscription.currentEnd ? ` until ${formatDate(subscription.currentEnd)}` : ' until this month ends'}, and it
+                      won&apos;t renew.
+                    </p>
+                  )}
+                  {state === 'retrying' && (
+                    <div className="space-y-3">
+                      <p className={warningBox}>
+                        Your renewal payment didn&apos;t go through. Razorpay is retrying it, and your {spec.label} runs stay
+                        meanwhile.
+                      </p>
+                      <button onClick={cancel} disabled={busy !== null} className={secondaryButton}>
+                        {busy?.kind === 'cancel' ? 'Cancelling…' : `Cancel ${spec.label}`}
+                      </button>
+                    </div>
+                  )}
+                  {state === 'activating' && <p className={warningBox}>Payment received. {spec.label} is being switched on…</p>}
+                  {(state === 'none' || state === 'halted') && (
+                    <div className="space-y-3">
+                      {state === 'halted' && (
+                        <p className={warningBox}>
+                          Renewal payments failed, so {spec.label} stopped. Subscribe again to get it back.
+                        </p>
+                      )}
+                      <button
+                        onClick={() => subscribe(tier)}
+                        disabled={busy !== null || !onSale}
+                        className={`w-full ${primaryButton} py-3.5 text-base`}
+                      >
+                        {busy?.kind === 'tier' && busy.tier === tier ? (
+                          'Opening checkout…'
+                        ) : (
+                          <>
+                            Get {spec.label} <ArrowRight size={18} />
+                          </>
+                        )}
+                      </button>
+                      {!onSale && (
+                        <p className="text-xs text-[var(--color-text-muted)]">
+                          {spec.label} isn&apos;t on sale yet — nothing to buy here, and nothing has been charged for it.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </section>
+              )
+            })}
 
             <section className={`${card} space-y-4`}>
               <div className="flex items-center gap-3">
@@ -388,7 +431,7 @@ export default function BillingPanel({ billing, onBillingChange, onBack }: Billi
             {billing.payments.map((payment) => (
               <li key={payment.id} className="flex items-center justify-between gap-3 py-2.5">
                 <span>
-                  <span className="font-bold">{payment.kind === 'subscription' ? billing.pro.label : 'Credit pack'}</span>
+                  <span className="font-bold">{payment.kind === 'subscription' ? heldLabel : 'Credit pack'}</span>
                   <span className="text-[var(--color-text-muted)]"> · {formatDate(payment.createdAt)}</span>
                 </span>
                 <span className="font-black tabular-nums">{formatPrice(payment.amount, payment.currency)}</span>

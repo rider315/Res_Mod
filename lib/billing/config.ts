@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { AIProvider } from '@/types/resume'
 import { getProvider, isValidProvider } from '@/lib/providers'
-import { DEFAULT_FREE_TAILORINGS } from '@/lib/billing/plans'
+import { DEFAULT_FREE_TAILORINGS, PaidTier, PAID_TIERS, TIERS } from '@/lib/billing/plans'
 
 /**
  * Billing settings from the environment (see .env.example), and the rules for
@@ -16,8 +16,12 @@ export interface RazorpayConfig {
   keySecret: string
   /** Null until the webhook is added in the Razorpay Dashboard. */
   webhookSecret: string | null
-  /** Null until the Pro plan is created in the Razorpay Dashboard. */
-  proPlanId: string | null
+  /**
+   * Each tier's plan id from the Razorpay Dashboard, null until it is created
+   * there. A tier with no plan id simply isn't for sale, which is how Premium
+   * stays behind its "Coming soon" chip until there is a plan to charge against.
+   */
+  planIds: Record<PaidTier, string | null>
   apiBase: string
   testMode: boolean
 }
@@ -33,11 +37,20 @@ export function razorpayConfig(): RazorpayConfig | null {
     keyId,
     keySecret,
     webhookSecret: env('RAZORPAY_WEBHOOK_SECRET') || null,
-    proPlanId: env('RAZORPAY_PRO_PLAN_ID') || null,
+    planIds: Object.fromEntries(PAID_TIERS.map((tier) => [tier, env(TIERS[tier].envPlanId) || null])) as Record<PaidTier, string | null>,
     apiBase: (override || 'https://api.razorpay.com/v1').replace(/\/+$/, ''),
     testMode: keyId.startsWith('rzp_test_'),
   }
 }
+
+/** Which tier a stored subscription's plan id belongs to; null once a plan id has been changed or retired. */
+export function tierForPlanId(config: RazorpayConfig, planId: string): PaidTier | null {
+  return PAID_TIERS.find((tier) => config.planIds[tier] === planId) ?? null
+}
+
+/** The tiers that can be bought right now: a plan id is set for them. */
+export const tiersOnSale = (config: RazorpayConfig | null): PaidTier[] =>
+  config ? PAID_TIERS.filter((tier) => config.planIds[tier]) : []
 
 export interface PlatformAiConfig {
   provider: AIProvider

@@ -21,27 +21,31 @@ export default function QuotaDialog({ kind, billing, onOpenBilling, onClose }: Q
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const canBuy = Boolean(billing && (billing.checkout.packs || billing.checkout.pro))
-  const onPro = Boolean(billing?.subscription?.entitled)
+  const canBuy = Boolean(billing && (billing.checkout.packs || billing.checkout.tiers.length > 0))
+  const subscribed = Boolean(billing?.subscription?.entitled)
+  // Named by the plan they actually hold, so someone on Premium isn't told about Pro's month.
+  const held = billing?.subscription?.tier ?? null
+  const heldLabel = held && billing ? billing.tiers[held].label : 'your plan'
+  const entry = billing?.tiers.pro
 
   let title: string
   let detail = ''
   if (kind === 'run') {
-    title = onPro ? "You've used this month's Pro tailorings" : "You've used your free tailorings"
-    if (billing && onPro) {
+    title = subscribed ? `You've used this month's ${heldLabel} tailorings` : "You've used your free tailorings"
+    if (billing && subscribed) {
       detail = billing.subscription?.currentEnd
         ? `They renew on ${formatDay(billing.subscription.currentEnd)}. A credit pack adds more right away.`
-        : 'They renew with your next Pro payment. A credit pack adds more right away.'
-    } else if (billing) {
+        : `They renew with your next ${heldLabel} payment. A credit pack adds more right away.`
+    } else if (billing && entry) {
       detail =
-        `Every account gets ${billing.runs.free.limit} free tailorings. To keep tailoring, get Pro ` +
-        `(${billing.pro.runsPerCycle} tailorings a month for ${formatPrice(billing.pro.pricePaise)}) or a credit pack.`
+        `Every account gets ${billing.runs.free.limit} free tailorings. To keep tailoring, get ${entry.label} ` +
+        `(${entry.runsPerCycle} tailorings a month for ${formatPrice(entry.pricePaise)}) or a credit pack.`
     }
   } else {
     title = "You've reached this month's import limit"
     if (billing) {
       detail = `Imports start again on ${formatDay(billing.imports.resetsAt)}.`
-      if (!onPro && billing.runs.credits === 0) detail += ' Pro and credit packs raise the limit.'
+      if (!subscribed && billing.runs.credits === 0) detail += ' A plan or a credit pack raises the limit.'
     }
   }
   if (!canBuy && kind === 'run') detail += `${detail ? ' ' : ''}Buying isn't available right now; please try again later.`

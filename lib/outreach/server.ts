@@ -4,6 +4,7 @@ import { AIProvider } from '@/types/resume'
 import { requireAuth } from '@/lib/require-auth'
 import { getProvider, PROVIDER_ORDER } from '@/lib/providers'
 import { generateAIResponse } from '@/lib/ai-provider'
+import type { CallUsage } from '@/lib/ai-usage'
 import type { GenerateFn } from '@/lib/run-optimization'
 import { ensureUser, getResume } from '@/lib/db/resumes'
 import { getTailoring } from '@/lib/db/tailorings'
@@ -58,9 +59,26 @@ export function puterRefusal(role: string, provider: AIProvider | undefined): Ne
   return null
 }
 
-export function generatorFor(ai: { provider: AIProvider; apiKey: string; model: string | undefined }): GenerateFn {
-  return ({ systemInstruction, prompt, temperature }) =>
-    generateAIResponse({ provider: ai.provider, apiKey: ai.apiKey, systemInstruction, prompt, temperature, model: ai.model })
+/**
+ * `cachePrefix` has to be passed on, not dropped: it is the opening the caller
+ * has taken out of every prompt so a provider can cache it, and a generator that
+ * quietly leaves it behind sends prompts with the job description missing.
+ */
+export function generatorFor(
+  ai: { provider: AIProvider; apiKey: string; model: string | undefined },
+  onUsage?: (usage: CallUsage) => void
+): GenerateFn {
+  return ({ systemInstruction, prompt, temperature, cachePrefix }) =>
+    generateAIResponse({
+      provider: ai.provider,
+      apiKey: ai.apiKey,
+      systemInstruction,
+      prompt,
+      temperature,
+      cachePrefix,
+      model: ai.model,
+      onUsage,
+    })
 }
 
 export interface ResolvedSource {

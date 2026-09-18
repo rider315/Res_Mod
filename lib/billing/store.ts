@@ -1,6 +1,6 @@
 import { and, desc, eq, gte, inArray, lte, ne, sql } from 'drizzle-orm'
 import { getDb, schema } from '@/lib/db'
-import { CREDIT_PACKS, CreditPack, EMAIL_SENDS_PER_DAY, PRO_PLAN } from '@/lib/billing/plans'
+import { CREDIT_PACKS, CreditPack, EMAIL_SENDS_PER_DAY, PaidTier, TIERS } from '@/lib/billing/plans'
 import {
   buckets,
   DAILY_AI_REQUESTS,
@@ -14,7 +14,7 @@ import {
   runsLeft,
   subscriptionEntitles,
 } from '@/lib/billing/quota'
-import { freeTailorings, RazorpayConfig, razorpayConfig } from '@/lib/billing/config'
+import { freeTailorings, RazorpayConfig, razorpayConfig, tierForPlanId, tiersOnSale } from '@/lib/billing/config'
 import { getPlatformAi } from '@/lib/billing/platform-ai'
 import { razorpay } from '@/lib/billing/razorpay'
 import { PaymentFacts, SubscriptionFacts, subscriptionFacts } from '@/lib/billing/events'
@@ -219,20 +219,38 @@ export interface QuotaSnapshot {
   now: Date
   state: QuotaState
   subscription: SubscriptionRow | null
+  /**
+   * Which tier the plan in force is, read back from the Razorpay plan id the
+   * subscription was created with. Null without a plan, and also when the plan
+   * id no longer matches any tier — a plan retired in the Dashboard, say — in
+   * which case the account keeps the lowest tier's allowance rather than none.
+   */
+  tier: PaidTier | null
   /** The subscription's runs can be used right now. */
   entitled: boolean
   /** The counter the plan's runs come from; null without a plan in force. */
   subscriptionBucket: string | null
+  /** How many of this cycle's runs may still be complete applications; null unless the tier includes them. */
+  applies: { used: number; limit: number } | null
   imports: { used: number; limit: number }
   emailDrafts: { used: number; limit: number }
   emailSends: { used: number; limit: number }
 }
 
+/** The plan's own allowance, never Pro's: a tier that included a different number used to get Pro's anyway. */
+const runsForTier = (tier: PaidTier | null) => TIERS[tier ?? 'pro'].runsPerCycle
+
 export async function loadQuota(userId: string, now = new Date()): Promise<QuotaSnapshot> {
   const subscription = await refreshIfStale(await currentSubscription(userId, now), now)
   const entitled = subscription ? subscriptionEntitles(subscription, now) : false
+  const config = razorpayConfig()
+  const tier = subscription && config ? tierForPlanId(config, subscription.planId) : null
   const subscriptionBucket =
     subscription && entitled ? buckets.subscriptionRuns(subscription.id, subscription.currentStart, now) : null
+  const applyBucket =
+    subscription && entitled && TIERS[tier ?? 'pro'].appliesPerCycle > 0
+      ? buckets.applies(subscription.id, subscription.currentStart, now)
+      : null
   const freeBucket = buckets.freeTailorings()
   const importBucket = buckets.imports(now)
   const draftBucket = buckets.emailDrafts(now)
@@ -251,6 +269,7 @@ export async function loadQuota(userId: string, now = new Date()): Promise<Quota
             draftBucket,
             sendBucket,
             ...(subscriptionBucket ? [subscriptionBucket] : []),
+            ...(applyBucket ? [applyBucket] : []),
           ])
         )
       ),
@@ -265,13 +284,15 @@ export async function loadQuota(userId: string, now = new Date()): Promise<Quota
   return {
     now,
     state: {
-      subscription: subscriptionBucket ? { used: used(subscriptionBucket), limit: PRO_PLAN.runsPerCycle } : null,
+      subscription: subscriptionBucket ? { used: used(subscriptionBucket), limit: runsForTier(tier) } : null,
       free: { used: used(freeBucket), limit: freeTailorings() },
       credits,
     },
     subscription,
+    tier,
     entitled,
     subscriptionBucket,
+    applies: applyBucket ? { used: used(applyBucket), limit: TIERS[tier ?? 'pro'].appliesPerCycle } : null,
     imports: { used: used(importBucket), limit: importLimit(entitled || credits > 0) },
     emailDrafts: { used: used(draftBucket), limit: draftLimit(entitled || credits > 0) },
     emailSends: { used: used(sendBucket), limit: EMAIL_SENDS_PER_DAY },
@@ -286,12 +307,12 @@ export interface Reservation {
 }
 
 /** Take one included run from the first source with one left (see lib/billing/quota.ts). Null when there is none. */
-export async function reserveRun(userId: string): Promise<Reservation | null> {
-  const quota = await loadQuota(userId)
+export async function reserveRun(userId: string, loaded?: QuotaSnapshot): Promise<Reservation | null> {
+  const quota = loaded ?? (await loadQuota(userId))
   for (const source of runSources(quota.state)) {
     // A source can run dry between reading the quota and taking from it; then the next is tried.
     if (source === 'subscription' && quota.subscriptionBucket) {
-      if (await takeFromCounter(userId, quota.subscriptionBucket, PRO_PLAN.runsPerCycle)) {
+      if (await takeFromCounter(userId, quota.subscriptionBucket, quota.state.subscription?.limit ?? runsForTier(quota.tier))) {
         return { userId, source, bucket: quota.subscriptionBucket }
       }
     } else if (source === 'free') {
@@ -302,6 +323,34 @@ export async function reserveRun(userId: string): Promise<Reservation | null> {
     }
   }
   return null
+}
+
+/** Why a complete application couldn't start: the plan, the applications left, or the runs left. */
+export type ApplyRefusal = 'tier' | 'applies' | 'runs'
+
+/**
+ * Take one complete application: one from the cycle's applications, and one run
+ * from wherever the account's next run would have come from anyway.
+ *
+ * Both or neither. The application is taken first because it is the scarcer of
+ * the two and the one the plan is bought for; if no run can be found after it,
+ * it goes straight back, so someone who has used every run isn't quietly charged
+ * an application for a job that never ran.
+ */
+export async function reserveApply(userId: string): Promise<{ ok: true; reservations: Reservation[] } | { ok: false; reason: ApplyRefusal }> {
+  const quota = await loadQuota(userId)
+  if (!quota.applies || !quota.subscription) return { ok: false, reason: 'tier' }
+
+  const bucket = buckets.applies(quota.subscription.id, quota.subscription.currentStart, quota.now)
+  if (!(await takeFromCounter(userId, bucket, quota.applies.limit))) return { ok: false, reason: 'applies' }
+  const apply: Reservation = { userId, source: 'subscription', bucket }
+
+  const run = await reserveRun(userId, quota)
+  if (!run) {
+    await releaseReservation(apply)
+    return { ok: false, reason: 'runs' }
+  }
+  return { ok: true, reservations: [apply, run] }
 }
 
 export async function reserveImport(userId: string): Promise<Reservation | null> {
@@ -450,7 +499,7 @@ export async function getBillingStatus(userId: string): Promise<BillingStatus> {
     platformAi,
     checkout: {
       packs: platformAi && config !== null,
-      pro: platformAi && Boolean(config?.proPlanId),
+      tiers: platformAi ? tiersOnSale(config) : [],
       testMode: config?.testMode ?? false,
     },
     runs: {
@@ -459,18 +508,20 @@ export async function getBillingStatus(userId: string): Promise<BillingStatus> {
       subscription: quota.state.subscription,
       credits: quota.state.credits,
     },
+    applies: quota.applies ? { ...quota.applies, resetsAt: subscription?.currentEnd?.toISOString() ?? importsResetAt } : null,
     imports: { ...quota.imports, resetsAt: importsResetAt },
     emailDrafts: { ...quota.emailDrafts, resetsAt: importsResetAt },
     emailSends: { ...quota.emailSends, resetsAt: nextDayStart(quota.now).toISOString() },
     subscription: subscription
       ? {
+          tier: quota.tier,
           status: subscription.status,
           entitled: quota.entitled,
           currentEnd: subscription.currentEnd?.toISOString() ?? null,
           cancelAtCycleEnd: subscription.cancelAtCycleEnd,
         }
       : null,
-    pro: { label: PRO_PLAN.label, pricePaise: PRO_PLAN.pricePaise, runsPerCycle: PRO_PLAN.runsPerCycle },
+    tiers: { pro: { ...TIERS.pro }, premium: { ...TIERS.premium } },
     packs: CREDIT_PACKS.map((pack) => ({ ...pack })),
     payments: history.map((row) => ({
       id: row.id,

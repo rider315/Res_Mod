@@ -85,6 +85,13 @@ export const buckets = {
   /** Keyed by the cycle's start, so a renewal starts a fresh count with no reset job. */
   subscriptionRuns: (subscriptionId: string, cycleStart: Date | null, now: Date) =>
     `sub:${subscriptionId}:${cycleStart ? Math.floor(cycleStart.getTime() / 1000) : monthKey(now)}`,
+  /**
+   * Complete applications this cycle. Counted beside the cycle's runs rather
+   * than instead of them: an application spends one of the plan's runs too, so
+   * this only limits how many of those runs may be applications.
+   */
+  applies: (subscriptionId: string, cycleStart: Date | null, now: Date) =>
+    `apply:${subscriptionId}:${cycleStart ? Math.floor(cycleStart.getTime() / 1000) : monthKey(now)}`,
 }
 
 /**

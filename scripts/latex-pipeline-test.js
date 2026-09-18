@@ -951,7 +951,8 @@ function billingTests() {
     Object.assign(process.env, { RAZORPAY_KEY_ID: 'rzp_test_abc', RAZORPAY_KEY_SECRET: 'secret', RAZORPAY_API_BASE: 'http://localhost:4010/v1/' })
     const local = billingConfig.razorpayConfig()
     check('test keys are recognised, and a stand-in API is used outside production',
-      local.testMode && local.apiBase === 'http://localhost:4010/v1' && local.webhookSecret === null && local.proPlanId === null, JSON.stringify(local))
+      local.testMode && local.apiBase === 'http://localhost:4010/v1' && local.webhookSecret === null &&
+      local.planIds.pro === null && local.planIds.premium === null, JSON.stringify(local))
     process.env.NODE_ENV = 'production'
     check('a stand-in API is never used in production', billingConfig.razorpayConfig().apiBase === 'https://api.razorpay.com/v1')
 
@@ -1067,10 +1068,10 @@ function settingsTests() {
   const { planProblem } = require(BUILD + '/lib/billing/plan-check')
   const monthly = (amount, extra = {}) => ({ period: 'monthly', interval: 1, item: { amount, currency: 'INR' }, ...extra })
   check('the Razorpay Pro plan must bill monthly at the price the billing page sells',
-    planProblem(monthly(plans.PRO_PLAN.pricePaise)) === null &&
-    /every 1 month/.test(planProblem(monthly(plans.PRO_PLAN.pricePaise, { period: 'weekly' })) ?? '') &&
-    /₹299/.test(planProblem(monthly(29900)) ?? ''),
-    planProblem(monthly(29900)))
+    planProblem('pro', monthly(plans.PRO_PLAN.pricePaise)) === null &&
+    /every 1 month/.test(planProblem('pro', monthly(plans.PRO_PLAN.pricePaise, { period: 'weekly' })) ?? '') &&
+    /₹299/.test(planProblem('pro', monthly(29900)) ?? ''),
+    planProblem('pro', monthly(29900)))
 }
 
 // --------------------------------------------------------------- 15. resolving
@@ -2242,7 +2243,12 @@ async function outreachTests() {
 // ------------------------------------------------------------------- 19. apply
 const jobSource = require(BUILD + '/lib/apply/job-source')
 const applyRole = require(BUILD + '/lib/apply/role')
+const applyRun = require(BUILD + '/lib/apply/run')
 const applyPlans = require(BUILD + '/lib/billing/plans')
+const planCheck = require(BUILD + '/lib/billing/plan-check')
+
+/** A source file, read to check what the screens actually say. */
+const read = (relative) => fs.readFileSync(path.join(ROOT, relative), 'utf8')
 
 /**
  * Stubs for one run, so no check ever reaches the network or a resolver. Bare
@@ -2461,7 +2467,119 @@ async function applyTests() {
     applyPlans.PREMIUM_PLAN.pricePaise === 49_900 && applyPlans.PREMIUM_PLAN.pricePaise > applyPlans.PRO_PLAN.pricePaise &&
     applyPlans.tierHasApply('premium') && !applyPlans.tierHasApply('pro') &&
     applyPlans.isPaidTier('premium') && !applyPlans.isPaidTier('plus') &&
-    applyPlans.formatPrice(applyPlans.PREMIUM_PLAN.pricePaise) === '₹499')
+    applyPlans.formatPrice(applyPlans.PREMIUM_PLAN.pricePaise) === '₹499' &&
+    applyPlans.APPLY_TIER === 'premium')
+
+  // An application is a tailoring that did more, so it comes out of the same
+  // runs; a tier that included a second, larger pool would be a different product.
+  check('an application spends one of the plan’s own runs, not runs of its own',
+    applyPlans.TIERS.premium.appliesPerCycle > 0 &&
+    applyPlans.TIERS.premium.appliesPerCycle < applyPlans.TIERS.premium.runsPerCycle,
+    JSON.stringify(applyPlans.TIERS.premium))
+
+  // The bug this replaced: Premium's card restated Pro's monthly tailorings, so the
+  // dearer plan printed the same figure as the cheaper one and looked like it added nothing.
+  const premiumCopy = [
+    read('app/pricing/page.tsx'),
+    read('app/LoginPage.tsx'),
+    read('components/user/BillingPanel.tsx'),
+  ].join('\n')
+  check('no screen prints a tier’s run count inside another tier’s list of what it includes',
+    !/Everything in \$\{?\s*(PRO_PLAN\.label|TIERS\.pro\.label)[^}]*\}?[^`\n]*(runsPerCycle|\b100\b)/.test(premiumCopy) &&
+    !premiumCopy.includes('including ${PREMIUM_PLAN.runsPerCycle} tailorings'),
+    premiumCopy.split('\n').filter((line) => line.includes('Everything in')).join(' | '))
+
+  // ---- one reading, two halves that agree
+  const jobText =
+    'Northwind is hiring a Platform Engineer to run our payments platform on Kubernetes. ' +
+    'You will build RESTful APIs with Terraform-managed infrastructure and own reliability. ' +
+    'Required: Kubernetes, Terraform, RESTful APIs. Nice to have: Go.'
+  const northwind = {
+    url: 'https://careers.northwind.example/jobs/platform-engineer',
+    title: 'Platform Engineer', company: 'Northwind', location: 'Pune', text: jobText, structured: true,
+  }
+  const askedFor = []
+  const scriptedKeywords = async ({ prompt }) => {
+    askedFor.push(prompt)
+    return JSON.stringify({
+      jobTitle: 'Platform Engineer',
+      company: 'Northwind',
+      keywords: [
+        { term: 'Kubernetes', kind: 'tool', required: true },
+        { term: 'Terraform', kind: 'tool', required: true },
+        { term: 'RESTful APIs', kind: 'skill', required: true },
+        { term: 'Go', kind: 'language', required: false },
+      ],
+    })
+  }
+  const reading = await applyRun.analyseRole({
+    posting: northwind, recruiter: { company: 'A Recruiting Firm' }, generate: scriptedKeywords,
+  })
+  check('the role is read once, from the posting the employer wrote',
+    askedFor.length === 1 && askedFor[0].includes(jobText) &&
+    reading.analysis.title === 'Platform Engineer' && reading.analysis.company === 'Northwind' &&
+    reading.analysis.location === 'Pune' && reading.analysis.keywords.length === 4 &&
+    reading.analysis.posting.text === jobText,
+    JSON.stringify({ asked: askedFor.length, title: reading.analysis.title, company: reading.analysis.company }))
+
+  const emailInput = applyRun.applicationEmailInput({
+    analysis: reading.analysis,
+    candidateName: 'A Candidate',
+    tailoredResumeText: 'The tailored resume, rewritten around Kubernetes and Terraform.',
+    recruiter: { name: 'Priya', company: 'A Recruiting Firm', title: 'Talent Partner' },
+    profile: { availability: 'Can join in 30 days', highlights: 'Led the payments migration' },
+    tone: 'professional',
+    attachResume: true,
+  })
+  check('the email is written from the tailored resume and the same posting, not from the original',
+    emailInput.resumeText.includes('tailored resume') &&
+    emailInput.jobDescription === jobText &&
+    emailInput.jobTitle === 'Platform Engineer' && emailInput.company === 'Northwind' &&
+    // What the posting screens hardest for is named to the email, so both halves lead on the same things.
+    emailInput.highlights.includes('Kubernetes, Terraform, RESTful APIs') &&
+    emailInput.highlights.includes('Led the payments migration') &&
+    // A "nice to have" is not something to lead an email with.
+    !/screens hardest for:[^\n]*\bGo\b/.test(emailInput.highlights),
+    emailInput.highlights)
+  check('a run says which posting it was built from, pasted or linked',
+    applyRun.applicationLabel(reading.analysis) === 'Platform Engineer at Northwind, from careers.northwind.example' &&
+    applyRun.applicationLabel({ ...reading.analysis, posting: { ...northwind, url: '' } }).endsWith('from a pasted posting'),
+    applyRun.applicationLabel(reading.analysis))
+  check('the stages a user sees are the run’s own, and each has a label',
+    applyRun.APPLY_STAGES.length >= 4 && applyRun.APPLY_STAGES.every((entry) => entry.stage && entry.label) &&
+    applyRun.applyStageLabel('email').includes('same reading') && applyRun.applyStageLabel('nonsense') === 'Working')
+
+  // ---- which tier a stored subscription belongs to
+  const withPlans = (pro, premium) => ({ planIds: { pro, premium }, testMode: true })
+  check('a subscription is read back as the tier whose plan id it was created with',
+    billingConfig.tierForPlanId(withPlans('plan_pro', 'plan_prem'), 'plan_prem') === 'premium' &&
+    billingConfig.tierForPlanId(withPlans('plan_pro', 'plan_prem'), 'plan_pro') === 'pro' &&
+    // A plan retired in the Dashboard: the account keeps an allowance, it doesn't lose one.
+    billingConfig.tierForPlanId(withPlans('plan_pro', 'plan_prem'), 'plan_gone') === null &&
+    billingConfig.tierForPlanId(withPlans('plan_pro', null), 'plan_prem') === null)
+  check('a tier with no plan in the Dashboard is simply not on sale',
+    JSON.stringify(billingConfig.tiersOnSale(withPlans('plan_pro', null))) === '["pro"]' &&
+    JSON.stringify(billingConfig.tiersOnSale(withPlans('plan_pro', 'plan_prem'))) === '["pro","premium"]' &&
+    JSON.stringify(billingConfig.tiersOnSale(null)) === '[]')
+
+  // Each tier is checked against its own price: a Premium plan created at Pro's
+  // amount would charge the wrong money and nothing on screen would disagree.
+  const monthly = (amount) => ({ period: 'monthly', interval: 1, item: { amount, currency: 'INR' } })
+  check('a plan is checked against the price its own tier is sold at',
+    planCheck.planProblem('premium', monthly(49_900)) === null &&
+    planCheck.planProblem('pro', monthly(19_900)) === null &&
+    /sells Premium at ₹499/.test(planCheck.planProblem('premium', monthly(19_900)) ?? '') &&
+    /bills every 3 month/.test(planCheck.planProblem('pro', { period: 'month', interval: 3, item: { amount: 19_900, currency: 'INR' } }) ?? ''),
+    String(planCheck.planProblem('premium', monthly(19_900))))
+
+  // ---- the counters a cycle's applications are kept in
+  const cycleStart = new Date('2026-09-01T00:00:00Z')
+  const now = new Date('2026-09-18T10:00:00Z')
+  check('applications are counted per cycle, beside that cycle’s runs and never in the same row',
+    quota.buckets.applies('sub_1', cycleStart, now) !== quota.buckets.subscriptionRuns('sub_1', cycleStart, now) &&
+    quota.buckets.applies('sub_1', cycleStart, now) === quota.buckets.applies('sub_1', cycleStart, new Date('2026-09-25T00:00:00Z')) &&
+    quota.buckets.applies('sub_1', new Date('2026-10-01T00:00:00Z'), now) !== quota.buckets.applies('sub_1', cycleStart, now),
+    quota.buckets.applies('sub_1', cycleStart, now))
 }
 
 // ------------------------------------------------ 20. reading a company's site

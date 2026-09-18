@@ -7,13 +7,16 @@ import type { PlatformAiConfig } from '@/lib/billing/config'
 import { getPlatformAi, recordPlatformAiFailure } from '@/lib/billing/platform-ai'
 import { DAILY_AI_REQUESTS } from '@/lib/billing/quota'
 import {
+  ApplyRefusal,
   releaseReservation,
   Reservation,
+  reserveApply,
   reserveEmailDraft,
   reserveImport,
   reserveRun,
   takeDailyAiRequest,
 } from '@/lib/billing/store'
+import { APPLY_TIER, TIERS } from '@/lib/billing/plans'
 import { BILLING_CODES } from '@/lib/billing/types'
 import { ensureUser } from '@/lib/db/resumes'
 
@@ -38,8 +41,12 @@ export interface AiGrant {
   provider: AIProvider
   apiKey: string
   model: string | undefined
-  /** The tailoring, import or recruiter email this request took; null when it took none. */
-  reservation: Reservation | null
+  /**
+   * What this request took: a tailoring, an import, a recruiter email — or, for
+   * a complete application, both an application and the run it spends. Empty
+   * when it took nothing, as for the owner.
+   */
+  reservations: Reservation[]
   /** Its place in the account's daily cap; null for the owner, who has none. */
   daily: Reservation | null
   /** It runs on Chills AI, so a failure is noted for the owner (settleAiFailure). */
@@ -71,7 +78,33 @@ const unavailable = () =>
  * month's allowance, or nothing beyond the daily cap (finding keywords, writing
  * a cover letter, reading a recruiter's reply).
  */
-export type AiMeter = 'run' | 'import' | 'draft' | 'free'
+export type AiMeter = 'run' | 'import' | 'draft' | 'apply' | 'free'
+
+/** What each way of running out of applications says, and the code the screen acts on. */
+function applyRefused(reason: ApplyRefusal): AiChoice {
+  const premium = TIERS[APPLY_TIER]
+  if (reason === 'tier') {
+    return refuse(
+      402,
+      `Complete applications come with ${premium.label}: ${premium.appliesPerCycle} a month, each reading the posting, ` +
+        'tailoring your resume to it and writing the recruiter email from that same reading.',
+      BILLING_CODES.applyTier
+    )
+  }
+  if (reason === 'applies') {
+    return refuse(
+      402,
+      `You've used this month's ${premium.appliesPerCycle} complete applications. They start again next cycle; ` +
+        'you can still tailor a resume and write the email separately.',
+      BILLING_CODES.applyLimit
+    )
+  }
+  return refuse(
+    402,
+    'You have no tailorings left, and a complete application spends one. Get a credit pack on the Plans page.',
+    BILLING_CODES.quotaExhausted
+  )
+}
 
 /**
  * Which model an AI route runs on, and who pays for it.
@@ -97,10 +130,17 @@ export async function chooseAi(account: Account, request: AiRequest, meter: AiMe
     await ensureUser({ id: account.userId, email: account.email, name: account.userName || null })
 
     // The run is taken first, so a request refused for want of runs doesn't also use up the day's cap.
-    let reservation: Reservation | null = null
-    if (meter === 'run') {
-      reservation = await reserveRun(account.userId)
-      if (!reservation) {
+    const reservations: Reservation[] = []
+    const take = (taken: Reservation | null) => {
+      if (taken) reservations.push(taken)
+      return taken
+    }
+    if (meter === 'apply') {
+      const application = await reserveApply(account.userId)
+      if (!application.ok) return applyRefused(application.reason)
+      reservations.push(...application.reservations)
+    } else if (meter === 'run') {
+      if (!take(await reserveRun(account.userId))) {
         return refuse(
           402,
           'You have no tailorings left. Get Pro or a credit pack on the Plans page to keep tailoring.',
@@ -108,8 +148,7 @@ export async function chooseAi(account: Account, request: AiRequest, meter: AiMe
         )
       }
     } else if (meter === 'import') {
-      reservation = await reserveImport(account.userId)
-      if (!reservation) {
+      if (!take(await reserveImport(account.userId))) {
         return refuse(
           429,
           "You've reached this month's limit for importing resumes. It starts again next month.",
@@ -117,8 +156,7 @@ export async function chooseAi(account: Account, request: AiRequest, meter: AiMe
         )
       }
     } else if (meter === 'draft') {
-      reservation = await reserveEmailDraft(account.userId)
-      if (!reservation) {
+      if (!take(await reserveEmailDraft(account.userId))) {
         return refuse(
           429,
           "You've used this month's AI-written recruiter emails. Pro or a credit pack raises the limit, and it starts again next month. You can still write and send emails yourself.",
@@ -128,10 +166,10 @@ export async function chooseAi(account: Account, request: AiRequest, meter: AiMe
     }
     const daily = await takeDailyAiRequest(account.userId)
     if (!daily) {
-      if (reservation) await releaseReservation(reservation)
+      for (const taken of reservations) await releaseReservation(taken)
       return dailyLimitReached()
     }
-    return { ok: true, ...platform, reservation, daily, onPlatform: true }
+    return { ok: true, ...platform, reservations, daily, onPlatform: true }
   } catch (err) {
     console.error('[billing] could not check usage:', err instanceof Error ? err.message : err)
     return refuse(503, 'Your usage could not be checked right now. Try again in a moment.')
@@ -156,9 +194,10 @@ export interface AiFailure {
 }
 
 /**
- * Everything a route does when its AI work fails. It gives back the tailoring,
- * import or email the request took, and its place in the daily cap too when the
- * fault was the provider's rather than the answer's. It notes a failure on
+ * Everything a route does when its AI work fails. It gives back everything the
+ * request took — a tailoring, an import, an email, or an application and the run
+ * it spent — and its place in the daily cap too when the fault was the
+ * provider's rather than the answer's. It notes a failure on
  * Chills AI for the owner's AI settings, since the person who hit it sees only a
  * notice. Then it says what happened, in words that person can act on.
  */
@@ -166,7 +205,7 @@ export async function settleAiFailure(feature: string, role: Role, ai: AiGrant, 
   const kind = failureKind(err)
   const detail = errorText(err)
   console.error(`[${feature}] ${kind}:`, detail)
-  if (ai.reservation) await releaseReservation(ai.reservation)
+  for (const taken of ai.reservations) await releaseReservation(taken)
   if (ai.daily && PROVIDER_FAULTS.has(kind)) await releaseReservation(ai.daily)
   if (ai.onPlatform) await recordPlatformAiFailure({ feature, kind, message: detail })
   return { kind, message: failureNotice(role, err), status: FAILURE_STATUS[kind] }
@@ -175,12 +214,12 @@ export async function settleAiFailure(feature: string, role: Role, ai: AiGrant, 
 async function ownerAi(request: AiRequest): Promise<AiChoice> {
   if (request.usePlatform) {
     const platform: PlatformAiConfig | null = await getPlatformAi()
-    return platform ? { ok: true, ...platform, reservation: null, daily: null, onPlatform: true } : unavailable()
+    return platform ? { ok: true, ...platform, reservations: [], daily: null, onPlatform: true } : unavailable()
   }
   if (!request.provider) return refuse(400, 'Choose an AI provider in AI settings.')
   try {
     const apiKey = resolveApiKey(request.provider, request.apiKey, { allowServerKey: true })
-    return { ok: true, provider: request.provider, apiKey, model: request.model, reservation: null, daily: null, onPlatform: false }
+    return { ok: true, provider: request.provider, apiKey, model: request.model, reservations: [], daily: null, onPlatform: false }
   } catch (err) {
     return refuse(400, err instanceof Error ? err.message : String(err))
   }

@@ -26,6 +26,7 @@ import ImportPanel from '@/components/user/ImportPanel'
 import KeywordFinderPanel from '@/components/user/KeywordFinderPanel'
 import OutreachCard from '@/components/user/outreach/OutreachCard'
 import OutreachPanel from '@/components/user/outreach/OutreachPanel'
+import ApplyPanel from '@/components/user/ApplyPanel'
 import type { OutreachContext } from '@/components/user/outreach/outreach-client'
 import QuotaDialog from '@/components/user/QuotaDialog'
 import ResumeEditor from '@/components/user/ResumeEditor'
@@ -74,7 +75,7 @@ type View =
  * Screens that open over the current view. The view stays mounted underneath,
  * so a pasted job description survives a trip to buy tailorings or look something up.
  */
-type Overlay = 'billing' | 'history' | 'account' | 'keywords' | 'outreach' | null
+type Overlay = 'billing' | 'history' | 'account' | 'keywords' | 'outreach' | 'apply' | null
 
 const FORMAT_LABEL: Record<string, string> = { pdf: 'PDF', docx: 'Word', latex: 'LaTeX', text: 'text' }
 
@@ -287,6 +288,9 @@ export default function UserDashboard({ name, email, isOwner = false, openKeywor
                 }}
               />
             )}
+            <NavButton active={overlay === 'apply'} onClick={() => openOverlay('apply')} icon={<Sparkles size={16} />}>
+              Apply
+            </NavButton>
             <NavButton active={overlay === 'keywords'} onClick={() => openOverlay('keywords')} icon={<Search size={16} />}>
               Keywords
             </NavButton>
@@ -480,6 +484,20 @@ export default function UserDashboard({ name, email, isOwner = false, openKeywor
             onBack={() => setOverlay(null)}
           />
         )}
+        {overlay === 'apply' && (
+          <ApplyPanel
+            resumes={resumes}
+            settings={settings}
+            isOwner={isOwner}
+            onOpenOutreach={openOutreach}
+            onOpenBilling={() => openOverlay('billing')}
+            onImportResume={() => {
+              setOverlay(null)
+              setView({ kind: 'import' })
+            }}
+            onBack={() => setOverlay(null)}
+          />
+        )}
         {overlay === 'keywords' && (
           <KeywordFinderPanel
             {...aiProps}
@@ -591,14 +609,15 @@ function GettingStarted({ onImport }: { onImport: () => void }) {
  * tailorings run out as much as after.
  */
 function PlanStrip({ billing, onOpenBilling }: { billing: BillingStatus; onOpenBilling: () => void }) {
-  const { runs, subscription, pro } = billing
+  const { runs, subscription } = billing
   if (subscription?.entitled) return null
 
+  const pro = billing.tiers.pro
   const freeLeft = Math.max(0, runs.free.limit - runs.free.used)
-  const offer = `Pro gives you ${pro.runsPerCycle} tailorings a month for ${formatPrice(pro.pricePaise)}.`
+  const offer = `${pro.label} gives you ${pro.runsPerCycle} tailorings a month for ${formatPrice(pro.pricePaise)}.`
   const [text, warn] =
     runs.left === 0
-      ? [`You've used your ${runs.free.limit} free tailorings. Get Pro or a credit pack to keep tailoring.`, true]
+      ? [`You've used your ${runs.free.limit} free tailorings. Get ${pro.label} or a credit pack to keep tailoring.`, true]
       : freeLeft > 0
         ? [`${freeLeft} of your ${runs.free.limit} free tailorings left. ${offer} You can get it any time.`, false]
         : [`You have ${tailorings(runs.left)} left from credits. ${offer}`, false]

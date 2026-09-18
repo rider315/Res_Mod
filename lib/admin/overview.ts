@@ -1,9 +1,9 @@
 import { sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { freeTailorings, razorpayConfig } from '@/lib/billing/config'
-import { checkProPlan } from '@/lib/billing/plan-check'
+import { checkPlan } from '@/lib/billing/plan-check'
 import { getPlatformAiStatus } from '@/lib/billing/platform-ai'
-import { formatPrice, PRO_PLAN } from '@/lib/billing/plans'
+import { formatPrice, PAID_TIERS, TIERS } from '@/lib/billing/plans'
 import { buckets } from '@/lib/billing/quota'
 import { getProvider } from '@/lib/providers'
 import type { AdminOverview, SetupCheck } from '@/lib/admin/types'
@@ -99,18 +99,24 @@ async function setupChecks(): Promise<SetupCheck[]> {
       })
     }
 
-    if (!config.proPlanId) {
-      checks.push({ label: 'Pro plan', state: 'missing', detail: 'RAZORPAY_PRO_PLAN_ID is not set, so Pro is not offered.' })
-    } else {
+    // Each tier has its own plan in the Dashboard, so each is reported on its own:
+    // Premium simply isn't offered until its plan exists, which is not a fault.
+    for (const tier of PAID_TIERS) {
+      const spec = TIERS[tier]
+      const label = `${spec.label} plan`
+      if (!config.planIds[tier]) {
+        checks.push({ label, state: 'missing', detail: `${spec.envPlanId} is not set, so ${spec.label} is not offered.` })
+        continue
+      }
       try {
-        const plan = await checkProPlan(config)
+        const plan = await checkPlan(config, tier)
         checks.push(
           plan.ok
-            ? { label: 'Pro plan', state: 'ok', detail: `${formatPrice(PRO_PLAN.pricePaise)} a month, matching Razorpay.` }
-            : { label: 'Pro plan', state: 'missing', detail: plan.problem ?? 'The plan does not match.' }
+            ? { label, state: 'ok', detail: `${formatPrice(spec.pricePaise)} a month, matching Razorpay.` }
+            : { label, state: 'missing', detail: plan.problem ?? 'The plan does not match.' }
         )
       } catch {
-        checks.push({ label: 'Pro plan', state: 'warn', detail: "Razorpay couldn't be reached to check the plan. Refresh in a moment." })
+        checks.push({ label, state: 'warn', detail: "Razorpay couldn't be reached to check the plan. Refresh in a moment." })
       }
     }
   }
