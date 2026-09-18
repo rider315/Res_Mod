@@ -223,6 +223,7 @@ export default function OutreachPanel(props: OutreachPanelProps) {
           tone: options.tone,
           notes: options.notes,
           attachResume: options.attachResume,
+          research: options.research,
         },
         ownerAi(isOwner, settings)
       )

@@ -10,9 +10,10 @@ import { LIMITS, OutreachProfile, REPLY_INTENTS, ReplyIntent } from '@/lib/outre
  * answers: first emails, follow-ups, and reading a recruiter's reply.
  *
  * Every email is written only from the candidate's resume, the job post when
- * there is one, and what the candidate asked to mention. Nothing is "researched":
- * a model with no web access would make up company news, and a made-up fact in
- * an email to a recruiter is worse than none.
+ * there is one, what the candidate asked to mention, and facts read from the
+ * company's own website (lib/outreach/company-research.ts). The model is never
+ * asked what it knows about a company: it would make up company news, and a
+ * made-up fact in an email to a recruiter is worse than none.
  *
  * The signature is added here, not by the model, so the name, phone and links
  * always come out exactly as the candidate typed them.
@@ -42,6 +43,8 @@ export interface OutreachEmailInput {
   /** What the candidate wants every email to mention. */
   highlights: string
   attachResume: boolean
+  /** Facts read from the company's own website, each checked against it; null when there are none. */
+  about?: { site: string; facts: string[] } | null
 }
 
 const firstName = (name: string) => name.trim().split(/\s+/)[0] ?? ''
@@ -77,6 +80,11 @@ export function buildOutreachPrompt(input: OutreachEmailInput, problems: string[
   const wanted = input.highlights.trim()
     ? `\n\n## WHAT THE CANDIDATE WANTS MENTIONED\nWork these in naturally, using only what they say:\n${input.highlights.trim().slice(0, LIMITS.highlights)}`
     : ''
+  const facts = input.about?.facts.filter((fact) => fact.trim()) ?? []
+  const about =
+    facts.length > 0
+      ? `\n\n## ABOUT THE COMPANY\nRead from its website, ${input.about!.site}:\n${facts.map((fact) => `- ${fact}`).join('\n')}\nUse at most one of these, in a short clause, and only where it connects to the candidate's work. Don't list them, and add nothing they don't say.`
+      : ''
   const greeting = input.recruiter.name ? `"Hi ${firstName(input.recruiter.name)},"` : '"Hi there,"'
 
   return `Write a first email from ${input.candidateName || 'the candidate'} to a recruiter, asking to be considered for ${aim}.
@@ -85,7 +93,7 @@ export function buildOutreachPrompt(input: OutreachEmailInput, problems: string[
 ${input.resumeText.slice(0, 12_000)}
 
 ## THE RECRUITER
-${recruiter}${job}${wanted}
+${recruiter}${job}${about}${wanted}
 
 ## HOW TO WRITE IT
 - Tone: ${TONE_RULES[input.tone]}
@@ -96,7 +104,7 @@ ${recruiter}${job}${wanted}
 ${input.availability.trim() ? `- Mention naturally that the candidate's availability is: ${input.availability.trim()}.\n` : ''}- ${input.attachResume ? 'Say briefly that the resume is attached.' : "Don't mention an attachment."}
 - End with one short, easy ask, such as a quick call.
 - Subject: under 9 words and specific (the role, or the candidate's strongest fit). No hype, no question bait.
-- Use only facts from the resume, the job post and this brief. Never invent employers, titles, dates, numbers, skills, company news, products or funding. If the job post doesn't describe the company's work, don't describe it.
+- Use only facts from the resume, the job post and this brief. Never invent employers, titles, dates, numbers, skills, company news, products or funding. Describe the company's work only as the job post${facts.length > 0 ? ' or the notes about the company' : ''} does, and otherwise not at all.
 ${STYLE_RULES}
 
 ## OUTPUT FORMAT

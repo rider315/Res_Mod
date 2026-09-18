@@ -451,3 +451,22 @@ export const directoryClaims = pgTable(
     index('directory_claims_user_id_taken_at_idx').on(table.userId, table.takenAt),
   ]
 )
+
+/**
+ * What a company's own website says about it, read for recruiter emails
+ * (lib/outreach/company-research.ts). Shared by every account: it is public
+ * text, and one read serves every email to that company.
+ */
+export const companyResearch = pgTable('company_research', {
+  /** The recruiter's email domain, lower-cased. */
+  domain: text('domain').primaryKey(),
+  /** The host the text was read from, without "www."; the domain itself when nothing could be read. */
+  site: text('site').notNull(),
+  /** The company's name as its site writes it; '' when it doesn't. */
+  company: text('company').notNull().default(''),
+  /** Facts the site's text backs, each checked against it. */
+  facts: jsonb('facts').$type<string[]>().notNull().default([]),
+  /** found, nothing (read, with nothing specific to use) or unreachable. */
+  status: text('status').notNull(),
+  readAt: timestamp('read_at', { withTimezone: true }).notNull().defaultNow(),
+})

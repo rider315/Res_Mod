@@ -15,7 +15,9 @@ import { isPublicAddress } from '@/lib/net/public-address'
  *
  * The server only ever fetches a public address, over http(s), following each
  * redirect by hand and checking it again, so a link a user pastes can't be used
- * to reach a private network or a cloud metadata service. Server-only.
+ * to reach a private network or a cloud metadata service. The same reader,
+ * fetchPublicPage, reads a company's own website for recruiter emails
+ * (lib/outreach/company-research.ts). Server-only.
  */
 
 export type JobSourceProblem = 'url' | 'blocked' | 'fetch' | 'type' | 'empty' | 'too_big'
@@ -255,11 +257,12 @@ export interface FetchDeps {
 }
 
 /**
- * Fetch one page with the socket pinned to `address`. Node's own client takes a
- * `lookup`, so the connection goes to the address that was checked while the
- * hostname still drives SNI, the certificate check and the Host header.
+ * A fetcher that sends each request with the socket pinned to `address`, and
+ * gives up after `timeoutMs` of silence. Node's own client takes a `lookup`, so
+ * the connection goes to the address that was checked while the hostname still
+ * drives SNI, the certificate check and the Host header.
  */
-export const fetchPinned: PageFetcher = (url, address) =>
+export const pinnedFetcher = (timeoutMs: number): PageFetcher => (url, address) =>
   new Promise((resolve, reject) => {
     const secure = url.protocol === 'https:'
     const transport: typeof httpsRequest = secure ? httpsRequest : (httpRequest as typeof httpsRequest)
@@ -272,12 +275,12 @@ export const fetchPinned: PageFetcher = (url, address) =>
         method: 'GET',
         headers: {
           // Identifying, and asking for the page a reader would get.
-          'User-Agent': 'Chills/1.0 (+https://chills.pro; job posting reader)',
+          'User-Agent': 'Chills/1.0 (+https://chills.pro; page reader)',
           Accept: 'text/html,application/xhtml+xml',
           'Accept-Language': 'en',
           'Accept-Encoding': 'identity',
         },
-        timeout: TIMEOUT_MS,
+        timeout: timeoutMs,
         // Every connection goes to the address already checked, whatever DNS says now.
         lookup: (_hostname, options, callback) => {
           const family = isIP(address)
@@ -318,12 +321,41 @@ export const fetchPinned: PageFetcher = (url, address) =>
     req.end()
   })
 
+export const fetchPinned = pinnedFetcher(TIMEOUT_MS)
+
+/** A public page as it was read, after any redirects. */
+export interface PublicPage {
+  url: URL
+  html: string
+}
+
+/** What went wrong reading a page, in the words of whatever the page was wanted for. */
+export interface PageWords {
+  unreachable: string
+  gone: string
+  refused: string
+  unreadable: string
+  notAPage: string
+  nowhere: string
+  loops: string
+}
+
+const POSTING_WORDS: PageWords = {
+  unreachable: 'That job posting couldn’t be reached. Check the link, or paste the job text instead.',
+  gone: 'That posting is gone — it may have been filled.',
+  refused: 'That site won’t let Chills read the posting. Paste the job text instead.',
+  unreadable: 'That job posting couldn’t be read. Paste the job text instead.',
+  notAPage: 'That link isn’t a web page. Paste the job text instead.',
+  nowhere: 'That link goes nowhere. Paste the job text instead.',
+  loops: 'That link redirects too many times. Paste the job text instead.',
+}
+
 /**
- * Fetch a job posting, checking every hop. Redirects are followed by hand
+ * Read one public web page, checking every hop. Redirects are followed by hand
  * because a client that follows them itself would send the request to an
  * address that was never checked.
  */
-export async function fetchJobPosting(rawUrl: string, deps: FetchDeps = {}): Promise<Posting> {
+export async function fetchPublicPage(rawUrl: string, deps: FetchDeps = {}, words: PageWords = POSTING_WORDS): Promise<PublicPage> {
   const fetchPage = deps.fetchPage ?? fetchPinned
   const resolveHost = deps.resolveHost ?? resolvePublicHost
   let url = normalizeJobUrl(rawUrl)
@@ -335,51 +367,50 @@ export async function fetchJobPosting(rawUrl: string, deps: FetchDeps = {}): Pro
       response = await fetchPage(url, address)
     } catch (err) {
       if (err instanceof JobSourceError) throw err
-      throw new JobSourceError('That job posting couldn’t be reached. Check the link, or paste the job text instead.', 'fetch')
+      throw new JobSourceError(words.unreachable, 'fetch')
     }
 
     if (response.status >= 300 && response.status < 400) {
       const next = response.headers.get('location')
-      if (!next) throw new JobSourceError('That link goes nowhere. Paste the job text instead.', 'fetch')
+      if (!next) throw new JobSourceError(words.nowhere, 'fetch')
       url = normalizeJobUrl(new URL(next, url).toString())
       continue
     }
     if (!response.ok) {
-      const why =
-        response.status === 404
-          ? 'That posting is gone — it may have been filled.'
-          : response.status === 403 || response.status === 401
-            ? 'That site won’t let Chills read the posting. Paste the job text instead.'
-            : 'That job posting couldn’t be read. Paste the job text instead.'
+      const why = response.status === 404 ? words.gone : response.status === 403 || response.status === 401 ? words.refused : words.unreadable
       throw new JobSourceError(why, 'fetch')
     }
 
     const type = response.headers.get('content-type') ?? ''
     if (type && !/text\/html|application\/xhtml|text\/plain/i.test(type)) {
-      throw new JobSourceError('That link isn’t a web page. Paste the job text instead.', 'type')
+      throw new JobSourceError(words.notAPage, 'type')
     }
-
-    const html = await readCapped(response)
-    const structured = jobPostingFromHtml(html)
-    if (structured) return { url: url.toString(), ...structured }
-
-    const text = textFromHtml(html)
-    if (text.length < MIN_POSTING_CHARS) {
-      throw new JobSourceError(
-        'There wasn’t enough text on that page — some job boards load the posting after the page opens. Paste the job text instead.',
-        'empty'
-      )
-    }
-    return {
-      url: url.toString(),
-      title: pageTitle(html),
-      company: '',
-      location: '',
-      text: text.slice(0, MAX_POSTING_CHARS),
-      structured: false,
-    }
+    return { url, html: await readCapped(response) }
   }
-  throw new JobSourceError('That link redirects too many times. Paste the job text instead.', 'fetch')
+  throw new JobSourceError(words.loops, 'fetch')
+}
+
+/** Fetch a job posting: its structured JobPosting data when the page has it, else the page's text. */
+export async function fetchJobPosting(rawUrl: string, deps: FetchDeps = {}): Promise<Posting> {
+  const { url, html } = await fetchPublicPage(rawUrl, deps)
+  const structured = jobPostingFromHtml(html)
+  if (structured) return { url: url.toString(), ...structured }
+
+  const text = textFromHtml(html)
+  if (text.length < MIN_POSTING_CHARS) {
+    throw new JobSourceError(
+      'There wasn’t enough text on that page — some job boards load the posting after the page opens. Paste the job text instead.',
+      'empty'
+    )
+  }
+  return {
+    url: url.toString(),
+    title: pageTitle(html),
+    company: '',
+    location: '',
+    text: text.slice(0, MAX_POSTING_CHARS),
+    structured: false,
+  }
 }
 
 /** A posting the user pasted rather than linked. */

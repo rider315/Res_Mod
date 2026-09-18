@@ -3,6 +3,7 @@ import type { CoverLetterTone } from '@/lib/cover-letter'
 import type { MailboxStatus, OutreachProfile, ThreadStage } from '@/lib/outreach/model'
 import type { OutreachStats } from '@/lib/outreach/stats'
 import type {
+  CompanyNote,
   EmailDetail,
   EmailSource,
   ImportSummary,
@@ -44,6 +45,8 @@ export interface WriteRequest {
   attachResume?: boolean
   replaceDraftId?: string
   blank?: boolean
+  /** Read the company's website first; on unless turned off. */
+  research?: boolean
 }
 
 export interface DraftChange {
@@ -120,7 +123,10 @@ export const outreachApi = {
   threads: () => call<{ threads: ThreadSummary[] }>('/api/outreach/emails', 'Your emails couldn’t be loaded.'),
   thread: (id: string) => call<ThreadDetail>(`/api/outreach/emails/${id}`, 'That email couldn’t be loaded.'),
   write: (request: WriteRequest, ai: object) =>
-    call<{ email: EmailDetail }>('/api/outreach/emails', 'The email couldn’t be written.', { method: 'POST', json: { ...request, ...ai } }),
+    call<{ email: EmailDetail; company: CompanyNote | null }>('/api/outreach/emails', 'The email couldn’t be written.', {
+      method: 'POST',
+      json: { ...request, ...ai },
+    }),
   saveDraft: (id: string, change: DraftChange) =>
     call<{ email: EmailDetail }>(`/api/outreach/emails/${id}`, 'Your changes couldn’t be saved.', {
       method: 'PATCH',

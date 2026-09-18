@@ -19,6 +19,8 @@ export interface BatchWriteOptions {
   jobTitle: string
   notes: string
   attachResume: boolean
+  /** Read each recruiter's company website first, where their address points at one. */
+  research: boolean
 }
 
 const recipientName = (recruiter: RecruiterSummary) => recruiter.name || recruiter.email
@@ -65,6 +67,7 @@ export function BatchWriteDialog({
     jobTitle: '',
     notes: '',
     attachResume: true,
+    research: true,
   })
   const tooMany = draftsLeft !== null && recruiters.length > draftsLeft
   const usesTailoring = options.source.startsWith('tailoring:')
@@ -139,6 +142,11 @@ export function BatchWriteDialog({
           <input value={options.notes} onChange={(e) => setOptions({ ...options, notes: e.target.value })} maxLength={600} className={inputClass} />
         </Field>
         <Toggle checked={options.attachResume} onChange={(attachResume) => setOptions({ ...options, attachResume })} label="Attach the resume as a PDF" />
+        <Toggle
+          checked={options.research}
+          onChange={(research) => setOptions({ ...options, research })}
+          label="Read each company’s website first, so every email can say what that company does"
+        />
         {tooMany && (
           <div className={errorBox}>
             You have {draftsLeft} AI-written email{draftsLeft === 1 ? '' : 's'} left this month, so the batch will stop after {draftsLeft}.

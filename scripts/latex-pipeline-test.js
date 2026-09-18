@@ -2464,6 +2464,164 @@ async function applyTests() {
     applyPlans.formatPrice(applyPlans.PREMIUM_PLAN.pricePaise) === '₹499')
 }
 
+// ------------------------------------------------ 20. reading a company's site
+const companyResearch = require(BUILD + '/lib/outreach/company-research')
+const mailDomains = require(BUILD + '/lib/outreach/mail-domains')
+
+const NORTHWIND_SITE =
+  'Northwind builds payment infrastructure for 2,000 small businesses across India. ' +
+  'Our ledger service settles merchant payouts every morning. Founded in 2019 in Pune, we serve merchants in 40 cities.'
+
+/** A company's pages, with the site's furniture around the text so the reader has something to strip. */
+const sitePage = (text) => ({ body: `<html><head><title>Northwind</title></head><body><nav>Home Careers Login</nav><main><p>${text}</p></main></body></html>` })
+
+/** Where what was read is kept, in memory, with the save times under the check's control. */
+function memoryStore(clock) {
+  const rows = new Map()
+  return {
+    rows,
+    load: async (domain) => rows.get(domain) ?? null,
+    save: async (domain, entry) => {
+      rows.set(domain, { ...entry, readAt: clock() })
+    },
+  }
+}
+
+async function researchTests() {
+  console.log('\n=== reading a company’s own website for recruiter emails ===')
+  const { employerDomain } = mailDomains
+  const { backedBy, parseResearch, buildResearchPrompt, readCompanySite, researchCompany } = companyResearch
+
+  check('the employer’s site is read from a work address, never from a free, throwaway or mistyped provider',
+    employerDomain(' Priya@Acme.io ') === 'acme.io' && employerDomain('hr@talent.acme.co.in') === 'talent.acme.co.in' &&
+    employerDomain('x@gmail.com') === null && employerDomain('x@outlook.in') === null &&
+    employerDomain('x@mailinator.com') === null && employerDomain('x@gmial.com') === null && employerDomain('not an email') === null)
+
+  check('a fact in the site’s own words and numbers is backed by it',
+    backedBy('Builds payment infrastructure for 2000 small businesses across India.', NORTHWIND_SITE) &&
+    backedBy('Its ledger service settles merchant payouts every morning.', NORTHWIND_SITE))
+  check('a fact with a number the site never gives, or words it never uses, is not',
+    !backedBy('Builds payment infrastructure for 5,000 small businesses across India.', NORTHWIND_SITE) &&
+    !backedBy('Recently raised a Series B round led by Sequoia.', NORTHWIND_SITE) &&
+    !backedBy('Payments.', NORTHWIND_SITE))
+
+  const answer = parseResearch(JSON.stringify({
+    company: 'Northwind',
+    facts: [
+      'Builds payment infrastructure for 2,000 small businesses across India.',
+      'Recently raised a Series B round led by Sequoia.',
+      'builds payment infrastructure for 2,000 small businesses across india.',
+      'Its ledger service settles merchant payouts every morning.',
+      { not: 'a string' },
+    ],
+  }), NORTHWIND_SITE)
+  check('the model’s answer keeps only the facts the site backs, each once',
+    answer.company === 'Northwind' && answer.facts.length === 2 && !answer.facts.some((fact) => /Sequoia/.test(fact)),
+    JSON.stringify(answer))
+  check('an answer that isn’t JSON, or names a company the site doesn’t, gives nothing to use',
+    parseResearch('I could not find anything about them.', NORTHWIND_SITE).facts.length === 0 &&
+    parseResearch(JSON.stringify({ company: 'Globex', facts: [] }), NORTHWIND_SITE).company === '')
+  const researchPrompt = buildResearchPrompt('northwind.in', NORTHWIND_SITE)
+  check('the model is handed the site’s text and told to add nothing to it',
+    researchPrompt.includes(NORTHWIND_SITE) && researchPrompt.includes('Only what the text above says') && researchPrompt.includes('northwind.in'))
+
+  // ---- reading the site, with the network stubbed as in the posting checks
+  const thin = await readCompanySite('northwind.in', {
+    fetchPage: stubFetch({
+      'https://northwind.in/': sitePage('Payments for small businesses. Book a demo.'),
+      'https://northwind.in/about': sitePage(NORTHWIND_SITE + ' ' + NORTHWIND_SITE),
+    }),
+    resolveHost: stubResolver(),
+  })
+  check('a home page that says little is read with the about page, and the site’s furniture is dropped',
+    thin !== null && thin.site === 'northwind.in' && thin.text.includes('Book a demo') && thin.text.includes('ledger service') &&
+    !thin.text.includes('Careers Login'),
+    JSON.stringify(thin))
+  const www = await readCompanySite('globex.io', {
+    fetchPage: stubFetch({ 'https://www.globex.io/': sitePage(NORTHWIND_SITE.repeat(3)) }),
+    resolveHost: stubResolver(),
+  })
+  check('a site that only answers at www. is read there',
+    www !== null && www.site === 'globex.io' && www.text.includes('ledger service'), JSON.stringify(www && www.site))
+  check('a site that can’t be read at all gives nothing, rather than an error',
+    (await readCompanySite('initech.dev', { fetchPage: stubFetch({}), resolveHost: stubResolver() })) === null)
+
+  // ---- reading a company once, and what an email is told
+  let clock = new Date('2026-09-18T10:00:00Z')
+  const store = memoryStore(() => clock)
+  const asked = []
+  const scripted = (reply) => async (args) => {
+    asked.push(args)
+    return reply
+  }
+  const northwindPages = () => ({
+    fetchPage: stubFetch({ 'https://northwind.in/': sitePage(NORTHWIND_SITE.repeat(3)) }),
+    resolveHost: stubResolver(),
+  })
+  const reply = JSON.stringify({ company: 'Northwind', facts: ['Its ledger service settles merchant payouts every morning.', 'It has 9 offices in Europe.'] })
+
+  const found = await researchCompany('priya@northwind.in', scripted(reply), store, northwindPages(), clock)
+  check('a work address is researched: the site is read, the model asked once, and only the backed fact kept',
+    found.status === 'found' && found.site === 'northwind.in' && found.company === 'Northwind' && found.facts.length === 1 &&
+    asked.length === 1 && asked[0].temperature === 0 && store.rows.get('northwind.in').status === 'found',
+    JSON.stringify(found))
+
+  const failingFetch = { fetchPage: async () => { throw new Error('the network must not be used') }, resolveHost: stubResolver() }
+  const failingModel = async () => {
+    throw new Error('the model must not be asked')
+  }
+  clock = new Date('2026-10-01T10:00:00Z')
+  const again = await researchCompany('ravi@northwind.in', failingModel, store, failingFetch, clock)
+  check('another recruiter at the same company reuses what was read, without the network or the model',
+    again.status === 'found' && again.facts.length === 1, JSON.stringify(again))
+
+  const personal = await researchCompany('priya.rao@gmail.com', failingModel, store, failingFetch, clock)
+  check('a free-provider address has no company site to read', personal.status === 'personal')
+
+  const unreachable = await researchCompany('hr@initech.dev', failingModel, store, { fetchPage: stubFetch({}), resolveHost: stubResolver() }, clock)
+  check('a site that can’t be read is remembered as such, and the model is never asked',
+    unreachable.status === 'unreachable' && unreachable.site === 'initech.dev' && store.rows.get('initech.dev').status === 'unreachable')
+  let refetched = 0
+  const counting = { fetchPage: async () => { refetched++; throw new Error('still down') }, resolveHost: stubResolver() }
+  await researchCompany('hr@initech.dev', failingModel, store, counting, new Date(clock.getTime() + 60 * 60 * 1000))
+  const before = refetched
+  await researchCompany('hr@initech.dev', failingModel, store, counting, new Date(clock.getTime() + 3 * 24 * 60 * 60 * 1000))
+  check('...until a couple of days have passed, when it is tried again', before === 0 && refetched > 0, JSON.stringify({ before, refetched }))
+
+  const overloaded = async () => {
+    throw new Error('Overloaded')
+  }
+  const skipped = await researchCompany('hr@contoso.com', overloaded, store, {
+    fetchPage: stubFetch({ 'https://contoso.com/': sitePage(NORTHWIND_SITE.repeat(3)) }),
+    resolveHost: stubResolver(),
+  }, clock)
+  check('when the model can’t be asked, the email goes without, and nothing is remembered',
+    skipped.status === 'skipped' && !store.rows.has('contoso.com'), JSON.stringify(skipped))
+
+  // ---- what the email is told
+  const emailInput = {
+    candidateName: 'Riya Patel',
+    resumeText: '## Experience\n- Built the ledger service at Qflow',
+    recruiter: { name: 'Priya Rao', company: 'Northwind', title: 'Talent Partner' },
+    jobTitle: 'Platform Engineer',
+    company: '',
+    jobDescription: '',
+    tone: 'direct',
+    availability: '',
+    highlights: '',
+    attachResume: true,
+  }
+  const withFacts = outreachPrompt.buildOutreachPrompt({ ...emailInput, about: { site: 'northwind.in', facts: found.facts } })
+  const without = outreachPrompt.buildOutreachPrompt(emailInput)
+  check('an email with facts from the site is told where they came from, to use one at most, and to add nothing',
+    withFacts.includes('## ABOUT THE COMPANY') && withFacts.includes('northwind.in') && withFacts.includes(found.facts[0]) &&
+    withFacts.includes('Use at most one of these') && withFacts.includes('or the notes about the company') &&
+    /Never invent employers, titles, dates, numbers, skills, company news/.test(withFacts))
+  check('without them, the email may describe the company’s work only as the job post does',
+    !without.includes('## ABOUT THE COMPANY') && !without.includes('notes about the company') &&
+    without.includes("Describe the company's work only as the job post does"))
+}
+
 importTests()
   .then(tailorTests)
   .then(billingTests)
@@ -2475,6 +2633,7 @@ importTests()
   .then(featureTests)
   .then(outreachTests)
   .then(applyTests)
+  .then(researchTests)
   .then(summary, (err) => {
     check('the async tests ran to completion', false, err && err.stack)
     summary()

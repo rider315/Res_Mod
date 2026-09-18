@@ -1,4 +1,5 @@
 import { promises as dns } from 'node:dns'
+import { DISPOSABLE, FREE_PROVIDERS, TYPOS } from '@/lib/outreach/mail-domains'
 
 /**
  * Checking recruiter addresses before they are saved, so a mistyped or made-up
@@ -35,29 +36,6 @@ export type EmailCheck =
 const DNS_TIMEOUT_MS = 4000
 const DNS_CACHE_MS = 6 * 60 * 60 * 1000
 const CONCURRENCY = 12
-
-const DISPOSABLE = new Set([
-  'mailinator.com', 'guerrillamail.com', 'guerrillamail.net', 'sharklasers.com', '10minutemail.com',
-  '10minutemail.net', 'tempmail.com', 'temp-mail.org', 'throwawaymail.com', 'yopmail.com', 'getnada.com',
-  'trashmail.com', 'maildrop.cc', 'mailnesia.com', 'dispostable.com', 'fakeinbox.com', 'mintemail.com',
-  'mohmal.com', 'tempinbox.com', 'spamgourmet.com', 'mailcatch.com', 'tempmailo.com', 'emailondeck.com',
-  'mail-temp.com', 'discard.email', 'spam4.me', 'grr.la', 'guerrillamailblock.com', 'inboxkitten.com',
-  'nada.email', 'tmpmail.org', 'moakt.com', 'fakemail.net', 'burnermail.io', 'mailsac.com', 'tempr.email',
-])
-
-/** Providers that certainly take mail; their misspellings are caught separately. */
-const KNOWN_PROVIDERS = new Set([
-  'gmail.com', 'googlemail.com', 'yahoo.com', 'yahoo.co.in', 'hotmail.com', 'outlook.com', 'live.com',
-  'icloud.com', 'aol.com', 'protonmail.com', 'proton.me', 'zoho.com', 'rediffmail.com',
-])
-
-const TYPOS: Record<string, string> = {
-  'gmail.con': 'gmail.com', 'gmail.co': 'gmail.com', 'gmial.com': 'gmail.com', 'gmai.com': 'gmail.com',
-  'gmaill.com': 'gmail.com', 'gnail.com': 'gmail.com', 'gmail.cm': 'gmail.com', 'gmail.om': 'gmail.com',
-  'gmail.comm': 'gmail.com', 'yahoo.con': 'yahoo.com', 'yaho.com': 'yahoo.com', 'yahooo.com': 'yahoo.com',
-  'hotmail.con': 'hotmail.com', 'hotmial.com': 'hotmail.com', 'hotmai.com': 'hotmail.com',
-  'outlook.con': 'outlook.com', 'outlok.com': 'outlook.com', 'iclould.com': 'icloud.com', 'icloud.con': 'icloud.com',
-}
 
 const EMAIL_FORMAT =
   /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/
@@ -122,7 +100,7 @@ export async function checkEmail(raw: string, { lookUpDomain = process.env.EMAIL
   const domain = email.slice(at + 1)
   if (TYPOS[domain]) return reject(email, 'likely_typo', `${email.slice(0, at + 1)}${TYPOS[domain]}`)
   if (DISPOSABLE.has(domain)) return reject(email, 'disposable')
-  if (lookUpDomain && !KNOWN_PROVIDERS.has(domain) && (await domainTakesMail(domain)) === 'no') {
+  if (lookUpDomain && !FREE_PROVIDERS.has(domain) && (await domainTakesMail(domain)) === 'no') {
     return reject(email, 'invalid_domain')
   }
   return { valid: true, email }

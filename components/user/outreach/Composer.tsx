@@ -8,7 +8,8 @@ import { BILLING_CODES } from '@/lib/billing/types'
 import type { BillingStatus } from '@/lib/billing/types'
 import { COVER_LETTER_TONES, CoverLetterTone, TONE_LABELS } from '@/lib/cover-letter'
 import { followUpDue, LIMITS } from '@/lib/outreach/model'
-import type { EmailDetail, EmailSource, RecruiterSummary, ThreadSummary } from '@/lib/outreach/types'
+import { employerDomain } from '@/lib/outreach/mail-domains'
+import type { CompanyNote, EmailDetail, EmailSource, RecruiterSummary, ThreadSummary } from '@/lib/outreach/types'
 import { AISettings } from '@/lib/settings-storage'
 import EmailEditor from '@/components/user/outreach/EmailEditor'
 import { Field, relativeDay, StatusChip, Toggle } from '@/components/user/outreach/controls'
@@ -98,12 +99,19 @@ export default function Composer(props: ComposerProps) {
   const [tone, setTone] = useState<CoverLetterTone>('professional')
   const [notes, setNotes] = useState('')
   const [attachResume, setAttachResume] = useState(true)
+  const [research, setResearch] = useState(true)
+  /** What reading the company's site came to, for the draft it was read for. */
+  const [companyNote, setCompanyNote] = useState<{ emailId: string; note: CompanyNote } | null>(null)
   const [replacing, setReplacing] = useState<string | null>(null)
   /** Bumped when the AI replaces the draft, so the editor starts over from the new text. */
   const [revision, setRevision] = useState(0)
 
   const chosen = parseSourceKey(source)
   const chosenTailoring = chosen?.kind === 'tailoring' ? tailorings.find((t) => t.id === chosen.id) : undefined
+  // The site the recruiter's address points at; null for a free provider such as Gmail.
+  const employer = employerDomain(recruiter.email)
+  const readsSite = research && employer !== null
+  const factSource = readsSite ? `your resume and on ${employer}` : 'your resume'
   const draftsLeft = billing ? Math.max(0, billing.emailDrafts.limit - billing.emailDrafts.used) : null
   const aiOff = !isOwner && billing !== undefined && billing !== null && !billing.platformAi
 
@@ -151,7 +159,7 @@ export default function Composer(props: ComposerProps) {
     setError(null)
     setLimitHit(false)
     try {
-      const { email } = await outreachApi.write(
+      const { email, company } = await outreachApi.write(
         {
           recruiterId: recruiter.id,
           source: chosen,
@@ -161,11 +169,13 @@ export default function Composer(props: ComposerProps) {
           notes,
           attachResume,
           blank,
+          research: readsSite,
           ...(replacing ? { replaceDraftId: replacing } : {}),
         },
         ownerAi(isOwner, settings)
       )
       setDraft(email)
+      setCompanyNote(company ? { emailId: email.id, note: company } : null)
       setRevision((value) => value + 1)
       setWriting(false)
       setReplacing(null)
@@ -240,29 +250,32 @@ export default function Composer(props: ComposerProps) {
         ) : loadingDraft || !draft ? (
           error ? <div className={errorBox}>{error}</div> : <p className="text-sm font-semibold text-[var(--color-text-muted)]">Loading the draft…</p>
         ) : (
-          <EmailEditor
-            key={`${draft.id}-${revision}`}
-            email={draft}
-            recruiter={recruiter}
-            mailbox={props.mailbox}
-            attachment={attachmentLabel(draft.source, resumes, tailorings)}
-            locked={locked}
-            onChange={(email) => {
-              setDraft(email)
-              if (email.status !== 'draft') props.onChanged()
-            }}
-            onDeleted={() => {
-              setDraft(null)
-              setWriting(true)
-              props.onChanged()
-            }}
-            onOpenSetup={props.onOpenSetup}
-            extraActions={
-              <button onClick={() => startRewrite(draft)} disabled={locked} className={secondaryButton}>
-                <Refresh size={14} /> Rewrite with AI
-              </button>
-            }
-          />
+          <>
+            {companyNote?.emailId === draft.id && <CompanyNoteView note={companyNote.note} />}
+            <EmailEditor
+              key={`${draft.id}-${revision}`}
+              email={draft}
+              recruiter={recruiter}
+              mailbox={props.mailbox}
+              attachment={attachmentLabel(draft.source, resumes, tailorings)}
+              locked={locked}
+              onChange={(email) => {
+                setDraft(email)
+                if (email.status !== 'draft') props.onChanged()
+              }}
+              onDeleted={() => {
+                setDraft(null)
+                setWriting(true)
+                props.onChanged()
+              }}
+              onOpenSetup={props.onOpenSetup}
+              extraActions={
+                <button onClick={() => startRewrite(draft)} disabled={locked} className={secondaryButton}>
+                  <Refresh size={14} /> Rewrite with AI
+                </button>
+              }
+            />
+          </>
         )}
       </section>
     )
@@ -364,6 +377,18 @@ export default function Composer(props: ComposerProps) {
           </Field>
 
           <Toggle checked={attachResume} onChange={setAttachResume} disabled={busy} label="Attach the resume as a PDF" />
+          {employer ? (
+            <Toggle
+              checked={research}
+              onChange={setResearch}
+              disabled={busy}
+              label={`Read ${employer} first, so the email can say what the company does`}
+            />
+          ) : (
+            <p className="text-xs text-[var(--color-text-muted)]">
+              {recruiter.email.split('@')[1] ?? 'This address'} is a free email provider, so there’s no company website to read.
+            </p>
+          )}
 
           {error && (
             <div className={errorBox}>
@@ -382,8 +407,18 @@ export default function Composer(props: ComposerProps) {
               kind="email"
               startedAt={startedAt}
               active={0}
-              steps={[replacing ? 'Rewriting the email' : 'Writing the email from your resume']}
-              note="Only facts already in the resume you chose. Nothing is sent."
+              steps={[
+                readsSite
+                  ? `Reading ${employer}, then ${replacing ? 'rewriting' : 'writing'} the email`
+                  : replacing
+                    ? 'Rewriting the email'
+                    : 'Writing the email from your resume',
+              ]}
+              note={
+                readsSite
+                  ? 'Only facts from the resume you chose and the company’s own website. Nothing is sent.'
+                  : 'Only facts already in the resume you chose. Nothing is sent.'
+              }
             />
           )}
           <div className="flex flex-wrap items-center gap-3">
@@ -404,15 +439,43 @@ export default function Composer(props: ComposerProps) {
           <p className="text-xs text-[var(--color-text-muted)] flex items-center gap-1.5">
             <Sparkles size={13} />
             {isOwner
-              ? 'Written with your own AI settings, using only facts from your resume.'
+              ? `Written with your own AI settings, using only facts from ${factSource}.`
               : draftsLeft !== null
-                ? `${draftsLeft} of ${billing?.emailDrafts.limit} AI-written emails left this month. Written only from facts in your resume.`
-                : 'Written only from facts in your resume.'}
+                ? `${draftsLeft} of ${billing?.emailDrafts.limit} AI-written emails left this month. Written only from facts in ${factSource}.`
+                : `Written only from facts in ${factSource}.`}
           </p>
         </>
       )}
     </section>
   )
+}
+
+/** What the company's own website gave the email, or why it gave nothing, above the draft it was read for. */
+function CompanyNoteView({ note }: { note: CompanyNote }) {
+  if (note.status === 'found') {
+    return (
+      <div className="rounded-[10px] border-[1.6px] border-[var(--color-ink)] bg-[var(--color-sky-soft)] p-4 text-sm space-y-2">
+        <p className="font-bold">From {note.site}</p>
+        <ul className="list-disc pl-5 space-y-1 text-[var(--color-text-muted)]">
+          {note.facts.map((fact) => (
+            <li key={fact}>{fact}</li>
+          ))}
+        </ul>
+        <p className="text-xs text-[var(--color-text-muted)]">
+          The email may use one of these, as the site says it. Check it reads right before you send.
+        </p>
+      </div>
+    )
+  }
+  const why =
+    note.status === 'nothing'
+      ? `${note.site} says nothing specific enough to mention`
+      : note.status === 'unreachable'
+        ? `${note.site} couldn’t be read`
+        : note.status === 'skipped'
+          ? 'The company’s website couldn’t be checked just now'
+          : null
+  return why ? <p className="text-xs text-[var(--color-text-muted)]">{why}, so the email doesn’t describe the company’s work.</p> : null
 }
 
 function RecruiterHeader({ recruiter, onSaved }: { recruiter: RecruiterSummary; onSaved: () => void }) {

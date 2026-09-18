@@ -4,6 +4,9 @@ import { COVER_LETTER_TONES } from '@/lib/cover-letter'
 import { chooseAi, settleAiFailure } from '@/lib/billing/ai-access'
 import { LIMITS } from '@/lib/outreach/model'
 import { UnusableAnswerError, composeEmailBody, signatureLines, writeOutreachEmail } from '@/lib/outreach/prompt'
+import { researchCompany } from '@/lib/outreach/company-research'
+import type { CompanyNote } from '@/lib/outreach/types'
+import { researchStore } from '@/lib/db/company-research'
 import {
   createEmail,
   getEmailRow,
@@ -48,6 +51,8 @@ const schema = z.object({
   replaceDraftId: z.string().optional(),
   /** An empty draft to write by hand. It uses no AI. */
   blank: z.boolean().default(false),
+  /** Read the company's own website first, so the email can say what the company does. */
+  research: z.boolean().default(true),
   ...OwnerAiFields,
 })
 
@@ -90,6 +95,7 @@ export async function POST(req: NextRequest) {
   }
 
   let written: { subject: string; body: string }
+  let company: CompanyNote | null = null
   if (data.blank || !resolved) {
     written = {
       subject: job.title ? `${job.title} role` : '',
@@ -101,22 +107,26 @@ export async function POST(req: NextRequest) {
   } else {
     const ai = await chooseAi(auth, data, 'draft')
     if (!ai.ok) return ai.response
+    const generate = generatorFor(ai)
     try {
+      // Part of the same email: it takes nothing more, and never fails it.
+      company = data.research ? await researchCompany(recruiter.email, generate, researchStore) : null
       written = await writeOutreachEmail({
         input: {
           candidateName,
           resumeText: resolved.resumeText,
           recruiter: { name: recruiter.name, company: recruiter.company, title: recruiter.title },
           jobTitle: job.title,
-          company: resolved.job?.company || recruiter.company,
+          company: resolved.job?.company || recruiter.company || (company?.status === 'found' ? company.company : ''),
           jobDescription: data.jobDescription || resolved.job?.description || '',
           tone: data.tone,
           availability: profile.availability,
           highlights: [profile.highlights, data.notes].filter(Boolean).join('\n'),
           attachResume: data.attachResume,
+          about: company?.status === 'found' ? company : null,
         },
         signature,
-        generate: generatorFor(ai),
+        generate,
       })
     } catch (err) {
       const failure = await settleAiFailure('Recruiter email', auth.role, ai, err)
@@ -143,5 +153,5 @@ export async function POST(req: NextRequest) {
         attachResume: data.attachResume,
       })
   if (!email) return fail(409, 'That draft changed while it was being rewritten. Open it again.')
-  return NextResponse.json({ email }, { status: data.replaceDraftId ? 200 : 201 })
+  return NextResponse.json({ email, company }, { status: data.replaceDraftId ? 200 : 201 })
 }

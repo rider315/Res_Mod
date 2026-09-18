@@ -35,6 +35,8 @@
     "lib/outreach/email-check.ts",
     "lib/outreach/mailbox.ts",
     "lib/outreach/delivery.ts",
+    "lib/outreach/mail-domains.ts",
+    "lib/outreach/company-research.ts",
     "lib/billing/plans.ts",
     "lib/billing/quota.ts",
     "lib/billing/types.ts",

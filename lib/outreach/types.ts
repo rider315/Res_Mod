@@ -18,6 +18,20 @@ export interface RecruiterSummary {
 /** What a first email was written from, and attaches. */
 export type EmailSource = { kind: 'resume'; id: string } | { kind: 'tailoring'; id: string } | null
 
+/**
+ * What reading the company's website came to, shown next to the email it was
+ * read for (lib/outreach/company-research.ts):
+ * - found: facts the site backs, which the email may use one of
+ * - nothing: the site was read, and says nothing specific enough to use
+ * - unreachable: the site couldn't be read
+ * - personal: the recruiter writes from a free provider, so there is no site to read
+ * - skipped: the AI couldn't be asked just now; the email was written without it
+ */
+export type CompanyNote =
+  | { status: 'found'; site: string; company: string; facts: string[] }
+  | { status: 'nothing' | 'unreachable'; site: string }
+  | { status: 'personal' | 'skipped' }
+
 export interface ThreadSummary {
   id: string
   recruiter: { id: string; email: string; name: string; company: string; title: string }
