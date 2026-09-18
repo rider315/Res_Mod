@@ -10,8 +10,13 @@ import type { PlatformAiStatus } from '@/lib/billing/types'
  * account uses, and to the Business overview.
  *
  * While Chills AI is off, every other account can't import or tailor at all, so
- * that is flagged here, on every owner screen, until it is set.
+ * that is flagged here, on every owner screen, until it is set. So is Chills AI
+ * failing in a way only the owner can fix, such as a key the provider rejects:
+ * users see only a short notice, so without this nobody who can fix it finds out.
  */
+
+/** A failure only the owner can fix, this recent, flags Chills AI as failing. */
+const FAILING_WINDOW_MS = 24 * 60 * 60 * 1000
 
 const link =
   'inline-flex items-center px-3 py-1.5 text-sm font-bold rounded-[8px] border-[1.6px] border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:border-[var(--color-ink)] transition-all'
@@ -24,14 +29,21 @@ interface OwnerNavProps {
 
 export default function OwnerNav({ inUserWorkspace = false, onOpenAiSettings }: OwnerNavProps) {
   const [showBusiness, setShowBusiness] = useState(false)
-  const [platformOff, setPlatformOff] = useState(false)
+  const [platform, setPlatform] = useState<{ issue: 'off' | 'failing'; detail: string } | null>(null)
 
   const checkPlatformAi = useCallback(async () => {
     try {
       const res = await fetch('/api/admin/platform-ai', { cache: 'no-store' })
       if (!res.ok) return
       const status: PlatformAiStatus = await res.json()
-      setPlatformOff(!status.working && !status.overriddenByEnv)
+      const latest = status.recentFailures[0]
+      if (!status.working && !status.overriddenByEnv) {
+        setPlatform({ issue: 'off', detail: "Every other account can't import or tailor until you choose the AI they run on." })
+      } else if (latest?.kind === 'setup' && Date.now() - Date.parse(latest.at) < FAILING_WINDOW_MS) {
+        setPlatform({ issue: 'failing', detail: `Your users' requests are being refused: ${latest.message}` })
+      } else {
+        setPlatform(null)
+      }
     } catch {
       // Not knowing isn't worth a warning; the Business overview checks it too.
     }
@@ -45,13 +57,13 @@ export default function OwnerNav({ inUserWorkspace = false, onOpenAiSettings }: 
 
   return (
     <>
-      {platformOff && onOpenAiSettings && (
+      {platform && onOpenAiSettings && (
         <button
           onClick={onOpenAiSettings}
-          title="Every other account can't import or tailor until you choose the AI they run on."
+          title={platform.detail}
           className="nb-btn nb-btn-sm nb-btn-yellow px-3 py-1.5 text-xs"
         >
-          <span aria-hidden>⚠</span> Set up Chills AI
+          <span aria-hidden>⚠</span> {platform.issue === 'off' ? 'Set up Chills AI' : 'Chills AI is failing'}
         </button>
       )}
       <Link
