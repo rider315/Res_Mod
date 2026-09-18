@@ -6,8 +6,7 @@ import { getProvider, PROVIDER_ORDER } from '@/lib/providers'
 import { generateAIResponse } from '@/lib/ai-provider'
 import { structureResume } from '@/lib/import/structure'
 import { MAX_RESUME_TEXT } from '@/lib/resume-doc'
-import { aiFailureMessage, chooseAi } from '@/lib/billing/ai-access'
-import { releaseReservation } from '@/lib/billing/store'
+import { chooseAi, settleAiFailure } from '@/lib/billing/ai-access'
 
 // A long resume plus a possible retry can take a while on a slower model.
 export const maxDuration = 300
@@ -52,12 +51,7 @@ export async function POST(req: NextRequest) {
     })
     return NextResponse.json({ doc })
   } catch (err) {
-    if (ai.reservation) await releaseReservation(ai.reservation)
-    const message = err instanceof Error ? err.message : String(err)
-    console.error('[import/structure]', message)
-    return NextResponse.json(
-      { error: aiFailureMessage(auth.role, message) },
-      { status: /429|rate limit/i.test(message) ? 429 : 400 }
-    )
+    const failure = await settleAiFailure('Resume import', auth.role, ai, err)
+    return NextResponse.json({ error: failure.message }, { status: failure.status })
   }
 }

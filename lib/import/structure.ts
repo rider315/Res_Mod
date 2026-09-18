@@ -1,4 +1,5 @@
 import { extractJSON } from '@/lib/json-repair'
+import { AiCallError } from '@/lib/ai-errors'
 import { ResumeDoc, ResumeDocSchema } from '@/lib/resume-doc'
 import type { GenerateFn } from '@/lib/run-optimization'
 
@@ -124,8 +125,9 @@ export async function structureResume({
     problems = result.problems
   }
 
-  throw new Error(
+  throw new AiCallError(
     `The AI could not turn this resume into a usable structure (${problems.slice(0, 3).join('; ')}). ` +
-      'Try again, or pick a different model in Settings.'
+      'Try again, or pick a different model in Settings.',
+    'unusable'
   )
 }

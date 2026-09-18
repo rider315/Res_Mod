@@ -1,4 +1,5 @@
 import { extractJSON, invalidJsonMessage } from '@/lib/json-repair'
+import { AiCallError } from '@/lib/ai-errors'
 import { normalizeChanges, asStringArray, LengthLimits } from '@/lib/normalize-changes'
 import { AIProvider, ParsedResume, OptimizationResult } from '@/types/resume'
 import { ResumeProfile } from '@/lib/profiles/types'
@@ -185,7 +186,7 @@ export function parseRevampResponse(
     }
     if (!raw) {
       console.error('[revamper] Failed to parse AI response:', logSnippet(responseText))
-      throw new Error(invalidJsonMessage(provider, model))
+      throw new AiCallError(invalidJsonMessage(provider, model), 'unusable')
     }
   }
 
@@ -196,9 +197,10 @@ export function parseRevampResponse(
   })
 
   if (changes.length === 0 && skipped > 0) {
-    throw new Error(
+    throw new AiCallError(
       `The AI returned ${skipped} suggestion${skipped === 1 ? '' : 's'}, but none were usable — ` +
-      'they were malformed or changed the text length too much. Try again, or pick a different model in Settings.'
+      'they were malformed or changed the text length too much. Try again, or pick a different model in Settings.',
+      'unusable'
     )
   }
 

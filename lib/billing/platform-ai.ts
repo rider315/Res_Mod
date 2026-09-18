@@ -1,4 +1,5 @@
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
+import { z } from 'zod'
 import { getDb, schema } from '@/lib/db'
 import { AIProvider } from '@/types/resume'
 import { apiKeyName, getProvider, isValidProvider } from '@/lib/providers'
@@ -10,7 +11,8 @@ import {
   resolveStoredPlatformAi,
   StoredPlatformAi,
 } from '@/lib/billing/config'
-import type { PlatformAiStatus } from '@/lib/billing/types'
+import { AI_FAILURE_KINDS, AiFailureKind, errorText } from '@/lib/ai-errors'
+import type { PlatformAiFailure, PlatformAiStatus } from '@/lib/billing/types'
 
 /**
  * Chills AI as the owner chooses it in AI settings: the provider, model and key
@@ -22,6 +24,10 @@ import type { PlatformAiStatus } from '@/lib/billing/types'
  */
 
 const SETTING_KEY = `platform_ai@${process.env.VERCEL_ENV || 'local'}`
+
+/** Recent failures on Chills AI, for the owner (recordPlatformAiFailure). */
+const FAILURES_KEY = `platform_ai_failures@${process.env.VERCEL_ENV || 'local'}`
+const FAILURES_KEPT = 10
 
 /** A saved change reaches every server instance within this long. */
 const CACHE_MS = 15_000
@@ -75,7 +81,56 @@ export async function getPlatformAiStatus(): Promise<PlatformAiStatus> {
         : null,
     working: resolveStoredPlatformAi(stored, process.env, decryptSecret) !== null,
     overriddenByEnv: platformAiFromEnv() !== null,
+    recentFailures: await readFailures(),
   }
+}
+
+const FailureSchema = z.object({
+  at: z.string(),
+  feature: z.string(),
+  kind: z.enum(AI_FAILURE_KINDS),
+  message: z.string(),
+})
+
+async function readFailures(): Promise<PlatformAiFailure[]> {
+  const [row] = await getDb()
+    .select({ value: schema.appSettings.value })
+    .from(schema.appSettings)
+    .where(eq(schema.appSettings.key, FAILURES_KEY))
+    .limit(1)
+  if (!Array.isArray(row?.value)) return []
+  return row.value.flatMap((entry) => {
+    const parsed = FailureSchema.safeParse(entry)
+    return parsed.success ? [parsed.data] : []
+  })
+}
+
+/**
+ * Note a request that failed on Chills AI, for the owner's AI settings: the
+ * person who made it only saw a plain notice. Keeps the newest FAILURES_KEPT, in
+ * one statement, so failures landing together don't overwrite each other. Never
+ * throws: a failure that can't be noted still gets its answer.
+ */
+export async function recordPlatformAiFailure(failure: { feature: string; kind: AiFailureKind; message: string }): Promise<void> {
+  const entry = JSON.stringify({ at: new Date().toISOString(), ...failure, message: failure.message.slice(0, 500) })
+  try {
+    await getDb().execute(sql`
+      insert into app_settings (key, value) values (${FAILURES_KEY}, jsonb_build_array(${entry}::jsonb))
+      on conflict (key) do update set
+        value = (
+          select coalesce(jsonb_agg(item order by position), '[]'::jsonb)
+          from jsonb_array_elements(jsonb_build_array(${entry}::jsonb) || app_settings.value) with ordinality as list(item, position)
+          where position <= ${FAILURES_KEPT}
+        ),
+        updated_at = now()`)
+  } catch (err) {
+    console.error('[platform-ai] could not note a failure:', errorText(err))
+  }
+}
+
+/** A new setting starts with a clean slate: failures of the old one would only mislead. */
+async function forgetFailures(): Promise<void> {
+  await getDb().delete(schema.appSettings).where(eq(schema.appSettings.key, FAILURES_KEY))
 }
 
 /** A choice from AI settings that can't be saved, with the reason to show the owner. */
@@ -105,9 +160,11 @@ export async function savePlatformAi(stored: StoredPlatformAi, userId: string): 
       set: { value: stored, updatedBy: userId, updatedAt: new Date() },
     })
   cache = null
+  await forgetFailures()
 }
 
 export async function clearPlatformAi(): Promise<void> {
   await getDb().delete(schema.appSettings).where(eq(schema.appSettings.key, SETTING_KEY))
   cache = null
+  await forgetFailures()
 }

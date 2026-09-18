@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { AIProvider } from '@/types/resume'
 import { getProvider } from '@/lib/providers'
+import type { AiFailureKind } from '@/lib/ai-errors'
 import type { PlatformAiStatus } from '@/lib/billing/types'
 
 /**
@@ -23,6 +24,19 @@ interface PlatformAiSectionProps {
 }
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err))
+
+/** What each kind of failure (lib/ai-errors.ts) means for the owner. */
+const FAILURE_LABELS: Record<AiFailureKind, string> = {
+  busy: 'provider busy',
+  setup: 'needs your attention',
+  refused: 'declined',
+  unusable: 'unusable answer',
+  slow: 'too slow',
+  unknown: 'unexpected',
+}
+
+const when = (iso: string) =>
+  new Date(iso).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 
 export default function PlatformAiSection({ provider, model, apiKey, focus = false }: PlatformAiSectionProps) {
   const sectionRef = useRef<HTMLElement>(null)
@@ -108,6 +122,9 @@ export default function PlatformAiSection({ provider, model, apiKey, focus = fal
 
   const current = status?.current
   const currentProvider = current ? getProvider(current.provider) : null
+  const failures = status?.recentFailures ?? []
+  // Failures only the owner can fix are shown open; passing trouble stays folded away.
+  const needsFixing = failures.some((failure) => failure.kind === 'setup')
 
   return (
     <section
@@ -155,6 +172,35 @@ export default function PlatformAiSection({ provider, model, apiKey, focus = fal
           </p>
         )}
       </div>
+
+      {failures.length > 0 && (
+        <details
+          open={needsFixing}
+          className="rounded-[10px] border-[1.6px] border-[var(--color-ink)] p-3 text-xs"
+        >
+          <summary className={`cursor-pointer font-medium ${needsFixing ? 'text-[var(--color-warning)]' : 'text-[var(--color-text)]'}`}>
+            {failures.length === 1 ? '1 request' : `${failures.length} requests`} failed on Chills AI since it was saved
+            {' · '}latest {when(failures[0].at)}
+          </summary>
+          <p className="mt-2 text-[var(--color-text-muted)]">
+            Your users saw only a short notice. This is what the provider said, newest first.
+            {needsFixing && ' Anything marked “needs your attention” keeps failing until the key, model or account is fixed and saved again.'}
+          </p>
+          <ul className="mt-2 space-y-2">
+            {failures.map((failure, index) => (
+              <li key={`${failure.at}-${index}`} className="border-t border-[var(--color-border-soft)] pt-2 first:border-t-0 first:pt-0">
+                <p className="text-[var(--color-text-muted)]">
+                  {when(failure.at)} · {failure.feature} ·{' '}
+                  <span className={failure.kind === 'setup' ? 'font-semibold text-[var(--color-warning)]' : ''}>
+                    {FAILURE_LABELS[failure.kind]}
+                  </span>
+                </p>
+                <p className="text-[var(--color-text)] break-words">{failure.message}</p>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
 
       {message && (
         <p className={`text-xs ${message.ok ? 'text-[var(--color-success)]' : 'text-[var(--color-error)]'}`}>{message.text}</p>

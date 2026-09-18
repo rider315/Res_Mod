@@ -280,7 +280,7 @@ export async function loadQuota(userId: string, now = new Date()): Promise<Quota
 
 export interface Reservation {
   userId: string
-  source: RunSource | 'import' | 'draft' | 'send'
+  source: RunSource | 'import' | 'draft' | 'send' | 'ai'
   /** The counter it came from; null for a credit. */
   bucket: string | null
 }
@@ -323,9 +323,10 @@ export async function reserveEmailSend(userId: string, now = new Date()): Promis
   return (await takeFromCounter(userId, bucket, EMAIL_SENDS_PER_DAY)) ? { userId, source: 'send', bucket } : null
 }
 
-/** Count an AI request toward the account's daily cap, whichever AI it runs on. False once the cap is reached. */
-export async function takeDailyAiRequest(userId: string, now = new Date()): Promise<boolean> {
-  return takeFromCounter(userId, buckets.dailyAi(now), DAILY_AI_REQUESTS)
+/** Count an AI request toward the account's daily cap, whichever AI it runs on. Null once the cap is reached. */
+export async function takeDailyAiRequest(userId: string, now = new Date()): Promise<Reservation | null> {
+  const bucket = buckets.dailyAi(now)
+  return (await takeFromCounter(userId, bucket, DAILY_AI_REQUESTS)) ? { userId, source: 'ai', bucket } : null
 }
 
 /** Give back what a reservation took, after the work it paid for failed. Never throws. */

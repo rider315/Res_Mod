@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { extractJSON } from '@/lib/json-repair'
+import { AiCallError } from '@/lib/ai-errors'
 import { visible } from '@/lib/latex/match'
 import { parseLatexResume } from '@/lib/latex/parse'
 import { escapeLatexText } from '@/lib/latex/sanitize'
@@ -184,7 +185,7 @@ export async function writeCoverLetter({ input, generate }: { input: CoverLetter
     if (result.ok) return composeLetter(result, input.candidateName)
     problems = result.problems
   }
-  throw new Error(`The AI could not write a usable cover letter (${problems.slice(0, 2).join('; ')}). Try again.`)
+  throw new AiCallError(`The AI could not write a usable cover letter (${problems.slice(0, 2).join('; ')}). Try again.`, 'unusable')
 }
 
 export interface LetterHeader {

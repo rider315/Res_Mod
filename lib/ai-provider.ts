@@ -1,8 +1,9 @@
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import { GoogleGenerativeAI, GoogleGenerativeAIFetchError, GoogleGenerativeAIRequestInputError } from '@google/generative-ai'
 import { AIProvider } from '@/types/resume'
 import { apiKeyName, getProvider, ProviderConfig } from '@/lib/providers'
 import { extractJSON, estimateTokens } from '@/lib/json-repair'
 import { CallUsage, estimateCall, reportedCall } from '@/lib/ai-usage'
+import { AiCallError, errorText, withRetries } from '@/lib/ai-errors'
 import { generateClaude } from '@/lib/claude'
 import { logSnippet } from '@/lib/log'
 
@@ -144,10 +145,33 @@ async function generateGemini(
     },
   })
 
-  const result = await generativeModel.generateContent(prompt)
+  // The Gemini SDK retries nothing, and "the model is overloaded" (503) is common.
+  const result = await withRetries('gemini', () =>
+    generativeModel.generateContent(prompt).catch((err: unknown) => {
+      throw geminiFailure(err, model)
+    })
+  )
   const meta = result.response.usageMetadata as { promptTokenCount?: number; candidatesTokenCount?: number } | undefined
   sink(reportedCall(meta?.promptTokenCount, meta?.candidatesTokenCount))
-  return result.response.text()
+  try {
+    return result.response.text()
+  } catch (err) {
+    // text() throws when the answer was blocked, by a safety filter or similar.
+    throw new AiCallError(`Gemini gave no answer for "${model}": ${errorText(err)}`, 'refused')
+  }
+}
+
+/** Gemini's errors, sorted like every other provider's (lib/ai-errors.ts). */
+function geminiFailure(err: unknown, model: string): AiCallError {
+  const message = errorText(err)
+  if (err instanceof GoogleGenerativeAIFetchError && err.status) {
+    if (err.status === 429) return new AiCallError(`Gemini rate limit hit (429) for "${model}": ${message}`, 'busy')
+    if (err.status >= 500) return new AiCallError(`Gemini is unavailable (${err.status}) for "${model}": ${message}`, 'busy', true)
+    return new AiCallError(message, 'setup')
+  }
+  if (err instanceof GoogleGenerativeAIRequestInputError) return new AiCallError(message, 'unknown')
+  // No status: the request never got an answer, over the network or in time.
+  return new AiCallError(`Could not reach Gemini: ${message}`, 'busy', true)
 }
 
 // ─── OpenAI-compatible providers ─────────────────────────────────────────────
@@ -236,6 +260,15 @@ export function providerErrorMessage(
   }
 }
 
+/**
+ * A provider's HTTP error, sorted by what can be done about it (lib/ai-errors.ts).
+ * Rate limits and server errors reach here only after callChatCompletions has
+ * retried them.
+ */
+function providerFailure(config: ProviderConfig, status: number, body: string, model: string): AiCallError {
+  return new AiCallError(providerErrorMessage(config, status, body, model), status === 429 || status >= 500 ? 'busy' : 'setup')
+}
+
 /** Message content can come back as a plain string or as OpenAI-style content parts. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function readMessageContent(message: any): string {
@@ -297,12 +330,13 @@ async function callChatCompletions(
     } catch (err) {
       // Ollama is the common case here: the local server simply isn't running.
       if (config.id === 'ollama') {
-        throw new Error(
+        throw new AiCallError(
           `Could not reach Ollama at ${baseUrl}. Start it with "ollama serve" and make sure ` +
-          `you have pulled the model ("ollama pull ${model}").`
+          `you have pulled the model ("ollama pull ${model}").`,
+          'setup'
         )
       }
-      throw new Error(`Could not reach ${config.label} at ${baseUrl}: ${err instanceof Error ? err.message : String(err)}`)
+      throw new AiCallError(`Could not reach ${config.label} at ${baseUrl}: ${errorText(err)}`, 'busy')
     }
 
     if (response.ok) {
@@ -315,10 +349,10 @@ async function callChatCompletions(
           const waitMs = INITIAL_BACKOFF_MS * Math.pow(2, attempt)
           console.warn(`[${config.id}] Upstream 429 inside a 200 body. Waiting ${waitMs / 1000}s…`)
           await sleep(waitMs)
-          lastError = new Error(providerErrorMessage(config, 429, JSON.stringify(data.error), model))
+          lastError = providerFailure(config, 429, JSON.stringify(data.error), model)
           continue
         }
-        throw new Error(providerErrorMessage(config, upstreamStatus, JSON.stringify(data.error), model))
+        throw providerFailure(config, upstreamStatus, JSON.stringify(data.error), model)
       }
 
       return {
@@ -363,12 +397,12 @@ async function callChatCompletions(
         `Waiting ${Math.round(waitMs / 1000)}s before retry… (model: ${model})`
       )
       await sleep(waitMs)
-      lastError = new Error(providerErrorMessage(config, response.status, errorBody, model))
+      lastError = providerFailure(config, response.status, errorBody, model)
       continue
     }
 
     console.error(`[${config.id}] API error (model=${model}):`, response.status, logSnippet(errorBody))
-    throw new Error(providerErrorMessage(config, response.status, errorBody, model))
+    throw providerFailure(config, response.status, errorBody, model)
   }
 
   throw lastError ?? new Error(`${config.label}: max retries exhausted`)
@@ -415,10 +449,11 @@ async function generateOpenAICompatible(
 
   if (!result.rawText.trim()) {
     console.error(`[${config.id}] Empty response. finish_reason:`, result.finishReason)
-    throw new Error(
+    throw new AiCallError(
       `${config.label} model "${targetModel}" returned an empty response ` +
       `(finish_reason: ${result.finishReason}). Try a different model in Settings — ` +
-      'reasoning models and very small models often struggle with this prompt.'
+      'reasoning models and very small models often struggle with this prompt.',
+      'unusable'
     )
   }
 

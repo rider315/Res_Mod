@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { extractJSON } from '@/lib/json-repair'
+import { AiCallError } from '@/lib/ai-errors'
 import { visible } from '@/lib/latex/match'
 import { escapeLatexText } from '@/lib/latex/sanitize'
 import { CoverageRules, STRUCTURAL_LINE } from '@/lib/profiles/types'
@@ -132,9 +133,10 @@ export async function extractJdKeywords({
     if (result.ok) return result.value
     problems = result.problems
   }
-  throw new Error(
+  throw new AiCallError(
     `The AI could not pick out this job description's keywords (${problems.slice(0, 2).join('; ')}). ` +
-      'Try again, or pick a different model in AI settings.'
+      'Try again, or pick a different model in AI settings.',
+    'unusable'
   )
 }
 

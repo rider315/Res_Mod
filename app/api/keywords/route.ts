@@ -6,7 +6,7 @@ import { getProvider, PROVIDER_ORDER } from '@/lib/providers'
 import { generateAIResponse } from '@/lib/ai-provider'
 import { extractJdKeywords } from '@/lib/tailor/keywords'
 import { scoreKeywords } from '@/lib/tailor/keyword-finder'
-import { aiFailureMessage, chooseAi } from '@/lib/billing/ai-access'
+import { chooseAi, settleAiFailure } from '@/lib/billing/ai-access'
 
 export const maxDuration = 120
 
@@ -55,11 +55,7 @@ export async function POST(req: NextRequest) {
       keywords: scoreKeywords(jobDescription, found.keywords),
     })
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    console.error('[keywords]', message)
-    return NextResponse.json(
-      { error: aiFailureMessage(auth.role, message) },
-      { status: /429|rate limit/i.test(message) ? 429 : 400 }
-    )
+    const failure = await settleAiFailure('Keyword finder', auth.role, ai, err)
+    return NextResponse.json({ error: failure.message }, { status: failure.status })
   }
 }

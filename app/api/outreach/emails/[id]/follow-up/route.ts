@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { COVER_LETTER_TONES } from '@/lib/cover-letter'
-import { aiFailureMessage, chooseAi } from '@/lib/billing/ai-access'
-import { releaseReservation } from '@/lib/billing/store'
+import { chooseAi, settleAiFailure } from '@/lib/billing/ai-access'
 import { LIMITS } from '@/lib/outreach/model'
 import { UnusableAnswerError, signatureLines, writeFollowUp } from '@/lib/outreach/prompt'
 import { createEmail, getOutreachProfile, getThread } from '@/lib/db/outreach'
@@ -71,14 +70,12 @@ export async function POST(req: NextRequest, { params }: Params) {
       generate: generatorFor(ai),
     })
   } catch (err) {
-    if (ai.reservation) await releaseReservation(ai.reservation)
-    const message = err instanceof Error ? err.message : String(err)
-    console.error('[outreach/follow-up] writing failed:', message)
+    const failure = await settleAiFailure('Follow-up email', auth.role, ai, err)
     if (err instanceof UnusableAnswerError) {
       // It answered; the answer was unusable. Saying which beats "try again".
       return fail(502, `The AI wrote something Chills couldn’t use: ${err.reason}. Nothing was counted — try again, or write it yourself.`, 'ai_unusable')
     }
-    return fail(/429|rate limit/i.test(message) ? 429 : 502, aiFailureMessage(auth.role, message))
+    return fail(failure.status, failure.message)
   }
 
   const email = await createEmail(auth.userId, {

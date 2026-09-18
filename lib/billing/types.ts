@@ -1,4 +1,5 @@
 import type { AIProvider } from '@/types/resume'
+import type { AiFailureKind } from '@/lib/ai-errors'
 import type { CreditPack } from '@/lib/billing/plans'
 import type { Allowance } from '@/lib/billing/quota'
 
@@ -77,4 +78,20 @@ export interface PlatformAiStatus {
   working: boolean
   /** PLATFORM_AI_* environment variables are set on this server, and are used instead. */
   overriddenByEnv: boolean
+  /** Requests that failed on Chills AI since it was last saved, newest first. */
+  recentFailures: PlatformAiFailure[]
+}
+
+/**
+ * A request that failed on Chills AI, kept for the owner: the person who made it
+ * only saw a plain notice (lib/ai-errors.ts), so this is where the provider's
+ * own words end up.
+ */
+export interface PlatformAiFailure {
+  /** ISO time. */
+  at: string
+  /** What the person was doing, such as "Tailoring". */
+  feature: string
+  kind: AiFailureKind
+  message: string
 }

@@ -20,6 +20,9 @@ const rowsOf = (result: { rows: unknown[] }) => result.rows as Row[]
 const num = (value: unknown) => Number(value ?? 0)
 const iso = (value: unknown) => (value ? new Date(value as string).toISOString() : null)
 
+/** Chills AI failures older than this don't color the checklist; AI settings still lists them. */
+const RECENT_FAILURE_MS = 24 * 60 * 60 * 1000
+
 /** A webhook secret shorter than this is easy enough to guess to be worth replacing. */
 const STRONG_SECRET_LENGTH = 24
 
@@ -31,7 +34,25 @@ async function setupChecks(): Promise<SetupCheck[]> {
     checks.push({ label: 'Chills AI', state: 'ok', detail: 'Set by PLATFORM_AI_* variables on this server.' })
   } else if (ai.current && ai.working) {
     const provider = getProvider(ai.current.provider)
-    checks.push({ label: 'Chills AI', state: 'ok', detail: `Users run on ${provider.label}${ai.current.model ? ` · ${ai.current.model}` : ''}.` })
+    const runsOn = `Users run on ${provider.label}${ai.current.model ? ` · ${ai.current.model}` : ''}.`
+    const recent = ai.recentFailures.filter((failure) => Date.now() - Date.parse(failure.at) < RECENT_FAILURE_MS)
+    if (recent.length === 0) {
+      checks.push({ label: 'Chills AI', state: 'ok', detail: runsOn })
+    } else {
+      const refused = recent.find((failure) => failure.kind === 'setup')
+      checks.push({
+        label: 'Chills AI',
+        state: refused ? 'missing' : 'warn',
+        detail: [
+          runsOn,
+          `${recent.length === 1 ? '1 request' : `${recent.length} requests`} failed on it in the last day.`,
+          refused
+            ? `The provider refused one, which keeps happening until it's fixed: “${refused.message}”`
+            : `Latest: “${recent[0].message}”`,
+          'Details in AI settings.',
+        ].join(' '),
+      })
+    }
   } else if (ai.current) {
     checks.push({
       label: 'Chills AI',

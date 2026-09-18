@@ -1264,6 +1264,183 @@ async function usageTests() {
   }
 }
 
+// ------------------------------------------------------ 16b. when the AI fails
+const aiErrors = require(BUILD + '/lib/ai-errors')
+
+function sendJson(res, status, body, headers = {}) {
+  res.writeHead(status, { 'Content-Type': 'application/json', ...headers })
+  res.end(JSON.stringify(body))
+}
+
+/** Server-sent events, as the Messages API streams an answer. */
+function sendEvents(res, events, { end = true } = {}) {
+  res.writeHead(200, { 'Content-Type': 'text/event-stream' })
+  for (const [event, data] of events) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+  if (end) res.end()
+}
+
+const messageStart = () => ['message_start', {
+  type: 'message_start',
+  message: {
+    id: 'msg_test', type: 'message', role: 'assistant', model: 'claude-test', content: [],
+    stop_reason: null, stop_sequence: null, usage: { input_tokens: 12, output_tokens: 1 },
+  },
+}]
+const wholeAnswer = (text, stopReason = 'end_turn') => [
+  messageStart(),
+  ['content_block_start', { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } }],
+  ['content_block_delta', { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } }],
+  ['content_block_stop', { type: 'content_block_stop', index: 0 }],
+  ['message_delta', { type: 'message_delta', delta: { stop_reason: stopReason, stop_sequence: null }, usage: { output_tokens: 7 } }],
+  ['message_stop', { type: 'message_stop' }],
+]
+
+/**
+ * A stand-in for the Claude API, so the real SDK can be put through the ways a
+ * call fails in production. `models` answers the model lookup (a normal model
+ * by default); `messages` answers each request for an answer, told which one it is.
+ */
+async function askStandInClaude(model, { models, messages }) {
+  let asked = 0
+  const server = http.createServer((req, res) => {
+    if (req.method === 'GET' && req.url.startsWith('/v1/models/')) {
+      if (models) return models(res)
+      return sendJson(res, 200, {
+        type: 'model', id: model, display_name: model, created_at: '2026-01-01T00:00:00Z', max_tokens: 64000, max_input_tokens: 200000,
+      })
+    }
+    if (req.method === 'POST' && req.url.startsWith('/v1/messages')) {
+      req.resume()
+      req.on('end', () => messages(res, ++asked))
+      return
+    }
+    sendJson(res, 404, { type: 'error', error: { type: 'not_found_error', message: `no ${req.url}` } })
+  })
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const savedBase = process.env.ANTHROPIC_BASE_URL
+  process.env.ANTHROPIC_BASE_URL = `http://127.0.0.1:${server.address().port}`
+  try {
+    const value = await generateAIResponse({
+      provider: 'anthropic', apiKey: 'sk-ant-test', systemInstruction: 'sys', prompt: 'p', temperature: 0, model,
+    }).catch((err) => err)
+    return { value, asked }
+  } finally {
+    if (savedBase === undefined) delete process.env.ANTHROPIC_BASE_URL
+    else process.env.ANTHROPIC_BASE_URL = savedBase
+    await new Promise((resolve) => server.close(resolve))
+  }
+}
+
+const describeOutcome = ({ value, asked }) =>
+  JSON.stringify({ asked, value: value instanceof Error ? `${value.kind}: ${value.message}` : value })
+
+async function failureTests() {
+  console.log('\n=== when the AI fails ===')
+  const { AiCallError, failureKind, failureNotice, PROVIDER_FAULTS, withRetries } = aiErrors
+
+  // ---- what people are told
+  const busy = new AiCallError('Claude API rate limit hit (429)', 'busy')
+  const setup = new AiCallError('Your credit balance is too low to access the Anthropic API.', 'setup')
+  check('a user hears what they can do about a failure, never the provider’s words',
+    /busy/.test(failureNotice('user', busy)) && /isn't available/.test(failureNotice('user', setup)) &&
+    !/credit/.test(failureNotice('user', setup)) && /couldn't finish/.test(failureNotice('user', new Error('boom'))),
+    [failureNotice('user', busy), failureNotice('user', setup)].join(' | '))
+  check('the owner hears the provider’s own words',
+    failureNotice('owner', setup) === setup.message && failureNotice('owner', new Error('boom')) === 'boom')
+  check('the day’s request is given back only when the fault was the provider’s, not the answer’s',
+    ['busy', 'setup', 'unknown'].every((kind) => PROVIDER_FAULTS.has(kind)) &&
+    ['unusable', 'slow', 'refused'].every((kind) => !PROVIDER_FAULTS.has(kind)))
+  check('an error nothing sorted counts as unknown', failureKind(new Error('x')) === 'unknown' && failureKind(busy) === 'busy')
+
+  // ---- trying again
+  let tries = 0
+  const flaky = await withRetries('test', async () => {
+    tries++
+    if (tries < 3) throw new AiCallError('overloaded', 'busy', true)
+    return 'done'
+  }, [1, 1])
+  check('a failure marked for retry is tried again, once per pause', flaky === 'done' && tries === 3, String(tries))
+  tries = 0
+  const refused = await withRetries('test', async () => {
+    tries++
+    throw new AiCallError('bad key', 'setup')
+  }, [1, 1]).catch((err) => err)
+  check('one that isn’t is thrown straight away', tries === 1 && refused.kind === 'setup', String(tries))
+  tries = 0
+  await withRetries('test', async () => {
+    tries++
+    throw new AiCallError('overloaded', 'busy', true)
+  }, [1, 1]).catch(() => {})
+  check('and the retries stop when the pauses run out', tries === 3, String(tries))
+
+  // ---- the Claude transport, through the real SDK
+  let outcome = await askStandInClaude('claude-test-overloaded', {
+    messages: (res, n) =>
+      n === 1
+        ? sendEvents(res, [messageStart(), ['error', { type: 'error', error: { type: 'overloaded_error', message: 'Overloaded' } }]])
+        : sendEvents(res, wholeAnswer('{"ok":1}')),
+  })
+  check('an overload reported partway through an answer is tried again, and the second answer is used',
+    outcome.value === '{"ok":1}' && outcome.asked === 2, describeOutcome(outcome))
+
+  outcome = await askStandInClaude('claude-test-dropped', {
+    messages: (res, n) => {
+      if (n > 1) return sendEvents(res, wholeAnswer('{"ok":2}'))
+      sendEvents(res, [messageStart()], { end: false })
+      setTimeout(() => res.socket.destroy(), 20)
+    },
+  })
+  check('a connection that drops partway through an answer is tried again',
+    outcome.value === '{"ok":2}' && outcome.asked === 2, describeOutcome(outcome))
+
+  outcome = await askStandInClaude('claude-test-credit', {
+    messages: (res) => sendJson(res, 400, {
+      type: 'error',
+      error: { type: 'invalid_request_error', message: 'Your credit balance is too low to access the Anthropic API.' },
+    }),
+  })
+  check('an empty credit balance is a setup failure in the provider’s own words, and is not retried',
+    outcome.value instanceof AiCallError && outcome.value.kind === 'setup' &&
+    /\(400\): Your credit balance is too low/.test(outcome.value.message) && outcome.asked === 1,
+    describeOutcome(outcome))
+
+  outcome = await askStandInClaude('claude-test-bad-key', {
+    models: (res) => sendJson(res, 401, { type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key' } }),
+    messages: (res) => sendEvents(res, wholeAnswer('{}')),
+  })
+  check('a rejected key fails at the model lookup as a setup failure, before any answer is asked for',
+    outcome.value instanceof AiCallError && outcome.value.kind === 'setup' && /API key/.test(outcome.value.message) && outcome.asked === 0,
+    describeOutcome(outcome))
+
+  outcome = await askStandInClaude('claude-test-lookup', {
+    models: (res) => sendJson(res, 500, { type: 'error', error: { type: 'api_error', message: 'Internal error' } }, { 'x-should-retry': 'false' }),
+    messages: (res) => sendEvents(res, wholeAnswer('{"ok":3}')),
+  })
+  check('a model lookup that fails for any other reason doesn’t stop the answer',
+    outcome.value === '{"ok":3}' && outcome.asked === 1, describeOutcome(outcome))
+
+  outcome = await askStandInClaude('claude-test-refusal', { messages: (res) => sendEvents(res, wholeAnswer('', 'refusal')) })
+  check('a refusal is a kind of its own, and is not retried',
+    outcome.value instanceof AiCallError && outcome.value.kind === 'refused' && outcome.asked === 1, describeOutcome(outcome))
+
+  // ---- an OpenAI-compatible provider sorts its errors the same way
+  const openAi = http.createServer((req, res) => sendJson(res, 401, { error: { message: 'Invalid API key' } }))
+  await new Promise((resolve) => openAi.listen(0, '127.0.0.1', resolve))
+  const savedOllama = process.env.OLLAMA_BASE_URL
+  process.env.OLLAMA_BASE_URL = `http://127.0.0.1:${openAi.address().port}/v1`
+  try {
+    const rejected = await generateAIResponse({
+      provider: 'ollama', apiKey: '', systemInstruction: 'sys', prompt: 'p', temperature: 0, model: 'test-model',
+    }).catch((err) => err)
+    check('an OpenAI-compatible provider that refuses the key is a setup failure too',
+      rejected instanceof AiCallError && rejected.kind === 'setup', rejected && rejected.message)
+  } finally {
+    if (savedOllama === undefined) delete process.env.OLLAMA_BASE_URL
+    else process.env.OLLAMA_BASE_URL = savedOllama
+    await new Promise((resolve) => openAi.close(resolve))
+  }
+}
+
 // --------------------------------------------------------- 17. new features
 const finder = require(BUILD + '/lib/tailor/keyword-finder')
 const editText = require(BUILD + '/lib/tailor/edit-text')
@@ -2169,6 +2346,7 @@ importTests()
   .then(settingsTests)
   .then(resolveTests)
   .then(usageTests)
+  .then(failureTests)
   .then(featureTests)
   .then(outreachTests)
   .then(applyTests)

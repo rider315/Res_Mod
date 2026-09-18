@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { extractJSON } from '@/lib/json-repair'
+import { AiCallError } from '@/lib/ai-errors'
 import { CoverLetterTone, hasPlaceholder, TONE_RULES } from '@/lib/cover-letter'
 import type { GenerateFn } from '@/lib/run-optimization'
 import { LIMITS, OutreachProfile, REPLY_INTENTS, ReplyIntent } from '@/lib/outreach/model'
@@ -180,11 +181,11 @@ export function composeEmailBody(parts: Omit<EmailParts, 'subject'>, signature: 
  * twice, and neither answer passed the checks. The user is told which, because
  * "try again" on its own sends them round the same loop.
  */
-export class UnusableAnswerError extends Error {
+export class UnusableAnswerError extends AiCallError {
   /** What went wrong, in words a user can act on. */
   readonly reason: string
   constructor(what: string, problems: string[]) {
-    super(`The AI could not write a usable ${what} (${problems.slice(0, 2).join('; ')}).`)
+    super(`The AI could not write a usable ${what} (${problems.slice(0, 2).join('; ')}).`, 'unusable')
     this.name = 'UnusableAnswerError'
     const all = problems.join(' ').toLowerCase()
     this.reason = all.includes('too long')

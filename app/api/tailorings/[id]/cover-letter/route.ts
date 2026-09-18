@@ -4,7 +4,7 @@ import { requireAuth } from '@/lib/require-auth'
 import { AIProvider } from '@/types/resume'
 import { getProvider, PROVIDER_ORDER } from '@/lib/providers'
 import { generateAIResponse } from '@/lib/ai-provider'
-import { aiFailureMessage, chooseAi } from '@/lib/billing/ai-access'
+import { chooseAi, settleAiFailure } from '@/lib/billing/ai-access'
 import { getTailoring } from '@/lib/db/tailorings'
 import { getResume } from '@/lib/db/resumes'
 import { latestCoverLetter, saveCoverLetter } from '@/lib/db/cover-letters'
@@ -108,11 +108,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     const letter = await saveCoverLetter(auth.userId, { tailoringId: tailoring.id, tone, body })
     return NextResponse.json({ letter: shape(letter), written: written + 1, max: MAX_COVER_LETTERS_PER_TAILORING })
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    console.error('[cover-letter]', message)
-    return NextResponse.json(
-      { error: aiFailureMessage(auth.role, message) },
-      { status: /429|rate limit/i.test(message) ? 429 : 400 }
-    )
+    const failure = await settleAiFailure('Cover letter', auth.role, ai, err)
+    return NextResponse.json({ error: failure.message }, { status: failure.status })
   }
 }

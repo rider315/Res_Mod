@@ -12,8 +12,8 @@ import { standardProfile } from '@/lib/profiles/standard'
 import { getResume } from '@/lib/db/resumes'
 import { ResumeDocSchema } from '@/lib/resume-doc'
 import { renderCheckedResume } from '@/lib/import/render'
-import { aiFailureMessage, chooseAi } from '@/lib/billing/ai-access'
-import { releaseReservation } from '@/lib/billing/store'
+import { chooseAi, settleAiFailure } from '@/lib/billing/ai-access'
+import { AiCallError } from '@/lib/ai-errors'
 
 // Keyword extraction, the level's passes and the keyword pass are several model calls.
 export const maxDuration = 300
@@ -99,12 +99,11 @@ export async function POST(req: NextRequest, { params }: Params) {
         controller.close()
       }
       // A run that produced nothing isn't charged, however it ends.
-      const fail = async (message: string) => {
+      const fail = async (err: unknown) => {
         if (settled) return
         settled = true
-        if (ai.reservation) await releaseReservation(ai.reservation)
-        console.error('[resumes/:id/tailor]', message)
-        send({ type: 'error', error: aiFailureMessage(auth.role, message), rateLimited: /429|rate limit/i.test(message) })
+        const failure = await settleAiFailure('Tailoring', auth.role, ai, err)
+        send({ type: 'error', error: failure.message, rateLimited: failure.kind === 'busy' })
         close()
       }
       // The platform ends the request at maxDuration with no chance to give the run back, so stop just before.
@@ -113,8 +112,11 @@ export async function POST(req: NextRequest, { params }: Params) {
       const stopAt = startedAt + (limitS - 10) * 1000
       const watchdog = setTimeout(() => {
         void fail(
-          `Stopped after ${Math.round((Date.now() - startedAt) / 1000)} s: the AI is too slow to finish within ` +
-            `this server's ${limitS} s limit. Try a lighter level or a faster model.`
+          new AiCallError(
+            `Stopped after ${Math.round((Date.now() - startedAt) / 1000)} s: the AI is too slow to finish within ` +
+              `this server's ${limitS} s limit. Try a lighter level or a faster model.`,
+            'slow'
+          )
         )
       }, stopAt - Date.now())
 
@@ -166,7 +168,7 @@ export async function POST(req: NextRequest, { params }: Params) {
           send({ type: 'result', result, resume: rendered.parsed.resume, usage })
         }
       } catch (err) {
-        await fail(err instanceof Error ? err.message : String(err))
+        await fail(err)
       } finally {
         clearTimeout(watchdog)
         close()
