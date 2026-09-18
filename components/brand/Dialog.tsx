@@ -3,7 +3,7 @@ import { useEffect, useId, useRef } from 'react'
 import { Close } from '@/components/brand/Icons'
 
 /**
- * A modal in Chills's style: a blurred backdrop, a bold card, Escape or a click
+ * A modal in Chills's style, used across the app: a blurred backdrop, a bold card, Escape or a click
  * outside to close (unless it is busy), and the page behind it held still.
  */
 
@@ -16,6 +16,8 @@ interface DialogProps {
   /** While true, the dialog can't be dismissed: something is running. */
   busy?: boolean
   onClose: () => void
+  /** Where focus should land. Without it the card takes focus, which is safe but inert. */
+  initialFocus?: React.RefObject<HTMLElement>
   children: React.ReactNode
   footer?: React.ReactNode
 }
@@ -23,7 +25,7 @@ interface DialogProps {
 /** Open dialogs, innermost last: Escape closes only the one on top. */
 const openDialogs: string[] = []
 
-export default function Dialog({ title, subtitle, icon, width = 'max-w-lg', busy = false, onClose, children, footer }: DialogProps) {
+export default function Dialog({ title, subtitle, icon, width = 'max-w-lg', busy = false, onClose, initialFocus, children, footer }: DialogProps) {
   const titleId = useId()
   const card = useRef<HTMLDivElement>(null)
 
@@ -46,11 +48,12 @@ export default function Dialog({ title, subtitle, icon, width = 'max-w-lg', busy
   useEffect(() => {
     const previous = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    card.current?.focus()
+    // One place decides, so nothing has to race the card for it.
+    ;(initialFocus?.current ?? card.current)?.focus()
     return () => {
       document.body.style.overflow = previous
     }
-  }, [])
+  }, [initialFocus])
 
   return (
     <div

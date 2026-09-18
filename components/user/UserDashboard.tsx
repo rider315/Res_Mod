@@ -1,6 +1,7 @@
 'use client'
 import { useCallback, useEffect, useState } from 'react'
 import { signOut } from 'next-auth/react'
+import { useConfirm } from '@/components/ConfirmProvider'
 import OwnerNav from '@/components/OwnerNav'
 import SettingsModal from '@/components/SettingsModal'
 import { LogoMark } from '@/components/brand/Logo'
@@ -98,6 +99,7 @@ interface UserDashboardProps {
 }
 
 export default function UserDashboard({ name, email, isOwner = false, openKeywordFinder = false }: UserDashboardProps) {
+  const confirm = useConfirm()
   const [view, setView] = useState<View>({ kind: 'list' })
   const [overlay, setOverlay] = useState<Overlay>(openKeywordFinder ? 'keywords' : null)
   const [resumes, setResumes] = useState<ResumeSummary[] | null>(null)
@@ -220,7 +222,13 @@ export default function UserDashboard({ name, email, isOwner = false, openKeywor
   }
 
   async function remove(summary: ResumeSummary) {
-    if (!window.confirm(`Delete "${summary.title}"? This cannot be undone.`)) return
+    const ok = await confirm({
+      title: `Delete “${summary.title}”?`,
+      body: 'The resume and every tailored copy made from it go too.',
+      confirmLabel: 'Delete the resume',
+      danger: true,
+    })
+    if (!ok) return
     setBusyId(summary.id)
     setListError(null)
     try {

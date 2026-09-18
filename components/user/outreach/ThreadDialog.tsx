@@ -1,5 +1,6 @@
 'use client'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useConfirm } from '@/components/ConfirmProvider'
 import Working from '@/components/user/Working'
 import { Copy, ExternalLink, Inbox, Refresh, Reply, Trash, Wand } from '@/components/brand/Icons'
 import { ApiError } from '@/components/user/billing-client'
@@ -22,7 +23,7 @@ import {
 import { followUpSubject } from '@/lib/outreach/prompt'
 import type { EmailDetail, ReplyRecord, ThreadDetail } from '@/lib/outreach/types'
 import { AISettings } from '@/lib/settings-storage'
-import Dialog from '@/components/user/outreach/Dialog'
+import Dialog from '@/components/brand/Dialog'
 import EmailEditor from '@/components/user/outreach/EmailEditor'
 import { attachmentLabel, TailoringOption } from '@/components/user/outreach/Composer'
 import { relativeDay, StatusChip } from '@/components/user/outreach/controls'
@@ -65,6 +66,7 @@ const INTENT_FILL: Record<string, string> = {
 }
 
 export default function ThreadDialog(props: ThreadDialogProps) {
+  const confirm = useConfirm()
   const { threadId, resumes, tailorings, isOwner, settings } = props
   const [thread, setThread] = useState<ThreadDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -124,8 +126,14 @@ export default function ThreadDialog(props: ThreadDialogProps) {
       props.onChanged()
     })
 
-  const remove = () => {
-    if (!window.confirm('Delete this conversation? Its emails, follow-ups and replies are removed from Chills. Emails already sent stay in your mailbox.')) return
+  const remove = async () => {
+    const ok = await confirm({
+      title: 'Delete this conversation?',
+      body: 'Its emails, follow-ups and replies are removed from Chills. Emails you already sent stay in your mailbox.',
+      confirmLabel: 'Delete it',
+      danger: true,
+    })
+    if (!ok) return
     run('delete', async () => {
       await outreachApi.remove(threadId)
       props.onChanged()

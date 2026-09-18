@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useConfirm } from '@/components/ConfirmProvider'
 import { EMAIL_DRAFTS_PER_MONTH, formatPrice } from '@/lib/billing/plans'
 import type { BillingStatus, CheckoutStart } from '@/lib/billing/types'
 import {
@@ -34,6 +35,7 @@ const errorText = (err: unknown) => (err instanceof Error ? err.message : String
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 export default function BillingPanel({ billing, onBillingChange, onBack }: BillingPanelProps) {
+  const confirm = useConfirm()
   const [busy, setBusy] = useState<Busy>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -103,7 +105,14 @@ export default function BillingPanel({ billing, onBillingChange, onBack }: Billi
 
   async function cancel() {
     const until = billing?.subscription?.currentEnd ? `until ${formatDate(billing.subscription.currentEnd)}` : 'until this cycle ends'
-    if (!window.confirm(`Cancel Pro? You keep its runs ${until}, and it won't renew. This can't be undone.`)) return
+    const ok = await confirm({
+      title: 'Cancel Pro?',
+      body: `You keep its runs ${until}, and it won’t renew after that.`,
+      confirmLabel: 'Cancel Pro',
+      cancelLabel: 'Keep Pro',
+      danger: true,
+    })
+    if (!ok) return
     setBusy({ kind: 'cancel' })
     setError(null)
     setNotice(null)

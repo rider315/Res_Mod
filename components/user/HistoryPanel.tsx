@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useConfirm } from '@/components/ConfirmProvider'
 import { ArrowLeft, Download, FileText, History as HistoryIcon, Mail, Send, Trash } from '@/components/brand/Icons'
 import { outreachApi, OutreachContext } from '@/components/user/outreach/outreach-client'
 import CoverLetterPanel from '@/components/user/CoverLetterPanel'
@@ -62,6 +63,7 @@ const fileName = (item: TailoringSummary) => `${item.resumeTitle} ${item.company
 type Open = { id: string; what: 'job' | 'letter' } | null
 
 export default function HistoryPanel({ isOwner, settings, onEmailRecruiters, onBack }: HistoryPanelProps) {
+  const confirm = useConfirm()
   const [items, setItems] = useState<TailoringSummary[] | null>(null)
   const [details, setDetails] = useState<Record<string, TailoringDetail>>({})
   const [error, setError] = useState<string | null>(null)
@@ -139,8 +141,14 @@ export default function HistoryPanel({ isOwner, settings, onEmailRecruiters, onB
     })
   }
 
-  function remove(item: TailoringSummary) {
-    if (!window.confirm(`Delete the tailored copy for ${heading(item)}, and its cover letter? This cannot be undone.`)) return
+  async function remove(item: TailoringSummary) {
+    const ok = await confirm({
+      title: `Delete the tailored copy for ${heading(item)}?`,
+      body: 'Its cover letter goes with it. Your saved resume is not touched.',
+      confirmLabel: 'Delete the copy',
+      danger: true,
+    })
+    if (!ok) return
     run(item.id, async () => {
       const res = await fetch(`/api/tailorings/${item.id}`, { method: 'DELETE' })
       if (!res.ok) {

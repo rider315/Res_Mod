@@ -5,7 +5,7 @@ import { CheckCircle, FileText, Upload, Users } from '@/components/brand/Icons'
 import { errorBox, inputClass, linkButton, primaryButton, secondaryButton, successBox } from '@/components/user/shared'
 import type { ImportSummary } from '@/lib/outreach/types'
 import { LIMITS } from '@/lib/outreach/model'
-import Dialog from '@/components/user/outreach/Dialog'
+import Dialog from '@/components/brand/Dialog'
 import { Field, Segmented } from '@/components/user/outreach/controls'
 import { outreachApi } from '@/components/user/outreach/outreach-client'
 

@@ -5,7 +5,7 @@ import { cardClass, errorBox, inputClass, primaryButton, ResumeSummary, secondar
 import { COVER_LETTER_TONES, CoverLetterTone, TONE_LABELS } from '@/lib/cover-letter'
 import { BATCH_SEND_GAP_MS } from '@/lib/outreach/model'
 import type { RecruiterSummary } from '@/lib/outreach/types'
-import Dialog from '@/components/user/outreach/Dialog'
+import Dialog from '@/components/brand/Dialog'
 import { Field, Toggle } from '@/components/user/outreach/controls'
 import type { TailoringOption } from '@/components/user/outreach/Composer'
 import { describeTailoring, OutreachContext } from '@/components/user/outreach/outreach-client'

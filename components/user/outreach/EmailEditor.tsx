@@ -1,11 +1,12 @@
 'use client'
 import { useState } from 'react'
+import { useConfirm } from '@/components/ConfirmProvider'
 import Working from '@/components/user/Working'
 import { Check, Copy, ExternalLink, Paperclip, Send, Trash } from '@/components/brand/Icons'
 import { cardClass, errorBox, inputClass, linkButton, primaryButton, secondaryButton, successBox } from '@/components/user/shared'
 import { gmailComposeUrl, LIMITS, mailtoUrl, outlookComposeUrl } from '@/lib/outreach/model'
 import type { EmailDetail } from '@/lib/outreach/types'
-import Dialog from '@/components/user/outreach/Dialog'
+import Dialog from '@/components/brand/Dialog'
 import { Toggle } from '@/components/user/outreach/controls'
 import { outreachApi } from '@/components/user/outreach/outreach-client'
 
@@ -34,6 +35,7 @@ export interface EditorProps {
 }
 
 export default function EmailEditor({ email, recruiter, mailbox, attachment, onChange, onDeleted, onOpenSetup, locked = false, extraActions }: EditorProps) {
+  const confirm = useConfirm()
   const [subject, setSubject] = useState(email.subject)
   const [body, setBody] = useState(email.body)
   const [attachResume, setAttachResume] = useState(email.attachResume && attachment !== null)
@@ -91,8 +93,14 @@ export default function EmailEditor({ email, recruiter, mailbox, attachment, onC
       onChange(result.email)
     })
 
-  const remove = () => {
-    if (!window.confirm(email.threadId ? 'Delete this follow-up draft?' : 'Delete this draft?')) return
+  const remove = async () => {
+    const ok = await confirm({
+      title: email.threadId ? 'Delete this follow-up draft?' : 'Delete this draft?',
+      body: 'Nothing has been sent, so nothing leaves your mailbox.',
+      confirmLabel: 'Delete the draft',
+      danger: true,
+    })
+    if (!ok) return
     run('delete', async () => {
       await outreachApi.remove(email.id)
       onDeleted()

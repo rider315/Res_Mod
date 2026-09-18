@@ -1,5 +1,6 @@
 'use client'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useConfirm } from '@/components/ConfirmProvider'
 import { ArrowLeft, Briefcase, CheckCircle, Close, Mail, Plus, Send, Users, Wand } from '@/components/brand/Icons'
 import { ApiError } from '@/components/user/billing-client'
 import { backLinkClass, cardClass, errorBox, linkButton, primaryButton, ResumeSummary, secondaryButton } from '@/components/user/shared'
@@ -58,6 +59,7 @@ const STOPPERS = new Set<string>([
 ])
 
 export default function OutreachPanel(props: OutreachPanelProps) {
+  const confirm = useConfirm()
   const { isOwner, settings, billing, context } = props
   const [tab, setTab] = useState<Tab>('write')
   const [recruiters, setRecruiters] = useState<RecruiterSummary[] | null>(null)
@@ -142,15 +144,27 @@ export default function OutreachPanel(props: OutreachPanelProps) {
   const sendsLeft = isOwner || !billing ? null : Math.max(0, billing.emailSends.limit - billing.emailSends.used)
   const contextCopy = context ? tailoringList.find((t) => t.id === context.tailoringId) : undefined
 
-  function leave() {
-    if (running && !window.confirm('Emails are still being processed. Stop and leave?')) return
+  async function leave() {
+    if (running && !(await confirm({
+      title: 'Emails are still going out.',
+      body: 'Leaving stops the batch where it is. The ones already sent stay sent.',
+      confirmLabel: 'Stop and leave',
+      cancelLabel: 'Stay here',
+      danger: true,
+    }))) return
     stopRequested.current = true
     props.onBack()
   }
 
   async function removeSelected() {
     const count = selected.size
-    if (!window.confirm(`Remove ${count} recruiter${count === 1 ? '' : 's'}? Their drafts, sent-email history and replies in Chills go too.`)) return
+    const ok = await confirm({
+      title: `Remove ${count} recruiter${count === 1 ? '' : 's'}?`,
+      body: 'Their drafts, sent-email history and replies in Chills go too.',
+      confirmLabel: 'Remove them',
+      danger: true,
+    })
+    if (!ok) return
     try {
       await outreachApi.removeRecruiters(Array.from(selected))
       if (focusedId && selected.has(focusedId)) setFocusedId(null)

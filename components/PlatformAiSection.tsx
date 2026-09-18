@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import { AIProvider } from '@/types/resume'
+import { useConfirm } from '@/components/ConfirmProvider'
 import { getProvider } from '@/lib/providers'
 import type { AiFailureKind } from '@/lib/ai-errors'
 import type { PlatformAiStatus } from '@/lib/billing/types'
@@ -39,6 +40,7 @@ const when = (iso: string) =>
   new Date(iso).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 
 export default function PlatformAiSection({ provider, model, apiKey, focus = false }: PlatformAiSectionProps) {
+  const confirm = useConfirm()
   const sectionRef = useRef<HTMLElement>(null)
   const [status, setStatus] = useState<PlatformAiStatus | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -90,7 +92,12 @@ export default function PlatformAiSection({ provider, model, apiKey, focus = fal
   async function send(method: 'PUT' | 'DELETE') {
     if (
       method === 'DELETE' &&
-      !window.confirm("Turn off Chills AI? Users won't be able to import or tailor, and buying plans switches off.")
+      !(await confirm({
+        title: 'Turn off Chills AI?',
+        body: 'Users won’t be able to import or tailor, and buying plans switches off until you set it again.',
+        confirmLabel: 'Turn it off',
+        danger: true,
+      }))
     ) {
       return
     }

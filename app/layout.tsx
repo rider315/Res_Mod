@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { DM_Sans } from 'next/font/google'
 import './globals.css'
 import AuthProvider from '@/components/AuthProvider'
+import ConfirmProvider from '@/components/ConfirmProvider'
 
 const sans = DM_Sans({ subsets: ['latin'], variable: '--font-sans', display: 'swap' })
 
@@ -18,7 +19,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={sans.variable}>
       <body>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <ConfirmProvider>{children}</ConfirmProvider>
+        </AuthProvider>
       </body>
     </html>
   )

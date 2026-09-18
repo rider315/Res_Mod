@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { useConfirm } from '@/components/ConfirmProvider'
 import Working from '@/components/user/Working'
 import { CheckCircle, ExternalLink, Eye, KeyIcon, Mail, Plus, Shield, Trash } from '@/components/brand/Icons'
 import { cardClass, errorBox, inputClass, linkButton, primaryButton, secondaryButton, successBox } from '@/components/user/shared'
@@ -33,6 +34,7 @@ export default function SenderSetup({ setup, onSetupChange }: SenderSetupProps) 
 }
 
 function MailboxCard({ setup, onSetupChange }: SenderSetupProps) {
+  const confirm = useConfirm()
   const connected = setup.mailbox
   const [editing, setEditing] = useState(!connected)
   const [provider, setProvider] = useState<MailProviderId>(connected?.provider ?? 'gmail')
@@ -64,7 +66,13 @@ function MailboxCard({ setup, onSetupChange }: SenderSetupProps) {
   }
 
   async function disconnect() {
-    if (!window.confirm('Disconnect this mailbox? Chills forgets its app password. Your drafts and sent emails stay.')) return
+    const ok = await confirm({
+      title: 'Disconnect this mailbox?',
+      body: 'Chills forgets its app password. Your drafts and the emails you already sent stay where they are.',
+      confirmLabel: 'Disconnect',
+      danger: true,
+    })
+    if (!ok) return
     setBusy('disconnect')
     setError(null)
     try {
