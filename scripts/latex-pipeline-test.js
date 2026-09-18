@@ -2166,13 +2166,19 @@ function stubResolver() {
   }
 }
 
-/** A stub for one fetch, so no check ever reaches the network. */
+/**
+ * A stub for one page fetch, so no check ever reaches the network. It records
+ * the address it was handed as well as the URL: the fetcher is given an address
+ * that has already been checked, and must use it rather than resolve the name
+ * again.
+ */
 function stubFetch(pages) {
   const seen = []
-  const impl = async (url) => {
-    seen.push(url)
-    const page = pages[url]
-    if (!page) throw new Error('nothing stubbed for ' + url)
+  const impl = async (url, address) => {
+    const href = url.toString()
+    seen.push({ href, address })
+    const page = pages[href]
+    if (!page) throw new Error('nothing stubbed for ' + href)
     return {
       ok: page.status === undefined || (page.status >= 200 && page.status < 300),
       status: page.status ?? 200,
@@ -2264,7 +2270,7 @@ async function applyTests() {
     jobPostingFromHtml('<script type="application/ld+json">not json at all</script>') === null)
 
   // ---- fetching, hop by hop
-  const direct = await fetchJobPosting('https://jobs.example.com/pe', { fetchImpl: stubFetch({ 'https://jobs.example.com/pe': { body: ldHtml } }), resolveHost: stubResolver() })
+  const direct = await fetchJobPosting('https://jobs.example.com/pe', { fetchPage: stubFetch({ 'https://jobs.example.com/pe': { body: ldHtml } }), resolveHost: stubResolver() })
   check('a posting is read from the link, with its structured data',
     direct.structured && direct.company === 'Northwind Labs' && direct.url === 'https://jobs.example.com/pe')
 
@@ -2272,13 +2278,30 @@ async function applyTests() {
     'https://short.example/x': { status: 302, headers: { location: 'https://jobs.example.com/real' } },
     'https://jobs.example.com/real': { body: ldHtml },
   })
-  const redirected = await fetchJobPosting('https://short.example/x', { fetchImpl: hops, resolveHost: stubResolver() })
+  const redirected = await fetchJobPosting('https://short.example/x', { fetchPage: hops, resolveHost: stubResolver() })
   check('a redirect is followed by hand and the destination is read',
     redirected.url === 'https://jobs.example.com/real' && hops.seen.length === 2)
 
+  // The gap this closes: checking the addresses and then fetching by name lets the
+  // name answer differently the second time, which is how DNS rebinding reaches a
+  // private network. Every hop must be fetched at the address that was checked.
+  const pinned = stubFetch({
+    'https://short.example/x': { status: 302, headers: { location: 'https://jobs.example.com/real' } },
+    'https://jobs.example.com/real': { body: ldHtml },
+  })
+  let handedOut = 0
+  await fetchJobPosting('https://short.example/x', {
+    fetchPage: pinned,
+    resolveHost: async () => ['93.184.216.34', '151.101.1.140'][handedOut++],
+  })
+  check('every hop is fetched at the address that was just checked, never by name again',
+    pinned.seen.length === 2 && pinned.seen[0].address === '93.184.216.34' && pinned.seen[1].address === '151.101.1.140' &&
+    pinned.seen[1].href === 'https://jobs.example.com/real',
+    JSON.stringify(pinned.seen))
+
   const toPrivate = stubFetch({ 'https://short.example/x': { status: 302, headers: { location: 'http://169.254.169.254/latest/' } } })
   let blocked = null
-  await fetchJobPosting('https://short.example/x', { fetchImpl: toPrivate, resolveHost: stubResolver() }).catch((err) => (blocked = err))
+  await fetchJobPosting('https://short.example/x', { fetchPage: toPrivate, resolveHost: stubResolver() }).catch((err) => (blocked = err))
   check('a redirect into a private network is refused, and never fetched',
     blocked instanceof JobSourceError && blocked.kind === 'blocked' && toPrivate.seen.length === 1,
     blocked && blocked.kind)
@@ -2291,7 +2314,7 @@ async function applyTests() {
   }
   const kinds = {}
   for (const [name, pages] of Object.entries(failures)) {
-    await fetchJobPosting('https://x.example/a', { fetchImpl: stubFetch(pages), resolveHost: stubResolver() }).catch((err) => (kinds[name] = err.kind))
+    await fetchJobPosting('https://x.example/a', { fetchPage: stubFetch(pages), resolveHost: stubResolver() }).catch((err) => (kinds[name] = err.kind))
   }
   check('a PDF, a page with no posting on it, a dead link and an enormous page each say what to do instead',
     kinds.type === 'type' && kinds.empty === 'empty' && kinds.fetch === 'fetch' && kinds.too_big === 'too_big',

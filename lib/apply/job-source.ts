@@ -1,4 +1,7 @@
 import { lookup } from 'node:dns/promises'
+import { request as httpRequest } from 'node:http'
+import { request as httpsRequest } from 'node:https'
+import { isIP } from 'node:net'
 import { isPublicAddress } from '@/lib/net/public-address'
 
 /**
@@ -220,7 +223,7 @@ function pageTitle(html: string): string {
 }
 
 /** One hop, with the body capped so a huge page can't be pulled into memory. */
-async function readCapped(response: Response): Promise<string> {
+async function readCapped(response: FetchedPage): Promise<string> {
   const declared = Number(response.headers.get('content-length') ?? 0)
   if (declared > MAX_BYTES) throw new JobSourceError('That page is too large to read.', 'too_big')
   const buffer = await response.arrayBuffer()
@@ -228,37 +231,110 @@ async function readCapped(response: Response): Promise<string> {
   return new TextDecoder('utf-8').decode(buffer)
 }
 
+/** As much of a Response as reading a posting needs. */
+export interface FetchedPage {
+  ok: boolean
+  status: number
+  headers: { get(name: string): string | null }
+  arrayBuffer(): Promise<ArrayBuffer>
+}
+
+/**
+ * One request, to an address that has already been checked. The address is a
+ * parameter rather than something the fetcher resolves, because that is the
+ * whole point: `fetch(url)` would resolve the name again, and a name whose
+ * answer changes between the check and the request is how a DNS-rebinding
+ * attack reaches a private network.
+ */
+export type PageFetcher = (url: URL, address: string) => Promise<FetchedPage>
+
 /** Injected by the checks so they never touch the network or a resolver. */
 export interface FetchDeps {
-  fetchImpl?: typeof fetch
+  fetchPage?: PageFetcher
   resolveHost?: (url: URL) => Promise<string>
 }
 
 /**
- * Fetch a job posting, checking every hop. Redirects are followed by hand
- * because `redirect: "follow"` would send the request to an address that was
- * never checked.
+ * Fetch one page with the socket pinned to `address`. Node's own client takes a
+ * `lookup`, so the connection goes to the address that was checked while the
+ * hostname still drives SNI, the certificate check and the Host header.
  */
-export async function fetchJobPosting(rawUrl: string, deps: FetchDeps = {}): Promise<Posting> {
-  const fetchImpl = deps.fetchImpl ?? fetch
-  const resolveHost = deps.resolveHost ?? resolvePublicHost
-  let url = normalizeJobUrl(rawUrl)
-
-  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-    await resolveHost(url)
-    let response: Response
-    try {
-      response = await fetchImpl(url.toString(), {
-        redirect: 'manual',
+export const fetchPinned: PageFetcher = (url, address) =>
+  new Promise((resolve, reject) => {
+    const secure = url.protocol === 'https:'
+    const transport: typeof httpsRequest = secure ? httpsRequest : (httpRequest as typeof httpsRequest)
+    const req = transport(
+      {
+        protocol: url.protocol,
+        hostname: url.hostname,
+        port: url.port || (secure ? 443 : 80),
+        path: `${url.pathname}${url.search}`,
+        method: 'GET',
         headers: {
           // Identifying, and asking for the page a reader would get.
           'User-Agent': 'Chills/1.0 (+https://chills.pro; job posting reader)',
           Accept: 'text/html,application/xhtml+xml',
           'Accept-Language': 'en',
+          'Accept-Encoding': 'identity',
         },
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-      })
-    } catch {
+        timeout: TIMEOUT_MS,
+        // Every connection goes to the address already checked, whatever DNS says now.
+        lookup: (_hostname, options, callback) => {
+          const family = isIP(address)
+          const answer = { address, family }
+          // http passes all:false; honour both shapes rather than assume.
+          if ((options as { all?: boolean }).all) (callback as unknown as (e: null, a: unknown[]) => void)(null, [answer])
+          else callback(null, address, family)
+        },
+      },
+      (res) => {
+        const chunks: Buffer[] = []
+        let size = 0
+        res.on('data', (chunk: Buffer) => {
+          size += chunk.length
+          if (size > MAX_BYTES) {
+            req.destroy()
+            reject(new JobSourceError('That page is too large to read.', 'too_big'))
+            return
+          }
+          chunks.push(chunk)
+        })
+        res.on('end', () =>
+          resolve({
+            ok: (res.statusCode ?? 0) >= 200 && (res.statusCode ?? 0) < 300,
+            status: res.statusCode ?? 0,
+            headers: { get: (name: string) => (res.headers[name.toLowerCase()] as string | undefined) ?? null },
+            arrayBuffer: async () => {
+              const joined = Buffer.concat(chunks)
+              return joined.buffer.slice(joined.byteOffset, joined.byteOffset + joined.byteLength) as ArrayBuffer
+            },
+          })
+        )
+        res.on('error', reject)
+      }
+    )
+    req.on('timeout', () => req.destroy(new Error('timed out')))
+    req.on('error', reject)
+    req.end()
+  })
+
+/**
+ * Fetch a job posting, checking every hop. Redirects are followed by hand
+ * because a client that follows them itself would send the request to an
+ * address that was never checked.
+ */
+export async function fetchJobPosting(rawUrl: string, deps: FetchDeps = {}): Promise<Posting> {
+  const fetchPage = deps.fetchPage ?? fetchPinned
+  const resolveHost = deps.resolveHost ?? resolvePublicHost
+  let url = normalizeJobUrl(rawUrl)
+
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    const address = await resolveHost(url)
+    let response: FetchedPage
+    try {
+      response = await fetchPage(url, address)
+    } catch (err) {
+      if (err instanceof JobSourceError) throw err
       throw new JobSourceError('That job posting couldn’t be reached. Check the link, or paste the job text instead.', 'fetch')
     }
 
