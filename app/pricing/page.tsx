@@ -2,7 +2,15 @@ import Link from 'next/link'
 import PolicyPage from '@/components/PolicyPage'
 import { CheckCircle } from '@/components/brand/Icons'
 import { freeTailorings } from '@/lib/billing/config'
-import { CREDIT_PACKS, EMAIL_DRAFTS_PER_MONTH, EMAIL_SENDS_PER_DAY, formatPrice, IMPORTS_PER_MONTH, PRO_PLAN } from '@/lib/billing/plans'
+import {
+  CREDIT_PACKS,
+  EMAIL_DRAFTS_PER_MONTH,
+  EMAIL_SENDS_PER_DAY,
+  formatPrice,
+  IMPORTS_PER_MONTH,
+  PREMIUM_PLAN,
+  PRO_PLAN,
+} from '@/lib/billing/plans'
 import { DAILY_AI_REQUESTS } from '@/lib/billing/quota'
 
 export const metadata = {
@@ -37,7 +45,7 @@ export default function Pricing() {
         </>
       }
     >
-      <div className="grid gap-6 md:grid-cols-3 items-stretch">
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4 items-stretch">
         <div className="nb-card p-7 flex flex-col">
           <h2 className="text-xl font-extrabold text-[var(--color-text)]">Free</h2>
           <p className="mt-3 text-4xl font-black text-[var(--color-text)]">₹0</p>
@@ -46,6 +54,7 @@ export default function Pricing() {
               `${free} tailorings, once for every account`,
               'A cover letter for each one',
               `${EMAIL_DRAFTS_PER_MONTH.free} AI-written recruiter emails a month`,
+              'A fresh list of recruiters every week',
               `${IMPORTS_PER_MONTH.free} resume imports a month`,
               'Keyword finder and match check',
               'Tailoring history and PDF downloads',
@@ -64,8 +73,32 @@ export default function Pricing() {
               `${PRO_PLAN.runsPerCycle} tailorings every month`,
               'A cover letter for each one',
               `${EMAIL_DRAFTS_PER_MONTH.paid} AI-written recruiter emails a month`,
+              'A fresh list of recruiters every week',
               `${IMPORTS_PER_MONTH.paid} resume imports a month`,
               'Renews monthly; cancel any time',
+            ]}
+          />
+        </div>
+
+        <div className="nb-card p-7 flex flex-col">
+          <div className="flex items-start justify-between gap-2">
+            <h2 className="text-xl font-extrabold text-[var(--color-text)]">{PREMIUM_PLAN.label}</h2>
+            <span className="nb-chip bg-[var(--color-yellow)] text-[#0a0a0a] whitespace-nowrap">Coming soon</span>
+          </div>
+          <p className="mt-3 text-[var(--color-text-faint)]">
+            <span className="text-4xl font-black">{formatPrice(PREMIUM_PLAN.pricePaise)}</span>
+            <span className="text-[var(--color-text-muted)]"> / month</span>
+          </p>
+          <p className="mt-2 text-sm font-semibold text-[var(--color-text-muted)]">
+            Not on sale yet — this is what it will do.
+          </p>
+          <Points
+            items={[
+              `${PREMIUM_PLAN.appliesPerCycle} complete applications a month`,
+              'Chills reads the posting you point it at',
+              'Resume and recruiter email from that one reading',
+              `Everything in ${PRO_PLAN.label}, including ${PREMIUM_PLAN.runsPerCycle} tailorings`,
+              'Every email still waits for you to send it',
             ]}
           />
         </div>

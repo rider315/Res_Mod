@@ -534,7 +534,7 @@ function OutreachVisual() {
 
 function PricingCards({ freeTailorings }: { freeTailorings: number | null }) {
   const free = freeTailorings ?? 3
-  const cards: Array<{ name: string; price: string; per?: string; points: string[]; highlight?: boolean; note?: string }> = [
+  const cards: Array<{ name: string; price: string; per?: string; points: string[]; highlight?: boolean; note?: string; comingSoon?: boolean }> = [
     {
       name: 'Free',
       price: '₹0',
@@ -542,6 +542,7 @@ function PricingCards({ freeTailorings }: { freeTailorings: number | null }) {
         `${free} tailorings, once for every account`,
         'A cover letter for each one',
         `${EMAIL_DRAFTS_PER_MONTH.free} AI-written recruiter emails a month`,
+        'A fresh list of recruiters every week',
         `${IMPORTS_PER_MONTH.free} resume imports a month`,
         'Keyword finder and match check',
         'History and PDF downloads',
@@ -551,10 +552,12 @@ function PricingCards({ freeTailorings }: { freeTailorings: number | null }) {
       name: PRO_PLAN.label,
       price: formatPrice(PRO_PLAN.pricePaise),
       per: '/month',
+      highlight: true,
       points: [
         `${PRO_PLAN.runsPerCycle} tailorings every month`,
         'A cover letter for each one',
         `${EMAIL_DRAFTS_PER_MONTH.paid} AI-written recruiter emails a month`,
+        'A fresh list of recruiters every week',
         `${IMPORTS_PER_MONTH.paid} resume imports a month`,
         'Tailoring and emails, each on their own',
         'Cancel any time',
@@ -564,8 +567,8 @@ function PricingCards({ freeTailorings }: { freeTailorings: number | null }) {
       name: PREMIUM_PLAN.label,
       price: formatPrice(PREMIUM_PLAN.pricePaise),
       per: '/month',
-      highlight: true,
       note: 'The whole application in one run',
+      comingSoon: true,
       points: [
         `${PREMIUM_PLAN.appliesPerCycle} complete applications a month`,
         'Chills reads the posting you point it at',
@@ -594,12 +597,16 @@ function PricingCards({ freeTailorings }: { freeTailorings: number | null }) {
           key={card.name}
           className={`nb-card p-7 flex flex-col ${card.highlight ? 'md:-translate-y-2 border-[3px] shadow-[6px_6px_0_0_#0a0a0a]' : ''}`}
         >
-          <h3 className="text-xl font-extrabold">{card.name}</h3>
+          <div className="flex items-start justify-between gap-2">
+            <h3 className="text-xl font-extrabold">{card.name}</h3>
+            {card.comingSoon && <span className="nb-chip bg-[var(--color-yellow)] text-[#0a0a0a] whitespace-nowrap">Coming soon</span>}
+          </div>
           {card.note && <p className="mt-1 text-xs font-bold uppercase tracking-wide text-[var(--color-text-faint)]">{card.note}</p>}
-          <p className="mt-3">
+          <p className={`mt-3 ${card.comingSoon ? 'text-[var(--color-text-faint)]' : ''}`}>
             <span className="text-4xl font-black">{card.price}</span>
             {card.per && <span className="text-[var(--color-text-muted)]">{card.per}</span>}
           </p>
+          {card.comingSoon && <p className="mt-2 text-sm font-semibold text-[var(--color-text-muted)]">Not on sale yet — everything below is what it will do.</p>}
           <ul className="mt-6 space-y-3 flex-1">
             {card.points.map((point) => (
               <li key={point} className="flex items-start gap-2.5">

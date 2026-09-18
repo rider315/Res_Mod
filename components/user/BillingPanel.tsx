@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useConfirm } from '@/components/ConfirmProvider'
-import { EMAIL_DRAFTS_PER_MONTH, formatPrice } from '@/lib/billing/plans'
+import { PRO_PLAN, PREMIUM_PLAN, EMAIL_DRAFTS_PER_MONTH, formatPrice } from '@/lib/billing/plans'
 import type { BillingStatus, CheckoutStart } from '@/lib/billing/types'
 import {
   fetchBilling,
@@ -316,6 +316,24 @@ export default function BillingPanel({ billing, onBillingChange, onBack }: Billi
                   {!available.pro && <p className="text-xs text-[var(--color-text-muted)]">Pro isn&apos;t available yet.</p>}
                 </div>
               )}
+            </section>
+
+            {/* Premium is on the public pages, so it must be accounted for here too —
+                otherwise it looks as though it vanished on signing in. */}
+            <section className={`${card} space-y-3 bg-[var(--color-yellow-soft)]`}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-2xl font-black">{PREMIUM_PLAN.label}</h2>
+                <span className="nb-chip bg-[var(--color-yellow)] text-[#0a0a0a]">Coming soon</span>
+              </div>
+              <p className="text-sm text-[var(--color-text-muted)]">
+                The whole application in one run: you give a recruiter and the job they&apos;re hiring for, and Chills reads that
+                posting, tailors your resume to it, and writes the email from the same reading. It isn&apos;t on sale yet — nothing to
+                buy here, and nothing has been charged for it.
+              </p>
+              <p className="text-sm font-semibold">
+                {formatPrice(PREMIUM_PLAN.pricePaise)} a month when it opens, with {PREMIUM_PLAN.appliesPerCycle} complete applications
+                and everything in {PRO_PLAN.label}.
+              </p>
             </section>
 
             <section className={`${card} space-y-4`}>
