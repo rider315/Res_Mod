@@ -61,8 +61,8 @@ export async function POST(req: NextRequest) {
       softInstructions,
       provider,
       model: resolveModel(provider, model),
-      generate: ({ systemInstruction, prompt, temperature }) =>
-        generateAIResponse({ provider, apiKey: key, systemInstruction, prompt, temperature, model }),
+      generate: ({ systemInstruction, prompt, temperature, cachePrefix }) =>
+        generateAIResponse({ provider, apiKey: key, systemInstruction, prompt, temperature, cachePrefix, model }),
       // Skip the follow-up passes rather than run past the server's limit.
       deadline: startedAt + (maxDuration - 15) * 1000,
     })

@@ -22,6 +22,13 @@ interface AIRequestOptions {
   apiKey: string
   systemInstruction: string
   prompt: string
+  /**
+   * Text every call of this run repeats, which belongs at the very start of the
+   * prompt. Claude marks it as cacheable and reads it back at a tenth of the
+   * price on later calls (lib/claude.ts); every other provider simply gets it
+   * joined onto the front of `prompt`, exactly as if it had been written there.
+   */
+  cachePrefix?: string
   temperature: number
   model?: string
   /** Told what this one call cost, so a run can meter itself. */
@@ -84,7 +91,7 @@ export function resolveBaseUrl(config: ProviderConfig): string {
  * Returns the raw text response (expected to be valid JSON).
  */
 export async function generateAIResponse(options: AIRequestOptions): Promise<string> {
-  const { provider, systemInstruction, prompt, model, onUsage } = options
+  const { provider, systemInstruction, prompt, cachePrefix, model, onUsage } = options
   const config = getProvider(provider)
 
   if (config.transport === 'puter') {
@@ -98,23 +105,21 @@ export async function generateAIResponse(options: AIRequestOptions): Promise<str
   }
 
   const text = await runProvider(config, { ...options, model }, sink)
-  onUsage?.(counted.usage ?? estimateCall(systemInstruction + prompt, text))
+  onUsage?.(counted.usage ?? estimateCall(systemInstruction + (cachePrefix ?? '') + prompt, text))
   return text
 }
 
 async function runProvider(config: ProviderConfig, options: AIRequestOptions, sink: UsageSink): Promise<string> {
-  const { provider, apiKey, systemInstruction, prompt, temperature, model } = options
-
-  if (config.transport === 'gemini') {
-    return generateGemini(apiKey, systemInstruction, prompt, temperature, resolveModel(provider, model), sink)
-  }
+  const { provider, apiKey, systemInstruction, prompt, cachePrefix, temperature, model } = options
 
   if (config.transport === 'anthropic') {
     // No temperature: current Claude models reject sampling parameters with a 400.
+    // The prefix stays a separate block so it can carry a cache mark.
     const text = await generateClaude({
       apiKey,
       systemInstruction,
       prompt,
+      cachePrefix,
       model: resolveModel(provider, model),
       maxOutputTokens: config.maxOutputTokens ?? 64000,
       onUsage: sink,
@@ -122,7 +127,14 @@ async function runProvider(config: ProviderConfig, options: AIRequestOptions, si
     return extractJSON(text) ?? text.trim()
   }
 
-  return generateOpenAICompatible(config, apiKey, systemInstruction, prompt, temperature, model, sink)
+  // Nobody else caches, so the prefix is just the first part of the prompt.
+  const userPrompt = (cachePrefix ?? '') + prompt
+
+  if (config.transport === 'gemini') {
+    return generateGemini(apiKey, systemInstruction, userPrompt, temperature, resolveModel(provider, model), sink)
+  }
+
+  return generateOpenAICompatible(config, apiKey, systemInstruction, userPrompt, temperature, model, sink)
 }
 
 // ─── Gemini ──────────────────────────────────────────────────────────────────

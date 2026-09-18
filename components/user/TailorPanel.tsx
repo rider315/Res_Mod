@@ -12,7 +12,7 @@ import { readTailorStream, RunUpdate } from '@/components/user/tailor-stream'
 import { reportConversion } from '@/lib/analytics'
 import { ApiError } from '@/components/user/billing-client'
 import { addCall, AiUsage, emptyUsage } from '@/lib/ai-usage'
-import { RunStage } from '@/lib/run-optimization'
+import { GenerateFn, RunStage } from '@/lib/run-optimization'
 import { AISettings } from '@/lib/settings-storage'
 import { getProvider } from '@/lib/providers'
 import { BILLING_CODES, BillingStatus } from '@/lib/billing/types'
@@ -170,11 +170,12 @@ export default function TailorPanel({
     const rendered = renderCheckedResume(doc.data)
     if (!rendered.ok) throw new Error(rendered.problems.join(' '))
 
-    const generate = ({ systemInstruction, prompt, temperature }: { systemInstruction: string; prompt: string; temperature: number }) =>
+    const generate: GenerateFn = ({ systemInstruction, prompt, temperature, cachePrefix }) =>
       generatePuterResponse({
         systemInstruction,
         prompt,
         temperature,
+        cachePrefix,
         model,
         onUsage: (call) => setUsage((total) => addCall(total, call)),
       })

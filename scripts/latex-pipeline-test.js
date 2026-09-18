@@ -778,8 +778,8 @@ async function tailorTests() {
   // A full hard run with a scripted model: the first pass rewrites one bullet and
   // tries to edit education; every follow-up pass returns nothing.
   const calls = []
-  const scripted = async ({ systemInstruction, prompt, temperature }) => {
-    calls.push({ systemInstruction, prompt, temperature })
+  const scripted = async ({ systemInstruction, prompt, temperature, cachePrefix }) => {
+    calls.push({ systemInstruction, prompt, temperature, cachePrefix })
     if (prompt.includes('## MISSING REQUIRED KEYWORDS') || prompt.includes('under-delivered') || prompt.includes('## THE PROBLEM')) {
       return JSON.stringify({ changes: [] })
     }
@@ -791,9 +791,10 @@ async function tailorTests() {
       ],
     })
   }
+  const jd = 'Platform role: Kubernetes, Terraform, Python and Docker.'
   const result = await runOptimization({
     mode: 'optimize', level: 'hard', keywords: { jobTitle: 'Platform Engineer', company: '', keywords },
-    profile, resume, jobDescription: 'Platform role: Kubernetes, Terraform, Python and Docker.',
+    profile, resume, jobDescription: jd,
     hardInstructions: '', softInstructions: '', provider: 'openrouter', generate: scripted,
   })
   const final = keywordCoverage(resume, keywords, result.changes)
@@ -807,6 +808,16 @@ async function tailorTests() {
     calls[0].systemInstruction.includes('TAILORING LEVEL: HARD') && calls[0].prompt.includes('- Terraform') && calls[0].temperature === 0.25)
   check('the keyword pass asked the model before falling back', calls.some((c) => c.prompt.includes('## MISSING REQUIRED KEYWORDS')))
 
+  // Caching is a prefix match, so every pass has to be handed the same opening,
+  // byte for byte, and no pass may write its own second copy of it further down.
+  check('every pass of a run opens with the same cacheable job description',
+    calls.length >= 2 && calls.every((c) => c.cachePrefix === calls[0].cachePrefix) &&
+    calls[0].cachePrefix.startsWith('## TARGET JOB DESCRIPTION\n') && calls[0].cachePrefix.includes(jd),
+    JSON.stringify(calls.map((c) => c.cachePrefix)))
+  check('no pass repeats the job description after the cacheable opening',
+    calls.every((c) => !c.prompt.includes(jd) && !c.prompt.includes('## TARGET JOB DESCRIPTION')),
+    JSON.stringify(calls.map((c) => c.prompt.slice(0, 40))))
+
   const ownerCalls = []
   const ownerResult = await runOptimization({
     mode: 'optimize', profile: PROFILES.gaurav, resume, jobDescription: 'A backend role with Python.',
@@ -816,6 +827,9 @@ async function tailorTests() {
   check("the owner's optimize flow still sends its own prompt, and no keyword pass runs",
     ownerCalls[0].systemInstruction === buildOptimizeSystemInstruction(PROFILES.gaurav) && ownerCalls[0].temperature === 0.2 &&
     !ownerCalls.some((c) => c.prompt.includes('MISSING REQUIRED KEYWORDS')) && ownerResult.keywordReport === undefined)
+  check("the owner's own prompt keeps the job description inside it, with nothing marked cacheable",
+    ownerCalls[0].cachePrefix === undefined && ownerCalls[0].prompt.includes('A backend role with Python.'),
+    JSON.stringify({ cachePrefix: ownerCalls[0].cachePrefix }))
 }
 
 // ----------------------------------------------------------------- 12. billing
@@ -1228,6 +1242,44 @@ async function usageTests() {
     describeUsage(addCall(emptyUsage(), { inputTokens: 10, outputTokens: 2, reported: true })) === '1 model call · 10 in / 2 out',
     describeUsage(total))
 
+  // Prompt caching: the reused part is counted inside the input, never beside it,
+  // or the meter would claim a run read more than it did.
+  const cached = addCall(addCall(emptyUsage(), reportedCall(9000, 500, 7000)), reportedCall(2000, 300))
+  check('input served from the prompt cache is counted inside the input and reported separately',
+    cached.inputTokens === 11_000 && cached.cachedInputTokens === 7000 && usageLib.cachedShare(cached) === 7000 &&
+    describeUsage(cached) === '2 model calls · 11k in / 800 out · 7.0k of the input reused from cache',
+    describeUsage(cached))
+  check('a total from before caching existed reads as nothing reused, not as NaN',
+    usageLib.cachedShare({ calls: 1, inputTokens: 100, outputTokens: 10, reportedCalls: 1 }) === 0 &&
+    describeUsage(addCall(emptyUsage(), reportedCall(10, 2, 0))) === '1 model call · 10 in / 2 out')
+
+  // Where the cache marks land in a Claude request. Caching is a prefix match, so
+  // what varies between passes has to sit after the last mark, in its own block.
+  const { claudeRequest, claudeUsage } = require(BUILD + '/lib/claude')
+  const firstPass = claudeRequest({ systemInstruction: 'RULES', prompt: 'first pass', cachePrefix: 'THE JOB\n\n' })
+  const laterPass = claudeRequest({ systemInstruction: 'RULES', prompt: 'keyword pass', cachePrefix: 'THE JOB\n\n' })
+  const marked = (block) => block.cache_control && block.cache_control.type === 'ephemeral'
+  check('the rules and the repeated opening are both marked cacheable, the varying part is not',
+    marked(firstPass.system[0]) && firstPass.messages[0].content.length === 2 &&
+    marked(firstPass.messages[0].content[0]) && firstPass.messages[0].content[0].text === 'THE JOB\n\n' &&
+    !firstPass.messages[0].content[1].cache_control && firstPass.messages[0].content[1].text === 'first pass',
+    JSON.stringify(firstPass))
+  check('two passes of one run send a byte-identical cacheable prefix',
+    JSON.stringify(firstPass.system) === JSON.stringify(laterPass.system) &&
+    JSON.stringify(firstPass.messages[0].content[0]) === JSON.stringify(laterPass.messages[0].content[0]) &&
+    firstPass.messages[0].content[1].text !== laterPass.messages[0].content[1].text)
+  const noPrefix = claudeRequest({ systemInstruction: 'RULES', prompt: 'one-off' })
+  check('a call with nothing to repeat still marks the rules, and sends one block',
+    marked(noPrefix.system[0]) && noPrefix.messages[0].content.length === 1 &&
+    noPrefix.messages[0].content[0].text === 'one-off' && !noPrefix.messages[0].content[0].cache_control,
+    JSON.stringify(noPrefix))
+  check("Claude's cached tokens are added back into the input, not lost from it",
+    JSON.stringify(claudeUsage({ input_tokens: 900, output_tokens: 400, cache_read_input_tokens: 7000, cache_creation_input_tokens: 120 })) ===
+      JSON.stringify({ input: 8020, output: 400, read: 7000, written: 120 }) &&
+    JSON.stringify(claudeUsage({ input_tokens: 900, output_tokens: 400 })) ===
+      JSON.stringify({ input: 900, output: 400, read: 0, written: 0 }),
+    JSON.stringify(claudeUsage({ input_tokens: 900, output_tokens: 400, cache_read_input_tokens: 7000, cache_creation_input_tokens: 120 })))
+
   // A stand-in for any OpenAI-compatible provider, to prove the plumbing from the
   // provider's own numbers through to the meter.
   let sendUsage = true
@@ -1298,10 +1350,13 @@ const wholeAnswer = (text, stopReason = 'end_turn') => [
 /**
  * A stand-in for the Claude API, so the real SDK can be put through the ways a
  * call fails in production. `models` answers the model lookup (a normal model
- * by default); `messages` answers each request for an answer, told which one it is.
+ * by default); `messages` answers each request for an answer, told which one it
+ * is. `request` adds to what is asked for, and `sent` comes back holding the
+ * bodies the SDK actually put on the wire.
  */
-async function askStandInClaude(model, { models, messages }) {
+async function askStandInClaude(model, { models, messages, request = {} }) {
   let asked = 0
+  const sent = []
   const server = http.createServer((req, res) => {
     if (req.method === 'GET' && req.url.startsWith('/v1/models/')) {
       if (models) return models(res)
@@ -1310,8 +1365,16 @@ async function askStandInClaude(model, { models, messages }) {
       })
     }
     if (req.method === 'POST' && req.url.startsWith('/v1/messages')) {
-      req.resume()
-      req.on('end', () => messages(res, ++asked))
+      const chunks = []
+      req.on('data', (chunk) => chunks.push(chunk))
+      req.on('end', () => {
+        try {
+          sent.push(JSON.parse(Buffer.concat(chunks).toString('utf8')))
+        } catch {
+          sent.push(null)
+        }
+        messages(res, ++asked)
+      })
       return
     }
     sendJson(res, 404, { type: 'error', error: { type: 'not_found_error', message: `no ${req.url}` } })
@@ -1321,9 +1384,9 @@ async function askStandInClaude(model, { models, messages }) {
   process.env.ANTHROPIC_BASE_URL = `http://127.0.0.1:${server.address().port}`
   try {
     const value = await generateAIResponse({
-      provider: 'anthropic', apiKey: 'sk-ant-test', systemInstruction: 'sys', prompt: 'p', temperature: 0, model,
+      provider: 'anthropic', apiKey: 'sk-ant-test', systemInstruction: 'sys', prompt: 'p', temperature: 0, model, ...request,
     }).catch((err) => err)
-    return { value, asked }
+    return { value, asked, sent }
   } finally {
     if (savedBase === undefined) delete process.env.ANTHROPIC_BASE_URL
     else process.env.ANTHROPIC_BASE_URL = savedBase
@@ -1422,6 +1485,34 @@ async function failureTests() {
   outcome = await askStandInClaude('claude-test-refusal', { messages: (res) => sendEvents(res, wholeAnswer('', 'refusal')) })
   check('a refusal is a kind of its own, and is not retried',
     outcome.value instanceof AiCallError && outcome.value.kind === 'refused' && outcome.asked === 1, describeOutcome(outcome))
+
+  // ---- prompt caching, as the real SDK puts it on the wire
+  const seen = []
+  outcome = await askStandInClaude('claude-test-cache', {
+    request: { cachePrefix: '## TARGET JOB DESCRIPTION\nPlatform role\n\n', onUsage: (call) => seen.push(call) },
+    messages: (res) => sendEvents(res, [
+      ['message_start', {
+        type: 'message_start',
+        message: {
+          id: 'msg_cached', type: 'message', role: 'assistant', model: 'claude-test', content: [], stop_reason: null, stop_sequence: null,
+          usage: { input_tokens: 40, output_tokens: 1, cache_read_input_tokens: 2000, cache_creation_input_tokens: 0 },
+        },
+      }],
+      ...wholeAnswer('{"ok":4}').slice(1),
+    ]),
+  })
+  const body = outcome.sent[0] || {}
+  const user = (body.messages || [])[0] || {}
+  check('the SDK sends the rules and the repeated opening marked cacheable, and the rest after them unmarked',
+    outcome.value === '{"ok":4}' && Array.isArray(body.system) && body.system[0].text === 'sys' &&
+      body.system[0].cache_control && body.system[0].cache_control.type === 'ephemeral' &&
+      Array.isArray(user.content) && user.content.length === 2 &&
+      user.content[0].text.startsWith('## TARGET JOB DESCRIPTION') && user.content[0].cache_control.type === 'ephemeral' &&
+      user.content[1].text === 'p' && !user.content[1].cache_control,
+    JSON.stringify({ system: body.system, content: user.content }))
+  check('tokens read from the cache reach the run meter inside the input',
+    seen.length === 1 && seen[0].inputTokens === 2040 && seen[0].cachedInputTokens === 2000 && seen[0].reported === true,
+    JSON.stringify(seen))
 
   // ---- an OpenAI-compatible provider sorts its errors the same way
   const openAi = http.createServer((req, res) => sendJson(res, 401, { error: { message: 'Invalid API key' } }))

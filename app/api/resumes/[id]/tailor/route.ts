@@ -124,13 +124,14 @@ export async function POST(req: NextRequest, { params }: Params) {
       let progress: RunProgress = { stage: 'jd', label: 'Reading the job description' }
       const tell = () => send({ type: 'progress', ...progress, usage })
 
-      const generate: GenerateFn = ({ systemInstruction, prompt, temperature }) =>
+      const generate: GenerateFn = ({ systemInstruction, prompt, temperature, cachePrefix }) =>
         generateAIResponse({
           provider: ai.provider,
           apiKey: ai.apiKey,
           systemInstruction,
           prompt,
           temperature,
+          cachePrefix,
           model: ai.model,
           onUsage: (call) => {
             usage = addCall(usage, call)

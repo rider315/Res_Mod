@@ -7,7 +7,7 @@ import { AiCallError, withRetries } from '@/lib/ai-errors'
  *
  * Server-only: the routes call it with a key from Settings or ANTHROPIC_API_KEY,
  * and nothing in the browser bundle may import it. It differs from the
- * OpenAI-compatible adapter in five ways:
+ * OpenAI-compatible adapter in six ways:
  *
  * - No sampling parameters. Claude Opus 5, Sonnet 5 and Opus 4.7+ reject
  *   `temperature` with a 400, so it is never sent.
@@ -22,7 +22,39 @@ import { AiCallError, withRetries } from '@/lib/ai-errors'
  *   once an answer has started streaming it retries nothing: an overload
  *   reported partway through, or a dropped connection, ends the call. Those are
  *   tried again here (lib/ai-errors.ts).
+ * - Prompt caching. After reading the job's keywords, a tailoring run makes up
+ *   to four passes that repeat the same rules and the same job description, and
+ *   reading those again costs the same as reading them the first time. Marked
+ *   as cacheable, they come back at a tenth of the price on every pass after the
+ *   first. See below.
  */
+
+/**
+ * Where the caching breakpoints go, and why there are two.
+ *
+ * Caching is a prefix match: the API keys on the exact bytes from the start of
+ * the request up to each mark, so only content that is byte-identical between
+ * calls — and physically ahead of everything that isn't — can be reused.
+ *
+ *   1. The system instruction. The same for every run at one level and tone, so
+ *      where it clears the model's minimum on its own it stays warm across runs,
+ *      not just within one. The owner's profile rules do; the tailoring rules
+ *      sit right around Sonnet's minimum, and the one-off features' are far
+ *      below it.
+ *   2. `cachePrefix`, the first thing in the user message: what every pass of one
+ *      run repeats, which is the job description (lib/run-optimization.ts).
+ *
+ * Anything that differs per call goes after both, in `prompt`. A prefix shorter
+ * than the model's minimum (1,024 tokens on Sonnet 4.5 and 5, 512 on Opus 5,
+ * 4,096 on Haiku 4.5) silently isn't cached, which costs nothing; that is why
+ * the job description rides behind the system instruction rather than being
+ * marked on its own.
+ *
+ * `usage.cache_read_input_tokens` is the only proof this is working, so every
+ * call logs it. If it stays at zero across a run, something ahead of a mark
+ * stopped being byte-identical.
+ */
+const CACHEABLE = { type: 'ephemeral' } as const
 
 /**
  * Models whose safety classifiers can decline a request. For these a declined
@@ -43,17 +75,63 @@ export interface ClaudeModelSummary {
 /** Output caps by model id. They don't vary by account, so look each up once per warm instance. */
 const outputCaps = new Map<string, number>()
 
+/**
+ * The parts of the request the cache marks sit on. Separate from the call so the
+ * checks can read where the marks landed without making a request.
+ */
+export function claudeRequest(options: { systemInstruction: string; prompt: string; cachePrefix?: string }): {
+  system: Anthropic.Beta.BetaTextBlockParam[]
+  messages: Anthropic.Beta.BetaMessageParam[]
+} {
+  const { systemInstruction, prompt, cachePrefix } = options
+  return {
+    system: [{ type: 'text', text: systemInstruction, cache_control: CACHEABLE }],
+    messages: [
+      {
+        role: 'user',
+        content: [
+          ...(cachePrefix ? [{ type: 'text' as const, text: cachePrefix, cache_control: CACHEABLE }] : []),
+          { type: 'text' as const, text: prompt },
+        ],
+      },
+    ],
+  }
+}
+
+interface ClaudeUsage {
+  input_tokens: number
+  output_tokens: number
+  cache_read_input_tokens?: number | null
+  cache_creation_input_tokens?: number | null
+}
+
+/**
+ * What one call really read. `input_tokens` counts only the part read at full
+ * price, so the cached parts are added back in: the meter is there to show the
+ * size of the prompt, not the size of the bill.
+ */
+export function claudeUsage(usage: ClaudeUsage): { input: number; output: number; read: number; written: number } {
+  const read = usage.cache_read_input_tokens ?? 0
+  const written = usage.cache_creation_input_tokens ?? 0
+  return { input: usage.input_tokens + read + written, output: usage.output_tokens, read, written }
+}
+
 export async function generateClaude(options: {
   apiKey: string
   systemInstruction: string
   prompt: string
+  /**
+   * Text every call in this run repeats, placed at the very start of the user
+   * message so it can be cached and read back cheaply. See CACHEABLE above.
+   */
+  cachePrefix?: string
   model: string
   /** Upper bound for max_tokens; lowered to the model's own output cap. */
   maxOutputTokens: number
   /** Told what the call cost, so a run can meter itself. */
   onUsage?: (usage: CallUsage | null) => void
 }): Promise<string> {
-  const { apiKey, systemInstruction, prompt, model, maxOutputTokens, onUsage } = options
+  const { apiKey, model, maxOutputTokens, onUsage } = options
   const client = new Anthropic({ apiKey })
   const maxTokens = await outputCapFor(client, model, maxOutputTokens)
 
@@ -63,8 +141,7 @@ export async function generateClaude(options: {
       .stream({
         model,
         max_tokens: maxTokens,
-        system: systemInstruction,
-        messages: [{ role: 'user', content: prompt }],
+        ...claudeRequest(options),
         ...(SERVER_FALLBACK_MODELS.has(model)
           ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const }
           : {}),
@@ -75,7 +152,12 @@ export async function generateClaude(options: {
       })
   })
 
-  onUsage?.(reportedCall(message.usage.input_tokens, message.usage.output_tokens))
+  const used = claudeUsage(message.usage)
+  console.log(
+    `[anthropic] Input ${used.input} tokens: ${used.read} read from cache, ` +
+      `${used.written} written to it, ${message.usage.input_tokens} at full price`
+  )
+  onUsage?.(reportedCall(used.input, used.output, used.read))
 
   if (message.stop_reason === 'refusal') {
     const category = message.stop_details?.category

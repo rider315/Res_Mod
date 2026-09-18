@@ -105,20 +105,15 @@ export function findUnevidencedSkills(
  * Ask the model to back the claimed skills with real bullets — or to say plainly
  * that it can't. Fabricating experience is worse than an unmatched keyword, so
  * the instruction has to make the opt-out explicit and easy.
+ *
+ * The job description is not written here: lib/run-optimization.ts puts it in
+ * front of every pass as one cacheable block.
  */
-export function buildEvidencePrompt(
-  jobDescription: string,
-  gaps: EvidenceGap[],
-  profileNotes = ''
-): string {
+export function buildEvidencePrompt(gaps: EvidenceGap[], profileNotes = ''): string {
   const terms = gaps.map((g) => `- ${g.term}`).join('\n')
   const lines = gaps[0]?.candidateLines.map((l) => `- ${l}`).join('\n') ?? ''
 
-  return `## TARGET JOB DESCRIPTION
-${jobDescription}
-
-
-## THE PROBLEM
+  return `## THE PROBLEM
 These skills are now claimed on the resume's skills line, but NO experience or project
 bullet mentions them. A recruiter reading the skills list and then the experience will
 see the mismatch immediately, and the resume loses credibility:

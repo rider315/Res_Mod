@@ -8,7 +8,20 @@ import type { EditableLine } from '@/lib/tailor/guards'
  * Prompts for tailoring a regular user's resume at a chosen level. The owner's
  * optimize and revamp prompts (lib/optimizer.ts, lib/revamper.ts) are separate
  * and unchanged.
+ *
+ * None of the builders below writes the job description: a run repeats it in
+ * every pass, so it is prepended once by lib/run-optimization.ts as the part of
+ * the prompt a provider may cache. Keep it that way — a builder that writes its
+ * own copy would put it after something that changes between passes, and nothing
+ * behind that point can be reused.
  */
+
+/**
+ * The job description, worded and spaced identically for every pass. Caching
+ * matches on exact bytes, so this is the one place it is allowed to be written.
+ */
+export const jobDescriptionBlock = (jobDescription: string): string =>
+  `## TARGET JOB DESCRIPTION\n${jobDescription}\n\n`
 
 const CORE = `You are an expert resume writer. You tailor a candidate's real resume to one job description so it passes ATS keyword screening, while every claim stays true to the candidate's actual experience.
 
@@ -86,13 +99,11 @@ function rules(level: TailorLevel): string {
 
 export function buildTailorPrompt({
   resume,
-  jobDescription,
   keywords,
   level,
   instructions,
 }: {
   resume: ParsedResume
-  jobDescription: string
   keywords: JdKeywords
   level: TailorLevel
   instructions: string
@@ -103,9 +114,6 @@ export function buildTailorPrompt({
 
   return `## RESUME
 ${resumeText}
-
-## TARGET JOB DESCRIPTION
-${jobDescription}
 
 ## TARGET JOB TITLE
 ${keywords.jobTitle || '(not stated)'}
@@ -123,13 +131,11 @@ ${rules(level)}`
  * passes, and every line that may still change, as it currently reads.
  */
 export function buildKeywordTopUpPrompt({
-  jobDescription,
   missing,
   lines,
   level,
   instructions,
 }: {
-  jobDescription: string
   missing: JdKeyword[]
   lines: EditableLine[]
   level: TailorLevel
@@ -147,10 +153,7 @@ export function buildKeywordTopUpPrompt({
       ? '- This is a light-touch tailoring: prefer the summary and the skills lines, and change a bullet only to add a word or two.'
       : '- Prefer a bullet or the summary wherever the real work involves the keyword; otherwise use the skills line of the matching category.'
 
-  return `## TARGET JOB DESCRIPTION
-${jobDescription}
-
-## MISSING REQUIRED KEYWORDS
+  return `## MISSING REQUIRED KEYWORDS
 The resume still lacks these keywords, and an ATS screens for every one:
 ${keywordList(missing)}
 

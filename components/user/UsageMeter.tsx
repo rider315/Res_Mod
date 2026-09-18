@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { AiUsage, formatTokens, isEstimated, totalTokens } from '@/lib/ai-usage'
+import { AiUsage, cachedShare, formatTokens, isEstimated, totalTokens } from '@/lib/ai-usage'
 import { RUN_STAGES, RunStage } from '@/lib/run-optimization'
 
 /**
@@ -54,6 +54,7 @@ export default function UsageMeter({ usage, stage, label, startedAt, source, run
   const total = totalTokens(usage)
   const about = isEstimated(usage) && total > 0 ? 'about ' : ''
   const inputShare = total > 0 ? Math.round((usage.inputTokens / total) * 100) : 0
+  const reused = cachedShare(usage)
 
   return (
     <div className="nb-card rounded-[10px] p-5 space-y-4 bg-[var(--color-sky-soft)]">
@@ -86,6 +87,11 @@ export default function UsageMeter({ usage, stage, label, startedAt, source, run
             {usage.calls} model call{usage.calls === 1 ? '' : 's'}
           </span>
         </p>
+        {reused > 0 && (
+          <p className="mt-1 text-[11px] text-[var(--color-text-muted)]">
+            {formatTokens(reused)} of the input was reused from the last pass instead of being read again.
+          </p>
+        )}
       </div>
 
       <ol className="space-y-1.5">

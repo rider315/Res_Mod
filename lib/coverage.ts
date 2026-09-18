@@ -88,9 +88,11 @@ export function findCoverageGaps(
  * A tightly scoped prompt for the follow-up pass: only the sections that came up
  * short, only the bullets not already rewritten. Keeping it small matters — this
  * runs against the same context budget as the first pass.
+ *
+ * The job description is not written here: lib/run-optimization.ts puts it in
+ * front of every pass as one cacheable block.
  */
 export function buildGapFillPrompt(
-  jobDescription: string,
   hardInstructions: string,
   gaps: CoverageGap[],
   profileNotes = ''
@@ -106,11 +108,7 @@ ${lines}`
     })
     .join('\n\n')
 
-  return `## TARGET JOB DESCRIPTION
-${jobDescription}
-
-
-## HARD CONSTRAINTS — You MUST obey these exactly:
+  return `## HARD CONSTRAINTS — You MUST obey these exactly:
 ${hardInstructions || 'None'}
 
 

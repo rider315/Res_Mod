@@ -24,7 +24,12 @@ import {
 } from '@/lib/keyword-evidence'
 import { LEVELS, TailorLevel, TailorTone } from '@/lib/tailor/levels'
 import { logSnippet } from '@/lib/log'
-import { buildKeywordTopUpPrompt, buildTailorPrompt, buildTailorSystemInstruction } from '@/lib/tailor/prompt'
+import {
+  buildKeywordTopUpPrompt,
+  buildTailorPrompt,
+  buildTailorSystemInstruction,
+  jobDescriptionBlock,
+} from '@/lib/tailor/prompt'
 import { addMissingKeywords, JdKeywords, keywordCoverage } from '@/lib/tailor/keywords'
 import {
   capBulletChanges,
@@ -54,6 +59,13 @@ export type GenerateFn = (args: {
   systemInstruction: string
   prompt: string
   temperature: number
+  /**
+   * Text to put at the very start of the prompt, which every pass of this run
+   * repeats word for word. Providers that cache prompts read it back at a
+   * fraction of the price after the first pass; the rest just see it as the
+   * opening of the prompt (lib/ai-provider.ts).
+   */
+  cachePrefix?: string
 }) => Promise<string>
 
 export interface RunOptions {
@@ -133,6 +145,8 @@ interface PassContext {
   opts: RunOptions
   label: string
   systemInstruction: string
+  /** The job description, written once and repeated by every pass — see GenerateFn. */
+  cachePrefix: string
   temperature: number
   parse: ParseFn
   /** Tailoring's extra limits on a set of changes; passes changes through untouched for the owner's modes. */
@@ -165,7 +179,7 @@ export async function runOptimization(opts: RunOptions): Promise<OptimizationRes
       : buildOptimizeSystemInstruction(profile)
   const prompt =
     level && keywords
-      ? buildTailorPrompt({ resume, jobDescription, keywords, level, instructions: hardInstructions })
+      ? buildTailorPrompt({ resume, keywords, level, instructions: hardInstructions })
       : isRevamp
         ? buildRevampPrompt(resume, jobDescription, hardInstructions, softInstructions, profile.promptNotes)
         : buildOptimizePrompt(resume, jobDescription, hardInstructions, softInstructions, profile.promptNotes)
@@ -176,6 +190,7 @@ export async function runOptimization(opts: RunOptions): Promise<OptimizationRes
     opts,
     label,
     systemInstruction,
+    cachePrefix: jobDescriptionBlock(jobDescription),
     temperature,
     parse,
     guard: level ? tailoringGuard(opts, label, level) : (changes) => changes,
@@ -183,7 +198,9 @@ export async function runOptimization(opts: RunOptions): Promise<OptimizationRes
 
   report(opts, 'first')
   const firstPass = parse(
-    await generate({ systemInstruction, prompt, temperature }),
+    // The owner's optimize and revamp prompts carry the job description inside
+    // their own layout, so only tailoring can share the cached opening here.
+    await generate({ systemInstruction, prompt, temperature, cachePrefix: level ? ctx.cachePrefix : undefined }),
     provider,
     model,
     profile.length
@@ -249,8 +266,8 @@ function tailoringGuard(opts: RunOptions, label: string, level: TailorLevel) {
 
 /** Did every experience/project section actually get its rewrites? If not, ask for the missing ones. */
 async function coveragePass(baseline: OptimizationResult, ctx: PassContext): Promise<OptimizationResult> {
-  const { opts, label, systemInstruction, temperature, parse, guard } = ctx
-  const { level, profile, resume, jobDescription, hardInstructions, provider, model, generate } = opts
+  const { opts, label, systemInstruction, cachePrefix, temperature, parse, guard } = ctx
+  const { level, profile, resume, hardInstructions, provider, model, generate } = opts
 
   // Tailoring levels owe their rewrites under every role and project; the owner's
   // profiles keep their per-section quotas.
@@ -267,14 +284,9 @@ async function coveragePass(baseline: OptimizationResult, ctx: PassContext): Pro
   )
 
   try {
-    const gapPrompt = buildGapFillPrompt(
-      jobDescription,
-      hardInstructions,
-      gaps,
-      profile.promptNotes
-    )
+    const gapPrompt = buildGapFillPrompt(hardInstructions, gaps, profile.promptNotes)
     const secondPass = parse(
-      await generate({ systemInstruction, prompt: gapPrompt, temperature }),
+      await generate({ systemInstruction, prompt: gapPrompt, temperature, cachePrefix }),
       provider,
       model,
       profile.length
@@ -310,8 +322,8 @@ async function coveragePass(baseline: OptimizationResult, ctx: PassContext): Pro
  * anything. Whatever is still unevidenced is reported to the user.
  */
 async function evidencePass(result: OptimizationResult, ctx: PassContext): Promise<OptimizationResult> {
-  const { opts, label, systemInstruction, parse, guard } = ctx
-  const { profile, resume, jobDescription, provider, model, generate } = opts
+  const { opts, label, systemInstruction, cachePrefix, parse, guard } = ctx
+  const { profile, resume, provider, model, generate } = opts
 
   const gaps = findUnevidencedSkills(resume, result.changes, profile.coverage)
   if (gaps.length === 0) return result
@@ -328,8 +340,9 @@ async function evidencePass(result: OptimizationResult, ctx: PassContext): Promi
   try {
     const raw = await generate({
       systemInstruction,
-      prompt: buildEvidencePrompt(jobDescription, gaps, profile.promptNotes),
+      prompt: buildEvidencePrompt(gaps, profile.promptNotes),
       temperature: 0.2,
+      cachePrefix,
     })
 
     const evidence = parse(raw, provider, model, profile.length)
@@ -365,8 +378,8 @@ async function evidencePass(result: OptimizationResult, ctx: PassContext): Promi
  * change the user reviews.
  */
 async function keywordPass(result: OptimizationResult, ctx: PassContext): Promise<OptimizationResult> {
-  const { opts, label, systemInstruction, parse, guard } = ctx
-  const { profile, resume, jobDescription, hardInstructions, provider, model, generate } = opts
+  const { opts, label, systemInstruction, cachePrefix, parse, guard } = ctx
+  const { profile, resume, hardInstructions, provider, model, generate } = opts
   const level = opts.level as TailorLevel
   const keywords = opts.keywords as JdKeywords
 
@@ -389,8 +402,9 @@ async function keywordPass(result: OptimizationResult, ctx: PassContext): Promis
       const lines = editableLines(resume, changes, profile.coverage)
       const raw = await generate({
         systemInstruction,
-        prompt: buildKeywordTopUpPrompt({ jobDescription, missing, lines, level, instructions: hardInstructions }),
+        prompt: buildKeywordTopUpPrompt({ missing, lines, level, instructions: hardInstructions }),
         temperature: 0.2,
+        cachePrefix,
       })
       const topUp = parse(raw, provider, model, profile.length)
       const extra = stripFrozenLineChanges(snapToLines(topUp.changes, lines), profile.coverage).kept

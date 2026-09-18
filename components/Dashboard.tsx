@@ -322,8 +322,8 @@ export default function Dashboard() {
         softInstructions: state.softInstructions,
         provider,
         model,
-        generate: ({ systemInstruction, prompt, temperature }) =>
-          generatePuterResponse({ systemInstruction, prompt, temperature, model }),
+        generate: ({ systemInstruction, prompt, temperature, cachePrefix }) =>
+          generatePuterResponse({ systemInstruction, prompt, temperature, cachePrefix, model }),
       })
     }
 

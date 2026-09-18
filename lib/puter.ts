@@ -175,12 +175,18 @@ function readPuterUsage(response: PuterChatResponse, input: string, output: stri
 export async function generatePuterResponse(options: {
   systemInstruction: string
   prompt: string
+  /**
+   * The opening every pass of a run repeats. Puter bills the signed-in Puter
+   * account and caches nothing, so it is simply the start of the prompt here.
+   */
+  cachePrefix?: string
   temperature: number
   model?: string
   /** Told what the call cost, so a run can meter itself. */
   onUsage?: (usage: CallUsage) => void
 }): Promise<string> {
-  const { systemInstruction, prompt, temperature, model, onUsage } = options
+  const { systemInstruction, temperature, model, onUsage } = options
+  const prompt = (options.cachePrefix ?? '') + options.prompt
   const puter = await loadPuter()
   await ensurePuterSignedIn()
 
