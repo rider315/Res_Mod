@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { releaseReservation, Reservation, reserveEmailSend } from '@/lib/billing/store'
 import { BILLING_CODES } from '@/lib/billing/types'
 import { EMAIL_SENDS_PER_DAY } from '@/lib/billing/plans'
-import { attachmentName, newTrackingToken, publicOrigin, resumePdf, trackingUrl } from '@/lib/outreach/delivery'
+import { attachmentName, coverLetterPdf, newTrackingToken, publicOrigin, resumePdf, trackingUrl } from '@/lib/outreach/delivery'
 import { emailHtml, MailboxError, sendFromMailbox } from '@/lib/outreach/mailbox'
 import {
   claimForSending,
@@ -19,6 +19,10 @@ import { fail, requireOutreachAccount, resolveSource } from '@/lib/outreach/serv
 export const maxDuration = 120
 
 type Params = { params: { id: string } }
+
+/** The letterhead: the address the letter is actually sent from, and today's date. */
+const mailboxAddress = (mailbox: { address: string }) => mailbox.address
+const today = () => new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
 
 /**
  * Send a draft from the account's own mailbox, with the resume it was written
@@ -68,13 +72,26 @@ export async function POST(req: NextRequest, { params }: Params) {
     return fail(409, 'The resume this email attaches was deleted. Choose another resume, or send it without an attachment.')
   }
 
-  let attachment: { filename: string; content: Buffer } | null = null
-  if (email.attachResume && resolved) {
-    try {
-      attachment = { filename: attachmentName(resolved.candidateName), content: await resumePdf(resolved.latex) }
-    } catch (err) {
-      return fail(502, err instanceof Error ? err.message : 'Your resume PDF couldn’t be built.')
+  // Both PDFs are built before the draft is claimed: a letter that won't typeset
+  // must not leave an email half sent, any more than a resume that won't.
+  const profile = await getOutreachProfile(auth.userId)
+  const candidateName = profile.senderName || resolved?.candidateName || auth.userName
+  const attachments: Array<{ filename: string; content: Buffer }> = []
+  try {
+    if (email.attachResume && resolved) {
+      attachments.push({ filename: attachmentName(resolved.candidateName), content: await resumePdf(resolved.latex) })
     }
+    if (email.attachCoverLetter && email.coverLetter.trim()) {
+      attachments.push({
+        filename: attachmentName(candidateName, 'cover letter'),
+        content: await coverLetterPdf(
+          { name: candidateName, contact: [mailboxAddress(mailbox), profile.phone].filter(Boolean), date: today() },
+          email.coverLetter
+        ),
+      })
+    }
+  } catch (err) {
+    return fail(502, err instanceof Error ? err.message : 'Your attachment couldn’t be built.')
   }
 
   // The owner has no limits; everyone else can send so many a day, to protect their mailbox.
@@ -96,19 +113,18 @@ export async function POST(req: NextRequest, { params }: Params) {
     return fail(409, 'That email is already being sent.')
   }
 
-  const profile = await getOutreachProfile(auth.userId)
   const origin = profile.trackOpens ? publicOrigin(req.url) : null
   const token = origin ? newTrackingToken() : null
 
   let messageId: string
   try {
     const result = await sendFromMailbox(mailbox, {
-      fromName: profile.senderName || resolved?.candidateName || auth.userName,
+      fromName: candidateName,
       to: { name: recruiter.name, address: recruiter.email },
       subject: claimed.subject.trim(),
       text: claimed.body,
       html: emailHtml(claimed.body, origin && token ? trackingUrl(origin, token) : null),
-      attachment,
+      attachments,
       inReplyTo,
     })
     messageId = result.messageId

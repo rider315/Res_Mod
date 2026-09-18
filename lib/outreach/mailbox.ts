@@ -155,7 +155,8 @@ export interface OutgoingEmail {
   subject: string
   text: string
   html: string
-  attachment: { filename: string; content: Buffer } | null
+  /** The PDFs that go with it: the resume, and the cover letter when there is one. */
+  attachments: Array<{ filename: string; content: Buffer }>
   /** For a follow-up: the message it follows, so it lands in the same conversation. */
   inReplyTo: string | null
 }
@@ -171,9 +172,7 @@ export async function sendFromMailbox(login: MailboxLogin, email: OutgoingEmail)
       subject: email.subject.replace(/[\r\n]+/g, ' '),
       text: email.text,
       html: email.html,
-      attachments: email.attachment
-        ? [{ filename: email.attachment.filename, content: email.attachment.content, contentType: 'application/pdf' }]
-        : [],
+      attachments: email.attachments.map((file) => ({ filename: file.filename, content: file.content, contentType: 'application/pdf' })),
       ...(email.inReplyTo ? { inReplyTo: email.inReplyTo, references: [email.inReplyTo] } : {}),
     })
     return { messageId: String(info.messageId ?? '') }

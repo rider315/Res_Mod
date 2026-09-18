@@ -5,23 +5,19 @@ import { AiCallError } from '@/lib/ai-errors'
 import { chooseAi, settleAiFailure } from '@/lib/billing/ai-access'
 import { resolveModel } from '@/lib/ai-provider'
 import { applicationEmailInput, applicationLabel, analyseRole, applyStageLabel, ApplyStage } from '@/lib/apply/run'
+import { tailorForJob } from '@/lib/apply/tailor'
 import { fetchJobPosting, JobSourceError, MAX_POSTING_CHARS, Posting, postingFromText } from '@/lib/apply/job-source'
-import { COVER_LETTER_TONES, resumeTextFromLatex } from '@/lib/cover-letter'
+import { COVER_LETTER_LENGTHS, COVER_LETTER_TONES } from '@/lib/cover-letter'
 import { researchStore } from '@/lib/db/company-research'
 import { createEmail, getOutreachProfile, getRecruiter } from '@/lib/db/outreach'
 import { getResume } from '@/lib/db/resumes'
-import { saveTailoring } from '@/lib/db/tailorings'
 import { renderCheckedResume } from '@/lib/import/render'
 import { researchCompany } from '@/lib/outreach/company-research'
 import { UnusableAnswerError, signatureLines, writeOutreachEmail } from '@/lib/outreach/prompt'
 import { fail, firstIssue, generatorFor, OwnerAiFields, puterRefusal, requireOutreachAccount } from '@/lib/outreach/server'
 import type { CompanyNote } from '@/lib/outreach/types'
 import { ResumeDocSchema } from '@/lib/resume-doc'
-import { runOptimization } from '@/lib/run-optimization'
-import { standardProfile } from '@/lib/profiles/standard'
-import { historyCoverage } from '@/lib/tailor/history'
 import { TAILOR_LEVELS } from '@/lib/tailor/levels'
-import { tailorStoredResume } from '@/lib/tailor/splice'
 
 /** Reading the posting, its keywords, four tailoring passes and the email. */
 export const maxDuration = 300
@@ -37,6 +33,9 @@ const schema = z
     jobTitle: z.string().trim().max(160).default(''),
     level: z.enum(TAILOR_LEVELS).default('hard'),
     tone: z.enum(COVER_LETTER_TONES).default('professional'),
+    /** Write a cover letter in the same call as the email, and attach it too. */
+    coverLetter: z.boolean().default(false),
+    letterLength: z.enum(COVER_LETTER_LENGTHS).default('standard'),
     /** What the candidate says the resume must not change. */
     instructions: z.string().max(2_000).default(''),
     /** Something to mention in this email only. */
@@ -155,19 +154,28 @@ export async function POST(req: NextRequest) {
 
       try {
         tell()
+        // The company's site needs nothing from the posting or the tailoring, so
+        // it is read while those run instead of after them. It used to sit at the
+        // end, adding a whole round trip to a job that was already long.
+        const researching: Promise<CompanyNote | null> = data.research
+          ? researchCompany(recruiter.email, generate, researchStore)
+          : Promise.resolve(null)
+        researching.catch(() => null)
+
         at('role')
         const { analysis, keywords } = await analyseRole({ posting, recruiter, typedTitle: data.jobTitle, generate })
 
         at('tailor')
-        const tailoring = await runOptimization({
-          mode: 'optimize',
-          level: data.level,
-          keywords,
-          profile: standardProfile(data.level),
-          resume: rendered.parsed.resume,
+        const tailored = await tailorForJob({
+          userId: auth.userId,
+          resume: { id: row.id, title: row.title, doc: doc.data },
+          parsed: rendered.parsed.resume,
           jobDescription: posting.text,
-          hardInstructions: data.instructions,
-          softInstructions: '',
+          keywords,
+          level: data.level,
+          instructions: data.instructions,
+          jobTitle: analysis.title,
+          company: analysis.company,
           provider: ai.provider,
           model: resolveModel(ai.provider, ai.model),
           generate,
@@ -179,59 +187,40 @@ export async function POST(req: NextRequest) {
           deadline: stopAt - 45_000,
         })
 
-        // Every change is already guarded by the run itself, and nobody is here to
-        // review them one by one: the point of this run is a finished application.
-        const changes = tailoring.changes.map(({ original, proposed }) => ({ original, proposed }))
-        const spliced = tailorStoredResume(doc.data, changes)
-        if (!spliced.ok) throw new AiCallError(spliced.error, 'unusable')
-
-        at('saving')
-        const skipped = new Set([...spliced.result.unmatched, ...spliced.result.rejected.map((entry) => entry.original)])
-        const applied = changes.filter((change) => !skipped.has(change.original))
-        const tailoringId = await saveTailoring(auth.userId, {
-          resumeId: row.id,
-          resumeTitle: row.title,
-          jobTitle: analysis.title,
-          company: analysis.company,
-          level: data.level,
-          jobDescription: posting.text,
-          changes: applied,
-          appliedCount: spliced.result.applied,
-          coverage: historyCoverage(rendered.parsed.resume, keywords.keywords, applied),
-          latex: spliced.result.latex,
-        })
-
         at('email')
         // Part of the same application: it takes nothing more, and never fails it.
-        const company: CompanyNote | null = data.research
-          ? await researchCompany(recruiter.email, generate, researchStore)
-          : null
+        const company = await researching
         const written = await writeOutreachEmail({
           input: applicationEmailInput({
             analysis,
             candidateName,
-            tailoredResumeText: resumeTextFromLatex(spliced.result.latex),
+            tailoredResumeText: tailored.resumeText,
             recruiter: { name: recruiter.name, company: recruiter.company, title: recruiter.title },
             profile,
             tone: data.tone,
             notes: data.notes,
             attachResume: data.attachResume,
             about: company?.status === 'found' ? company : null,
+            withCoverLetter: data.coverLetter,
+            letterLength: data.letterLength,
           }),
           signature,
           generate,
         })
 
+        at('saving')
         const email = await createEmail(auth.userId, {
           recruiterId: recruiter.id,
           threadId: null,
           resumeId: null,
-          tailoringId,
+          tailoringId: tailored.tailoringId,
           jobTitle: analysis.title,
           jobDescription: posting.text,
           subject: written.subject,
           body: written.body,
           attachResume: data.attachResume,
+          coverLetter: written.coverLetter ?? '',
+          attachCoverLetter: Boolean(written.coverLetter),
         })
 
         if (!settled) {
@@ -242,10 +231,10 @@ export async function POST(req: NextRequest) {
             type: 'result',
             role: { title: analysis.title, company: analysis.company, location: analysis.location },
             posting: { url: analysis.posting.url, structured: analysis.posting.structured },
-            tailoringId,
-            appliedCount: spliced.result.applied,
-            keywordReport: tailoring.keywordReport ?? null,
-            unevidencedSkills: tailoring.unevidencedSkills ?? [],
+            tailoringId: tailored.tailoringId,
+            appliedCount: tailored.appliedCount,
+            keywordReport: tailored.keywordReport ?? null,
+            unevidencedSkills: tailored.unevidencedSkills,
             email,
             company,
             usage,

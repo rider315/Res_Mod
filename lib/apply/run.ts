@@ -1,6 +1,6 @@
 import type { OutreachProfile } from '@/lib/outreach/model'
 import type { OutreachEmailInput } from '@/lib/outreach/prompt'
-import type { CoverLetterTone } from '@/lib/cover-letter'
+import type { CoverLetterLength, CoverLetterTone } from '@/lib/cover-letter'
 import type { GenerateFn } from '@/lib/run-optimization'
 import { describeRole, leadKeywords, RoleAnalysis } from '@/lib/apply/role'
 import type { Posting } from '@/lib/apply/job-source'
@@ -79,6 +79,8 @@ export function applicationEmailInput({
   notes = '',
   attachResume,
   about = null,
+  withCoverLetter = false,
+  letterLength = 'standard',
 }: {
   analysis: RoleAnalysis
   candidateName: string
@@ -89,6 +91,9 @@ export function applicationEmailInput({
   notes?: string
   attachResume: boolean
   about?: { site: string; facts: string[] } | null
+  /** Write the cover letter in the same call, from this same reading. */
+  withCoverLetter?: boolean
+  letterLength?: CoverLetterLength
 }): OutreachEmailInput {
   const lead = leadKeywords(analysis)
   return {
@@ -110,6 +115,8 @@ export function applicationEmailInput({
       .join('\n'),
     attachResume,
     about,
+    withCoverLetter,
+    letterLength,
   }
 }
 

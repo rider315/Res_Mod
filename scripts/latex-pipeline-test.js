@@ -1898,6 +1898,47 @@ async function outreachTests() {
     !placeholder.ok && /placeholders/.test(placeholder.problems[0]) && !tooLong.ok && /too long/.test(tooLong.problems[0]) &&
     !linked.ok && /links/i.test(linked.problems[0]) && !outreachPrompt.parseEmailParts('not json at all').ok)
 
+  // ---- the cover letter, written in the same call as the email
+  const withLetter = outreachPrompt.buildOutreachPrompt({ ...input, withCoverLetter: true, letterLength: 'short' })
+  check('asking for a cover letter adds it to the one prompt, and to the one answer',
+    withLetter.includes('## ALSO WRITE THE COVER LETTER') && withLetter.includes('150 to 200 words') &&
+    withLetter.includes('"letter"') && withLetter.includes('must NOT repeat the email') &&
+    // The resume and the job post are still sent once, not twice.
+    withLetter.split('Cut p95 latency').length === 2 && withLetter.split('Kubernetes and Terraform').length === 2 &&
+    !prompt.includes('## ALSO WRITE THE COVER LETTER') && !prompt.includes('"letter"'))
+
+  const letterParts = {
+    greeting: 'Dear Hiring Manager,',
+    paragraphs: [
+      'I am writing about the Platform Engineer role, where reliability across a busy payments platform is the work I have spent four years on.',
+      'At Contoso Labs I wrote the ingestion pipeline that moved two terabytes daily, replaced a scheduler with a worker pool, and added dashboards that halved diagnosis time.',
+    ],
+    closing: 'Kind regards,',
+  }
+  const both = outreachPrompt.parseEmailParts(reply({ paragraphs: ['I cut p95 latency by 40% at Northwind Payments and would like the Platform Engineer role.'], letter: letterParts }), 260, true)
+  check('one answer gives the email and the letter, each read and tidied',
+    both.ok && both.value.letter.paragraphs.length === 2 && both.value.letter.greeting === 'Dear Hiring Manager,',
+    JSON.stringify(both))
+  const missing = outreachPrompt.parseEmailParts(reply({ paragraphs: ['I cut p95 latency by 40% at Northwind and would like this role.'] }), 260, true)
+  check('a letter that was asked for and not given is asked for again',
+    !missing.ok && /cover letter was missing/i.test(missing.problems[0]), JSON.stringify(missing))
+
+  // The whole reason for one call is that the two can be made to differ. An
+  // answer that sends the same paragraphs twice has thrown that away.
+  const copied = outreachPrompt.parseEmailParts(
+    reply({ paragraphs: letterParts.paragraphs, letter: letterParts }), 400, true)
+  check('a cover letter that is the email again is sent back to be written properly',
+    !copied.ok && /repeats the email/i.test(copied.problems[0]), JSON.stringify(copied.problems))
+
+  // ---- how much of the job post the email is given
+  const longPost = 'Northwind is hiring a Platform Engineer for Kubernetes and Terraform.\n\n' + 'Benefits and boilerplate. '.repeat(900)
+  const capped = outreachPrompt.buildOutreachPrompt({ ...input, jobDescription: longPost })
+  const postInPrompt = capped.split('## THE JOB POST\n')[1].split('\n\n## ')[0]
+  check('a long job post is cut down for the email, keeping the top where the role is described',
+    longPost.length > 20_000 && postInPrompt.length <= outreachPrompt.EMAIL_JOB_POST_CHARS &&
+    postInPrompt.includes('hiring a Platform Engineer') && capped.length < longPost.length,
+    JSON.stringify({ post: longPost.length, sent: postInPrompt.length, cap: outreachPrompt.EMAIL_JOB_POST_CHARS }))
+
   const signature = outreachPrompt.signatureLines(
     { senderName: '', phone: '+91 90000 00000', links: [{ label: 'LinkedIn', url: 'https://linkedin.com/in/riya' }, { label: '', url: 'https://riya.dev' }] },
     'Riya Patel'
@@ -2152,7 +2193,7 @@ async function outreachTests() {
       subject: 'Platform Engineer role\r\nBcc: sneak@evil.example',
       text: 'Hi Priya,\n\nI would like to be considered.\n\nBest regards,\nRiya',
       html: emailHtml('Hi Priya,\n\nI would like to be considered.', 'http://localhost:3000/api/outreach/open/tok123'),
-      attachment: { filename: 'Riya Patel Resume.pdf', content: pdf },
+      attachments: [{ filename: 'Riya Patel Resume.pdf', content: pdf }, { filename: 'Riya Patel Cover Letter.pdf', content: pdf }],
       inReplyTo: null,
     })
     const message = smtp.taken[0]
@@ -2180,7 +2221,7 @@ async function outreachTests() {
       subject: 'Re: Platform Engineer role',
       text: 'Just following up.',
       html: emailHtml('Just following up.', null),
-      attachment: null,
+      attachments: [],
       inReplyTo: '<first-email@example.com>',
     })
     const followUp = smtp.taken[1].data
@@ -2194,7 +2235,7 @@ async function outreachTests() {
     try {
       await sendFromMailbox(localLogin, {
         fromName: 'Riya Patel', to: { name: '', address: 'gone@contoso.com' }, subject: 'Hello',
-        text: 'Hello there.', html: emailHtml('Hello there.', null), attachment: null, inReplyTo: null,
+        text: 'Hello there.', html: emailHtml('Hello there.', null), attachments: [], inReplyTo: null,
       })
     } catch (err) {
       refused = err
@@ -2488,6 +2529,34 @@ async function applyTests() {
     !/Everything in \$\{?\s*(PRO_PLAN\.label|TIERS\.pro\.label)[^}]*\}?[^`\n]*(runsPerCycle|\b100\b)/.test(premiumCopy) &&
     !premiumCopy.includes('including ${PREMIUM_PLAN.runsPerCycle} tailorings'),
     premiumCopy.split('\n').filter((line) => line.includes('Everything in')).join(' | '))
+
+  // ---- tailoring a copy leaves the saved resume alone
+  const { tailorStoredResume } = require(BUILD + '/lib/tailor/splice')
+  const savedDoc = ResumeDocSchema.parse({
+    name: 'Asha Menon',
+    summary: 'Backend engineer building payment services.',
+    experience: [
+      {
+        company: 'Northwind Systems',
+        role: 'Senior Backend Engineer',
+        bullets: ['Built a payouts service handling 40,000 daily requests with p95 latency down 32%'],
+      },
+    ],
+  })
+  const before = JSON.stringify(savedDoc)
+  const original = renderResumeLatex(savedDoc)
+  const bullet = parseLatexResume(original, 'saved').resume.sections
+    .flatMap((section) => section.content)
+    .find((line) => line.startsWith('Built a payouts'))
+  const copy = tailorStoredResume(savedDoc, [
+    { original: bullet, proposed: bullet.replace('Built', 'Operated \\textbf{Kubernetes}-backed') },
+  ])
+  check('tailoring rewrites a copy and never the saved resume',
+    copy.ok && copy.result.applied === 1 && copy.result.latex.includes('Kubernetes') &&
+    // The document it was given is byte-for-byte what it was, and so is its LaTeX.
+    JSON.stringify(savedDoc) === before && renderResumeLatex(savedDoc) === original &&
+    !original.includes('Kubernetes'),
+    JSON.stringify({ applied: copy.ok ? copy.result.applied : copy.error, docUnchanged: JSON.stringify(savedDoc) === before }))
 
   // ---- one reading, two halves that agree
   const jobText =

@@ -1,10 +1,12 @@
 import { createHash, randomBytes } from 'node:crypto'
+import { coverLetterLatex, LetterHeader } from '@/lib/cover-letter'
 import { compileLatexToPdf } from '@/lib/latex/compile'
 import { sanitizeFileName } from '@/lib/resume-filename'
 
 /**
  * What goes out with a recruiter email besides its text: the resume as a PDF,
- * and the image that tells Chills the email was opened. Server-only.
+ * the cover letter as a second one when there is one, and the image that tells
+ * Chills the email was opened. Server-only.
  */
 
 /** Built PDFs, by the LaTeX they came from, so a batch of emails with one resume builds it once. */
@@ -30,9 +32,18 @@ export async function resumePdf(latex: string): Promise<Buffer> {
   return result.pdf
 }
 
-/** "Riya Patel Resume.pdf". */
-export function attachmentName(candidateName: string): string {
-  return `${sanitizeFileName(candidateName) || 'My'} Resume.pdf`
+/** "Riya Patel Resume.pdf", and "Riya Patel Cover Letter.pdf". */
+export function attachmentName(candidateName: string, kind: 'resume' | 'cover letter' = 'resume'): string {
+  const who = sanitizeFileName(candidateName) || 'My'
+  return kind === 'resume' ? `${who} Resume.pdf` : `${who} Cover Letter.pdf`
+}
+
+/**
+ * The cover letter as a PDF, typeset by the same service as the resume so the
+ * two arrive looking like one application rather than two.
+ */
+export async function coverLetterPdf(header: LetterHeader, body: string): Promise<Buffer> {
+  return resumePdf(coverLetterLatex(header, body))
 }
 
 /** An unguessable id for one email's open-tracking image. */

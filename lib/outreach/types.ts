@@ -66,6 +66,10 @@ export interface EmailDetail {
   body: string
   status: EmailStatus
   attachResume: boolean
+  /** The cover letter written with this email; empty when there is none. */
+  coverLetter: string
+  /** Whether that letter goes out as a second PDF beside the resume. */
+  attachCoverLetter: boolean
   tracked: boolean
   openCount: number
   sentAt: string | null

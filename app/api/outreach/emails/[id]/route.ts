@@ -22,6 +22,8 @@ const schema = z.discriminatedUnion('action', [
     subject: z.string().trim().max(LIMITS.subject, `Keep the subject under ${LIMITS.subject} characters.`),
     body: z.string().max(LIMITS.body, `Keep the email under ${LIMITS.body} characters.`),
     attachResume: z.boolean(),
+    /** Whether the cover letter written with it goes out too. */
+    attachCoverLetter: z.boolean().optional(),
     source: EmailSourceSchema.optional(),
   }),
   /** Move a sent thread along the tracker. */
@@ -66,6 +68,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     subject: change.subject,
     body: change.body.replace(/\r\n?/g, '\n'),
     attachResume: change.attachResume,
+    attachCoverLetter: change.attachCoverLetter,
     source: change.source,
   })
   if (!email) return fail(409, 'That email was already sent, so it can’t be changed.')

@@ -123,6 +123,51 @@ export function Toggle({
   )
 }
 
+/**
+ * One of two or three ways of doing something, as a card rather than a radio
+ * dot: each carries a line of explanation, and that reads better with something
+ * to click than with a label beside a circle.
+ */
+export function Choice({
+  checked,
+  onChange,
+  title,
+  detail,
+  disabled = false,
+}: {
+  checked: boolean
+  onChange: () => void
+  title: string
+  detail: string
+  disabled?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={onChange}
+      className={`text-left rounded-[10px] border-[1.6px] border-[var(--color-ink)] p-3 transition-colors ${
+        checked ? 'bg-[var(--color-accent-soft)] shadow-[3px_3px_0_0_var(--color-ink)]' : 'bg-[var(--color-surface)]'
+      } ${disabled ? 'opacity-55 cursor-not-allowed' : ''}`}
+    >
+      <span className="flex items-start gap-2.5">
+        <span
+          className={`mt-0.5 shrink-0 w-4 h-4 rounded-full border-[1.6px] border-[var(--color-ink)] ${
+            checked ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-surface)]'
+          }`}
+          aria-hidden
+        />
+        <span>
+          <span className="block text-sm font-bold">{title}</span>
+          <span className="block text-xs text-[var(--color-text-muted)] mt-0.5">{detail}</span>
+        </span>
+      </span>
+    </button>
+  )
+}
+
 export function relativeDay(date: string | null): string {
   if (!date) return ''
   const days = Math.floor((Date.now() - new Date(date).getTime()) / 86_400_000)

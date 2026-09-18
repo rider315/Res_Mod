@@ -170,6 +170,14 @@ export const outreachEmails = pgTable(
     status: text('status').notNull().default('draft'),
     /** Whether the resume goes with it as a PDF. */
     attachResume: boolean('attach_resume').notNull().default(true),
+    /**
+     * The cover letter written with this email, in the same model call, and
+     * whether it goes out as a second PDF. Kept here rather than in
+     * cover_letters because that table hangs off a tailored copy, and an email
+     * sent with the original resume has no tailored copy to hang off.
+     */
+    coverLetter: text('cover_letter').notNull().default(''),
+    attachCoverLetter: boolean('attach_cover_letter').notNull().default(false),
     /** The random id in its open-tracking image; null when opens aren't tracked. */
     trackingToken: text('tracking_token').unique(),
     openCount: integer('open_count').notNull().default(0),

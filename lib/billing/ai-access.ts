@@ -119,7 +119,7 @@ function applyRefused(reason: ApplyRefusal): AiChoice {
  * request also counts toward a daily cap. If the work then fails, pass the grant
  * to settleAiFailure, which gives back what is owed.
  */
-export async function chooseAi(account: Account, request: AiRequest, meter: AiMeter): Promise<AiChoice> {
+export async function chooseAi(account: Account, request: AiRequest, meters: AiMeter | AiMeter[]): Promise<AiChoice> {
   if (account.role === 'owner') return ownerAi(request)
   if (!account.userId) return refuse(401, 'Not authenticated')
 
@@ -129,44 +129,24 @@ export async function chooseAi(account: Account, request: AiRequest, meter: AiMe
   try {
     await ensureUser({ id: account.userId, email: account.email, name: account.userName || null })
 
-    // The run is taken first, so a request refused for want of runs doesn't also use up the day's cap.
+    // Everything is taken before the first model call, and a request that can't
+    // have all of it gives back whatever it already took: one job that writes an
+    // email from a resume it tailored first spends both, or neither.
     const reservations: Reservation[] = []
-    const take = (taken: Reservation | null) => {
-      if (taken) reservations.push(taken)
-      return taken
+    const giveBack = async () => {
+      for (const taken of reservations) await releaseReservation(taken)
     }
-    if (meter === 'apply') {
-      const application = await reserveApply(account.userId)
-      if (!application.ok) return applyRefused(application.reason)
-      reservations.push(...application.reservations)
-    } else if (meter === 'run') {
-      if (!take(await reserveRun(account.userId))) {
-        return refuse(
-          402,
-          'You have no tailorings left. Get Pro or a credit pack on the Plans page to keep tailoring.',
-          BILLING_CODES.quotaExhausted
-        )
-      }
-    } else if (meter === 'import') {
-      if (!take(await reserveImport(account.userId))) {
-        return refuse(
-          429,
-          "You've reached this month's limit for importing resumes. It starts again next month.",
-          BILLING_CODES.importLimit
-        )
-      }
-    } else if (meter === 'draft') {
-      if (!take(await reserveEmailDraft(account.userId))) {
-        return refuse(
-          429,
-          "You've used this month's AI-written recruiter emails. Pro or a credit pack raises the limit, and it starts again next month. You can still write and send emails yourself.",
-          BILLING_CODES.draftLimit
-        )
+    for (const meter of [meters].flat()) {
+      const refusal = await takeOne(account.userId, meter, reservations)
+      if (refusal) {
+        await giveBack()
+        return refusal
       }
     }
+
     const daily = await takeDailyAiRequest(account.userId)
     if (!daily) {
-      for (const taken of reservations) await releaseReservation(taken)
+      await giveBack()
       return dailyLimitReached()
     }
     return { ok: true, ...platform, reservations, daily, onPlatform: true }
@@ -174,6 +154,45 @@ export async function chooseAi(account: Account, request: AiRequest, meter: AiMe
     console.error('[billing] could not check usage:', err instanceof Error ? err.message : err)
     return refuse(503, 'Your usage could not be checked right now. Try again in a moment.')
   }
+}
+
+/** Take what one meter costs, pushing it onto `into`. Returns the refusal when there is none left. */
+async function takeOne(userId: string, meter: AiMeter, into: Reservation[]): Promise<AiChoice | null> {
+  if (meter === 'free') return null
+
+  if (meter === 'apply') {
+    const application = await reserveApply(userId)
+    if (!application.ok) return applyRefused(application.reason)
+    into.push(...application.reservations)
+    return null
+  }
+
+  const taken =
+    meter === 'run'
+      ? await reserveRun(userId)
+      : meter === 'import'
+        ? await reserveImport(userId)
+        : await reserveEmailDraft(userId)
+  if (taken) {
+    into.push(taken)
+    return null
+  }
+
+  if (meter === 'run') {
+    return refuse(
+      402,
+      'You have no tailorings left. Get Pro or a credit pack on the Plans page to keep tailoring.',
+      BILLING_CODES.quotaExhausted
+    )
+  }
+  if (meter === 'import') {
+    return refuse(429, "You've reached this month's limit for importing resumes. It starts again next month.", BILLING_CODES.importLimit)
+  }
+  return refuse(
+    429,
+    "You've used this month's AI-written recruiter emails. Pro or a credit pack raises the limit, and it starts again next month. You can still write and send emails yourself.",
+    BILLING_CODES.draftLimit
+  )
 }
 
 /** How each kind of failure (lib/ai-errors.ts) answers over HTTP. */

@@ -39,6 +39,9 @@ export default function EmailEditor({ email, recruiter, mailbox, attachment, onC
   const [subject, setSubject] = useState(email.subject)
   const [body, setBody] = useState(email.body)
   const [attachResume, setAttachResume] = useState(email.attachResume && attachment !== null)
+  const hasLetter = email.coverLetter.trim().length > 0
+  const [attachCoverLetter, setAttachCoverLetter] = useState(email.attachCoverLetter && hasLetter)
+  const [showLetter, setShowLetter] = useState(false)
   const [busy, setBusy] = useState<'save' | 'send' | 'delete' | 'mark' | null>(null)
   const [startedAt, setStartedAt] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(email.lastError)
@@ -46,14 +49,15 @@ export default function EmailEditor({ email, recruiter, mailbox, attachment, onC
   const [confirming, setConfirming] = useState(false)
   const [openedElsewhere, setOpenedElsewhere] = useState(false)
 
-  const dirty = subject !== email.subject || body !== email.body || attachResume !== email.attachResume
+  const dirty =
+    subject !== email.subject || body !== email.body || attachResume !== email.attachResume || attachCoverLetter !== email.attachCoverLetter
   const words = body.trim().split(/\s+/).filter(Boolean).length
   const ready = subject.trim().length > 0 && body.replace(/\s+/g, ' ').trim().length >= 40
   const target = { to: recruiter.email, subject, body }
 
   async function save(): Promise<EmailDetail | null> {
     if (!dirty) return email
-    const result = await outreachApi.saveDraft(email.id, { subject, body, attachResume })
+    const result = await outreachApi.saveDraft(email.id, { subject, body, attachResume, attachCoverLetter })
     onChange(result.email)
     return result.email
   }
@@ -173,6 +177,25 @@ export default function EmailEditor({ email, recruiter, mailbox, attachment, onC
             <Paperclip size={15} /> No resume is attached: the one this email was written from was deleted.
           </p>
         )}
+        {hasLetter && (
+          <div className="mt-3 pt-3 border-t-[1.6px] border-[var(--color-border-soft)] space-y-2">
+            <Toggle
+              checked={attachCoverLetter}
+              onChange={setAttachCoverLetter}
+              disabled={disabled}
+              label="Attach the cover letter as a PDF"
+              description="Written with this email, from the same resume and job post."
+            />
+            <button type="button" onClick={() => setShowLetter(!showLetter)} className="text-xs underline font-bold">
+              {showLetter ? 'Hide it' : 'Read it'}
+            </button>
+            {showLetter && (
+              <p className="whitespace-pre-wrap text-sm leading-relaxed rounded-[8px] border-[1.6px] border-[var(--color-border-soft)] bg-[var(--color-surface)] p-3">
+                {email.coverLetter}
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {error && <div className={errorBox}>{error}</div>}
@@ -264,7 +287,12 @@ export default function EmailEditor({ email, recruiter, mailbox, attachment, onC
             <dt className="font-bold">Subject</dt>
             <dd>{subject}</dd>
             <dt className="font-bold">Attached</dt>
-            <dd>{attachResume && attachment ? 'Your resume, as a PDF' : 'Nothing'}</dd>
+            <dd>
+              {[attachResume && attachment ? 'your resume' : '', attachCoverLetter && hasLetter ? 'your cover letter' : '']
+                .filter(Boolean)
+                .join(' and ') || 'Nothing'}
+              {(attachResume && attachment) || (attachCoverLetter && hasLetter) ? ', as PDFs' : ''}
+            </dd>
           </dl>
           <p className="mt-4 text-xs text-[var(--color-text-muted)]">
             It goes out from your mailbox straight away and can’t be taken back. A copy appears in your Sent folder.

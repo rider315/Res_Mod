@@ -12,7 +12,7 @@ import { employerDomain } from '@/lib/outreach/mail-domains'
 import type { CompanyNote, EmailDetail, EmailSource, RecruiterSummary, ThreadSummary } from '@/lib/outreach/types'
 import { AISettings } from '@/lib/settings-storage'
 import EmailEditor from '@/components/user/outreach/EmailEditor'
-import { Field, relativeDay, StatusChip, Toggle } from '@/components/user/outreach/controls'
+import { Choice, Field, relativeDay, StatusChip, Toggle } from '@/components/user/outreach/controls'
 import { describeTailoring, outreachApi, OutreachContext, ownerAi, TailoringOption } from '@/components/user/outreach/outreach-client'
 
 /**
@@ -99,6 +99,9 @@ export default function Composer(props: ComposerProps) {
   const [tone, setTone] = useState<CoverLetterTone>('professional')
   const [notes, setNotes] = useState('')
   const [attachResume, setAttachResume] = useState(true)
+  /** "original" attaches the chosen resume; "tailored" rewrites a copy for this job first. */
+  const [resumeMode, setResumeMode] = useState<'original' | 'tailored'>('original')
+  const [coverLetter, setCoverLetter] = useState(false)
   const [research, setResearch] = useState(true)
   /** What reading the company's site came to, for the draft it was read for. */
   const [companyNote, setCompanyNote] = useState<{ emailId: string; note: CompanyNote } | null>(null)
@@ -114,6 +117,10 @@ export default function Composer(props: ComposerProps) {
   const factSource = readsSite ? `your resume and on ${employer}` : 'your resume'
   const draftsLeft = billing ? Math.max(0, billing.emailDrafts.limit - billing.emailDrafts.used) : null
   const aiOff = !isOwner && billing !== undefined && billing !== null && !billing.platformAi
+  // A copy can only be tailored from a saved resume, against a job post.
+  const hasJobPost = jobDescription.trim().length >= 80
+  const canTailor = chosen?.kind === 'resume'
+  const tailoring = canTailor && hasJobPost && resumeMode === 'tailored'
 
   // A draft thread is opened in the editor; one just written is already here.
   const draftThreadId = thread && (thread.status === 'draft' || thread.status === 'sending') ? thread.id : null
@@ -165,7 +172,9 @@ export default function Composer(props: ComposerProps) {
           source: chosen,
           jobTitle: chosenTailoring ? '' : jobTitle,
           jobDescription: chosenTailoring ? '' : jobDescription,
+          resumeMode: tailoring ? 'tailored' : 'original',
           tone,
+          coverLetter,
           notes,
           attachResume,
           blank,
@@ -344,6 +353,35 @@ export default function Composer(props: ComposerProps) {
                   + Add the job post
                 </button>
               )}
+
+              {/* Tailoring rewrites a copy. It needs the job post to rewrite against,
+                  and a saved resume to copy — a tailored copy is already written for
+                  its own job. */}
+              {canTailor && (
+                <div>
+                  <span className="block text-sm font-bold mb-2">The resume that goes with it</span>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <Choice
+                      checked={resumeMode === 'original'}
+                      onChange={() => setResumeMode('original')}
+                      disabled={busy}
+                      title="Send it as it is"
+                      detail="Your saved resume, unchanged."
+                    />
+                    <Choice
+                      checked={resumeMode === 'tailored'}
+                      onChange={() => setResumeMode('tailored')}
+                      disabled={busy || !hasJobPost}
+                      title="Tailor a copy for this job"
+                      detail={
+                        hasJobPost
+                          ? 'A copy is rewritten for this post and attached. Your saved resume never changes. Spends one tailoring.'
+                          : 'Add the job post above to tailor against it.'
+                      }
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -377,6 +415,18 @@ export default function Composer(props: ComposerProps) {
           </Field>
 
           <Toggle checked={attachResume} onChange={setAttachResume} disabled={busy} label="Attach the resume as a PDF" />
+          <Toggle
+            checked={coverLetter}
+            onChange={setCoverLetter}
+            disabled={busy}
+            label="Write a cover letter too, and attach it as a second PDF"
+          />
+          {coverLetter && (
+            <p className="text-xs text-[var(--color-text-muted)] -mt-1">
+              It is written in the same breath as the email, from the same resume and job post, and told to cover different ground
+              so the recruiter isn’t reading the same three achievements twice.
+            </p>
+          )}
           {employer ? (
             <Toggle
               checked={research}
@@ -408,11 +458,14 @@ export default function Composer(props: ComposerProps) {
               startedAt={startedAt}
               active={0}
               steps={[
-                readsSite
-                  ? `Reading ${employer}, then ${replacing ? 'rewriting' : 'writing'} the email`
-                  : replacing
-                    ? 'Rewriting the email'
-                    : 'Writing the email from your resume',
+                ...(tailoring ? ['Tailoring a copy of your resume to this job'] : []),
+                [
+                  readsSite ? `reading ${employer}` : '',
+                  coverLetter ? 'writing the email and the cover letter together' : `${replacing ? 'rewriting' : 'writing'} the email`,
+                ]
+                  .filter(Boolean)
+                  .join(', then ')
+                  .replace(/^./, (first) => first.toUpperCase()),
               ]}
               note={
                 readsSite

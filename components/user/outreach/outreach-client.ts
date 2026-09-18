@@ -1,5 +1,6 @@
 import { readApiError } from '@/components/user/billing-client'
 import type { CoverLetterTone } from '@/lib/cover-letter'
+import type { TailorLevel } from '@/lib/tailor/levels'
 import type { MailboxStatus, OutreachProfile, ThreadStage } from '@/lib/outreach/model'
 import type { OutreachStats } from '@/lib/outreach/stats'
 import type {
@@ -41,6 +42,15 @@ export interface WriteRequest {
   jobTitle?: string
   jobDescription?: string
   tone?: CoverLetterTone
+  /**
+   * "original" attaches the chosen resume as it is; "tailored" rewrites a copy
+   * of it for this job first and attaches that. The saved resume never changes.
+   */
+  resumeMode?: 'original' | 'tailored'
+  /** How far to tailor, when tailoring. */
+  level?: TailorLevel
+  /** Write a cover letter in the same call as the email, and attach it too. */
+  coverLetter?: boolean
   notes?: string
   attachResume?: boolean
   replaceDraftId?: string
@@ -53,6 +63,8 @@ export interface DraftChange {
   subject: string
   body: string
   attachResume: boolean
+  /** Whether the cover letter written with it goes out too. */
+  attachCoverLetter?: boolean
   source?: EmailSource
 }
 

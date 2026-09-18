@@ -174,6 +174,8 @@ function toDetail(row: EmailRow): EmailDetail {
     body: row.body,
     status: status(row.status),
     attachResume: row.attachResume,
+    coverLetter: row.coverLetter,
+    attachCoverLetter: row.attachCoverLetter,
     tracked: Boolean(row.trackingToken),
     openCount: row.openCount,
     sentAt: iso(row.sentAt),
@@ -194,6 +196,9 @@ export interface NewEmail {
   subject: string
   body: string
   attachResume: boolean
+  /** The cover letter written with it, and whether it goes out as a second PDF. */
+  coverLetter?: string
+  attachCoverLetter?: boolean
 }
 
 export async function createEmail(userId: string, input: NewEmail): Promise<EmailDetail> {
@@ -231,6 +236,8 @@ export async function updateDraft(
     subject: string
     body: string
     attachResume: boolean
+    coverLetter?: string
+    attachCoverLetter?: boolean
     source?: EmailSource
     job?: { title: string; description: string }
   }
@@ -250,6 +257,8 @@ export async function updateDraft(
       subject: patch.subject,
       body: patch.body,
       attachResume: patch.attachResume,
+      ...(patch.coverLetter === undefined ? {} : { coverLetter: patch.coverLetter }),
+      ...(patch.attachCoverLetter === undefined ? {} : { attachCoverLetter: patch.attachCoverLetter }),
       ...sourcePatch,
       ...jobPatch,
       lastError: null,
