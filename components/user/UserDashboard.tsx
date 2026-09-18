@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { signOut } from 'next-auth/react'
 import { useConfirm } from '@/components/ConfirmProvider'
+import { reportConversion } from '@/lib/analytics'
 import OwnerNav from '@/components/OwnerNav'
 import SettingsModal from '@/components/SettingsModal'
 import { LogoMark } from '@/components/brand/Logo'
@@ -96,9 +97,11 @@ interface UserDashboardProps {
   isOwner?: boolean
   /** Start on the keyword finder, as the public keyword finder page links here. */
   openKeywordFinder?: boolean
+  /** The account was created by this visit: the one time a signup is worth reporting. */
+  justSignedUp?: boolean
 }
 
-export default function UserDashboard({ name, email, isOwner = false, openKeywordFinder = false }: UserDashboardProps) {
+export default function UserDashboard({ name, email, isOwner = false, openKeywordFinder = false, justSignedUp = false }: UserDashboardProps) {
   const confirm = useConfirm()
   const [view, setView] = useState<View>({ kind: 'list' })
   const [overlay, setOverlay] = useState<Overlay>(openKeywordFinder ? 'keywords' : null)
@@ -115,6 +118,12 @@ export default function UserDashboard({ name, email, isOwner = false, openKeywor
   const [outreachContext, setOutreachContext] = useState<OutreachContext | null>(null)
 
   const firstName = name.trim().split(/\s+/)[0]
+
+  // The account was just created, so the ad that brought them worked. The owner
+  // is never counted: they arrive here from their own dashboard, not from an ad.
+  useEffect(() => {
+    if (justSignedUp && !isOwner) reportConversion('signup')
+  }, [justSignedUp, isOwner])
 
   useEffect(() => {
     // The workspace has one look, whatever the device's theme.

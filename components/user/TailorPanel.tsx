@@ -9,6 +9,7 @@ import CoverLetterPanel from '@/components/user/CoverLetterPanel'
 import KeywordCoverage from '@/components/user/KeywordCoverage'
 import UsageMeter, { UsageLine } from '@/components/user/UsageMeter'
 import { readTailorStream, RunUpdate } from '@/components/user/tailor-stream'
+import { reportConversion } from '@/lib/analytics'
 import { ApiError } from '@/components/user/billing-client'
 import { addCall, AiUsage, emptyUsage } from '@/lib/ai-usage'
 import { RunStage } from '@/lib/run-optimization'
@@ -233,6 +234,9 @@ export default function TailorPanel({
       setChanges(outcome.result.changes.map((change) => ({ ...change, approved: null })))
       setTookMs(Date.now() - began)
       setStep('review')
+      // Set this conversion to count "One" per click in Google Ads: someone who
+      // tailors three resumes had one click, not three.
+      if (!isOwner) reportConversion('tailoring')
     } catch (err) {
       setError(errorText(err))
       setStep('form')

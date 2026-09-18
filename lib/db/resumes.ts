@@ -20,11 +20,21 @@ export function isResumeId(id: string): boolean {
 }
 
 /** Create the account row a resume hangs off, or refresh its email and name. */
-export async function ensureUser(user: { id: string; email: string; name: string | null }) {
-  await getDb()
+/**
+ * Make sure the account exists, and say whether this call is what created it.
+ *
+ * `xmax = 0` is Postgres's own way of telling an insert from an update in a
+ * single upsert: a freshly inserted row has no updating transaction stamped on
+ * it. That is the only reliable moment to call someone new — everything else
+ * fires again every time they come back.
+ */
+export async function ensureUser(user: { id: string; email: string; name: string | null }): Promise<{ created: boolean }> {
+  const [row] = await getDb()
     .insert(schema.users)
     .values(user)
     .onConflictDoUpdate({ target: schema.users.id, set: { email: user.email, name: user.name } })
+    .returning({ created: sql<boolean>`xmax = 0` })
+  return { created: row?.created === true }
 }
 
 const summaryColumns = {

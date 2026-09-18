@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { PRO_PLAN, PREMIUM_PLAN, EMAIL_DRAFTS_PER_MONTH, formatPrice } from '@/lib/billing/plans'
+import { reportConversion } from '@/lib/analytics'
 import type { BillingStatus, CheckoutStart } from '@/lib/billing/types'
 import {
   fetchBilling,
@@ -85,7 +86,12 @@ export default function BillingPanel({ billing, onBillingChange, onBack }: Billi
     checkout(
       { kind: 'pack', id: packId },
       () => postBilling<CheckoutStart>('/api/billing/order', { packId }),
-      () => setNotice(`${tailorings(runs)} added. Thank you!`)
+      () => {
+        const pack = billing?.packs.find((entry) => entry.id === packId)
+        // In rupees, not paise: Google reads this as money.
+        reportConversion('purchase', { value: pack ? pack.pricePaise / 100 : undefined, id: packId })
+        setNotice(`${tailorings(runs)} added. Thank you!`)
+      }
     )
 
   const subscribe = () =>
@@ -93,6 +99,7 @@ export default function BillingPanel({ billing, onBillingChange, onBack }: Billi
       { kind: 'pro' },
       () => postBilling<CheckoutStart>('/api/billing/subscribe'),
       async (status) => {
+        reportConversion('purchase', { value: PRO_PLAN.pricePaise / 100 })
         if (status.subscription?.entitled) return setNotice('Pro is on. Thank you!')
         setNotice('Payment received. Pro switches on as soon as Razorpay confirms it, usually within a minute.')
         for (let attempt = 0; attempt < 12; attempt++) {
