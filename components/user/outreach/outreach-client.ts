@@ -59,6 +59,29 @@ export interface OutreachSummary {
   mailboxConnected: boolean
 }
 
+/** One recruiter in the published directory. No address until it is taken. */
+export interface DirectoryEntry {
+  id: string
+  name: string
+  company: string
+  title: string
+  field: string
+  location: string
+  batch: string
+  /** Already in this account's own list. */
+  taken: boolean
+  /** Places left before the contact closes to new accounts. */
+  spotsLeft: number
+}
+
+export interface DirectoryList {
+  entries: DirectoryEntry[]
+  fields: Array<{ field: string; open: number }>
+  latestBatch: string | null
+  weeklyLeft: number
+  weeklyLimit: number
+}
+
 /** A tailored copy an email can be written from and attach. */
 export interface TailoringOption {
   id: string
@@ -124,6 +147,24 @@ export const outreachApi = {
   /** The tailored copies an email can be written from. Loaded with the recruiters, never separately. */
   tailorings: async () =>
     (await call<{ tailorings: TailoringOption[] }>('/api/tailorings', 'Your tailored copies couldn’t be loaded.')).tailorings ?? [],
+}
+
+/** The recruiters Chills publishes, and taking them into your own list. */
+export const directoryApi = {
+  list: (filter: { field?: string; q?: string; newOnly?: boolean }) => {
+    const params = new URLSearchParams()
+    if (filter.field) params.set('field', filter.field)
+    if (filter.q) params.set('q', filter.q)
+    if (filter.newOnly) params.set('new', '1')
+    const query = params.toString()
+    return call<DirectoryList>(`/api/outreach/directory${query ? `?${query}` : ''}`, 'The recruiter directory couldn’t be loaded.')
+  },
+  take: (ids: string[]) =>
+    call<{ added: number; skipped: number; overLimit: number; weeklyLeft: number }>(
+      '/api/outreach/directory/take',
+      'Those recruiters couldn’t be added.',
+      { method: 'POST', json: { ids } }
+    ),
 }
 
 /** What the Outreach screen was opened for, when it came from a tailored copy. */

@@ -43,6 +43,13 @@
       "when": 1789632616686,
       "tag": "0005_conscious_omega_sentinel",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789728429837,
+      "tag": "0006_sharp_lightspeed",
+      "breakpoints": true
     }
   ]
 }

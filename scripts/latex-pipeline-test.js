@@ -2354,6 +2354,17 @@ async function applyTests() {
     roleLabel({ title: 'Platform Engineer', company: 'Northwind' }) === 'Platform Engineer at Northwind' &&
     roleLabel({ title: '', company: '' }) === 'this role')
 
+  // ---- the recruiter directory's caps
+  const dirLimits = outreachModel.LIMITS
+  check('a published recruiter is open to a limited number of accounts, and an account takes a limited number a week',
+    dirLimits.directoryTakesPerRecruiter > 0 && dirLimits.directoryTakesPerRecruiter <= 50 &&
+    dirLimits.directoryPerWeek > 0 && dirLimits.directoryPerWeek <= 100 &&
+    // The per-recruiter cap is what stops one inbox getting the same pitch from everyone;
+    // it must stay well under the number of accounts that could want it.
+    dirLimits.directoryTakesPerRecruiter < dirLimits.recruitersPerAccount &&
+    outreachModel.RECRUITER_SOURCES.includes('directory'),
+    JSON.stringify({ perRecruiter: dirLimits.directoryTakesPerRecruiter, perWeek: dirLimits.directoryPerWeek }))
+
   // ---- what Premium is
   check('Premium costs more than Pro and is the only tier with the combined run',
     applyPlans.PREMIUM_PLAN.pricePaise === 49_900 && applyPlans.PREMIUM_PLAN.pricePaise > applyPlans.PRO_PLAN.pricePaise &&

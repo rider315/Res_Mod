@@ -391,3 +391,63 @@ export const appSettings = pgTable('app_settings', {
   updatedBy: text('updated_by'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
+
+// ─── The recruiter directory ─────────────────────────────────────────────────
+//
+// The recruiters Chills publishes itself, added by the owner in weekly batches,
+// so an account with no list of its own still has someone to write to.
+//
+// Two counts here exist to protect the people in the list. takenCount caps how
+// many accounts may ever take one contact, because a recruiter who receives the
+// same pitch from four hundred strangers will mark it as spam — which burns the
+// contact, and the senders' own mailboxes with it. suppressed is the way out:
+// anyone who asks not to be contacted is switched off and can never be taken
+// again.
+
+/** A recruiter Chills publishes for every account. */
+export const directoryRecruiters = pgTable(
+  'directory_recruiters',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** Lower-cased, and checked like any other address (lib/outreach/email-check.ts). */
+    email: text('email').notNull().unique(),
+    name: text('name').notNull().default(''),
+    company: text('company').notNull().default(''),
+    title: text('title').notNull().default(''),
+    /** What they hire for, such as "engineering" — what the list is filtered by. */
+    field: text('field').notNull().default(''),
+    location: text('location').notNull().default(''),
+    /** The weekly drop it arrived in, as a date: accounts can ask for what is new. */
+    batch: text('batch').notNull(),
+    /** Where the owner got it, kept so a contact can be traced back. */
+    source: text('source').notNull().default(''),
+    /** How many accounts have taken it. Capped, so no one recruiter is buried. */
+    takenCount: integer('taken_count').notNull().default(0),
+    /** Asked not to be contacted, or found to be bad. Never shown or taken again. */
+    suppressed: boolean('suppressed').notNull().default(false),
+    suppressedReason: text('suppressed_reason'),
+    addedAt: timestamp('added_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('directory_recruiters_batch_idx').on(table.batch),
+    index('directory_recruiters_open_idx').on(table.suppressed, table.takenCount),
+  ]
+)
+
+/** Which accounts have taken which published recruiter, so none is taken twice. */
+export const directoryClaims = pgTable(
+  'directory_claims',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    recruiterId: uuid('recruiter_id')
+      .notNull()
+      .references(() => directoryRecruiters.id, { onDelete: 'cascade' }),
+    takenAt: timestamp('taken_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.recruiterId] }),
+    index('directory_claims_user_id_taken_at_idx').on(table.userId, table.takenAt),
+  ]
+)

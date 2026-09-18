@@ -15,6 +15,12 @@ import { getDb } from '@/lib/db'
 export async function deleteAccountData(userId: string): Promise<void> {
   const db = getDb()
   await db.batch([
+    // Directory claims give their places back, so a deleted account doesn't hold
+    // a published recruiter closed against everyone else for good.
+    db.execute(sql`
+      update directory_recruiters set taken_count = greatest(0, taken_count - 1)
+      where id in (select recruiter_id from directory_claims where user_id = ${userId})`),
+    db.execute(sql`delete from directory_claims where user_id = ${userId}`),
     // Outreach and history first: deleting a resume would otherwise update rows this batch is deleting.
     db.execute(sql`delete from outreach_replies where user_id = ${userId}`),
     db.execute(sql`delete from outreach_emails where user_id = ${userId}`),

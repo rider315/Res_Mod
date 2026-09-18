@@ -13,6 +13,7 @@ import { AISettings } from '@/lib/settings-storage'
 import AddRecruitersDialog from '@/components/user/outreach/AddRecruitersDialog'
 import { BatchProgress, BatchSendDialog, BatchState, BatchWriteDialog, BatchWriteOptions } from '@/components/user/outreach/BatchDialogs'
 import Composer, { defaultSourceKey, TailoringOption } from '@/components/user/outreach/Composer'
+import DirectoryBoard from '@/components/user/outreach/DirectoryBoard'
 import RecruiterList, { matchesFilter, matchesQuery, RecruiterFilter } from '@/components/user/outreach/RecruiterList'
 import SenderSetup from '@/components/user/outreach/SenderSetup'
 import ThreadDialog from '@/components/user/outreach/ThreadDialog'
@@ -26,7 +27,7 @@ import { describeTailoring, outreachApi, OutreachContext, ownerAi } from '@/comp
  * tracker for what happens next.
  */
 
-type Tab = 'write' | 'tracker' | 'setup'
+type Tab = 'write' | 'directory' | 'tracker' | 'setup'
 
 interface OutreachPanelProps {
   /** Null while they load: an email is written from one of these, so nothing that picks one renders until they are here. */
@@ -294,6 +295,7 @@ export default function OutreachPanel(props: OutreachPanelProps) {
         onChange={setTab}
         options={[
           { value: 'write', label: 'Write and send' },
+          { value: 'directory', label: 'Find recruiters', badge: <span className="nb-chip text-[10px] px-1.5 py-0 bg-[var(--color-accent)] text-[#0a0a0a]">New</span> },
           {
             value: 'tracker',
             label: 'Tracker',
@@ -392,6 +394,8 @@ export default function OutreachPanel(props: OutreachPanelProps) {
             </div>
           </div>
         ))}
+
+      {tab === 'directory' && <DirectoryBoard onTaken={refresh} />}
 
       {tab === 'tracker' && <TrackerBoard threads={threads} recruiters={list.length} onOpenThread={setOpenThread} />}
 

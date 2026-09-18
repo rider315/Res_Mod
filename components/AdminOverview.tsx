@@ -1,5 +1,6 @@
 'use client'
 import { useCallback, useEffect, useState } from 'react'
+import DirectoryAdmin from '@/components/DirectoryAdmin'
 import { formatPrice } from '@/lib/billing/plans'
 import type { AdminOverview as Overview, CheckState } from '@/lib/admin/types'
 
@@ -206,6 +207,10 @@ export default function AdminOverview({ onClose }: { onClose: () => void }) {
                   </table>
                 </div>
               )}
+            </section>
+
+            <section className="pt-4 border-t-[1.6px] border-[var(--color-border-soft)]">
+              <DirectoryAdmin />
             </section>
           </>
         )}

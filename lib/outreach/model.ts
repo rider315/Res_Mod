@@ -71,7 +71,7 @@ export function stageAfterReply(current: ThreadStage, intent: ReplyIntent): Thre
 }
 
 /** How a recruiter got into the list. */
-export const RECRUITER_SOURCES = ['manual', 'paste', 'csv', 'excel', 'pdf', 'sheets'] as const
+export const RECRUITER_SOURCES = ['manual', 'paste', 'csv', 'excel', 'pdf', 'sheets', 'directory'] as const
 export type RecruiterSource = (typeof RECRUITER_SOURCES)[number]
 
 export const LIMITS = {
@@ -86,6 +86,17 @@ export const LIMITS = {
   highlights: 600,
   /** Follow-ups one thread can have. */
   followUps: 2,
+  /**
+   * Published recruiters one account may take in a week. The list is a shared
+   * thing: without a cap the first few accounts would empty it.
+   */
+  directoryPerWeek: 40,
+  /**
+   * Accounts that may ever take one published recruiter. It is not about
+   * fairness — a recruiter who gets the same pitch from hundreds of strangers
+   * reports it as spam, which burns the contact and the senders' mailboxes too.
+   */
+  directoryTakesPerRecruiter: 25,
 } as const
 
 /** A thread with no reply this many days after its last email is due a follow-up. */
