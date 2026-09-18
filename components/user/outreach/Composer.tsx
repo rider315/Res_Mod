@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import Working from '@/components/user/Working'
 import { ArrowRight, Pencil, Refresh, Sparkles, Wand } from '@/components/brand/Icons'
 import { ApiError } from '@/components/user/billing-client'
 import { cardClass, errorBox, inputClass, linkButton, primaryButton, ResumeSummary, secondaryButton, successBox } from '@/components/user/shared'
@@ -88,6 +89,7 @@ export default function Composer(props: ComposerProps) {
   const [error, setError] = useState<string | null>(null)
   const [limitHit, setLimitHit] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [startedAt, setStartedAt] = useState<number | null>(null)
 
   const [source, setSource] = useState(() => defaultSourceKey(recruiter, context, tailorings, resumes))
   const [jobTitle, setJobTitle] = useState(context?.jobTitle ?? '')
@@ -145,6 +147,7 @@ export default function Composer(props: ComposerProps) {
 
   async function write(blank: boolean) {
     setBusy(true)
+    setStartedAt(Date.now())
     setError(null)
     setLimitHit(false)
     try {
@@ -374,6 +377,15 @@ export default function Composer(props: ComposerProps) {
           )}
           {aiOff && <p className="text-sm font-semibold text-[var(--color-warning)]">The AI isn’t available right now. You can still write the email yourself.</p>}
 
+          {busy && (
+            <Working
+              kind="email"
+              startedAt={startedAt}
+              active={0}
+              steps={[replacing ? 'Rewriting the email' : 'Writing the email from your resume']}
+              note="Only facts already in the resume you chose. Nothing is sent."
+            />
+          )}
           <div className="flex flex-wrap items-center gap-3">
             <button onClick={() => write(false)} disabled={busy || locked || !chosen || aiOff} className={primaryButton}>
               <Wand size={16} /> {busy ? 'Writing…' : replacing ? 'Rewrite with AI' : 'Write with AI'}

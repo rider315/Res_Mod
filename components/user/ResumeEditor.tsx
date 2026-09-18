@@ -1,5 +1,6 @@
 'use client'
 import { ReactNode, useState } from 'react'
+import Working from '@/components/user/Working'
 import LatexPreview from '@/components/LatexPreview'
 import { ArrowLeft } from '@/components/brand/Icons'
 import { ResumeDoc, ResumeDocSchema, SourceFormat } from '@/lib/resume-doc'
@@ -519,6 +520,11 @@ export default function ResumeEditor({
           <button onClick={downloadTex} disabled={!latex || dirty} className={secondaryButton}>
             Download .tex
           </button>
+          {compiling && (
+            <div className="w-full">
+              <Working kind="pdf" active={0} steps={['Typesetting your resume as a PDF']} />
+            </div>
+          )}
           <button onClick={downloadPdf} disabled={!savedId || dirty || compiling} className={secondaryButton}>
             {compiling ? 'Building PDF…' : 'Download PDF'}
           </button>

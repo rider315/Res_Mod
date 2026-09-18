@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import Working from '@/components/user/Working'
 import { CheckCircle, ExternalLink, Eye, KeyIcon, Mail, Plus, Shield, Trash } from '@/components/brand/Icons'
 import { cardClass, errorBox, inputClass, linkButton, primaryButton, secondaryButton, successBox } from '@/components/user/shared'
 import { formatDate } from '@/components/user/billing-client'
@@ -198,6 +199,15 @@ function MailboxCard({ setup, onSetupChange }: SenderSetupProps) {
                 </select>
               </Field>
             </div>
+          )}
+
+          {busy === 'connect' && (
+            <Working
+              kind="mailbox"
+              active={0}
+              steps={['Signing in to your mailbox']}
+              note="Nothing is sent. If the sign-in works, the app password is encrypted and saved."
+            />
           )}
 
           <div className="flex flex-wrap items-center gap-2">

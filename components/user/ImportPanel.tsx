@@ -1,5 +1,6 @@
 'use client'
 import { useRef, useState } from 'react'
+import Working from '@/components/user/Working'
 import AiAllowance from '@/components/user/AiAllowance'
 import { ArrowLeft, ArrowRight, CheckCircle, FileText, Upload } from '@/components/brand/Icons'
 import { ApiError, readApiError } from '@/components/user/billing-client'
@@ -50,6 +51,7 @@ export default function ImportPanel({
   const [pasted, setPasted] = useState('')
   const [dragging, setDragging] = useState(false)
   const [phase, setPhase] = useState<Phase>('idle')
+  const [startedAt, setStartedAt] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -115,6 +117,7 @@ export default function ImportPanel({
   async function run() {
     setError(null)
     try {
+      setStartedAt(Date.now())
       setPhase('reading')
       const { text, sourceFormat } = await readText()
       setPhase('structuring')
@@ -245,6 +248,16 @@ export default function ImportPanel({
               </>
             )}
           </div>
+        )}
+
+        {busy && (
+          <Working
+            kind="import"
+            startedAt={startedAt}
+            active={phase === 'reading' ? 0 : 1}
+            steps={['Reading the text of your file', 'Sorting it into sections']}
+            note="Nothing is rewritten here — this only reads what your file already says."
+          />
         )}
 
         <button

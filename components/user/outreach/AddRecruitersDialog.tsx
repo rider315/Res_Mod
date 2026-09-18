@@ -1,5 +1,6 @@
 'use client'
 import { useRef, useState } from 'react'
+import Working from '@/components/user/Working'
 import { CheckCircle, FileText, Upload, Users } from '@/components/brand/Icons'
 import { errorBox, inputClass, linkButton, primaryButton, secondaryButton, successBox } from '@/components/user/shared'
 import type { ImportSummary } from '@/lib/outreach/types'
@@ -21,6 +22,7 @@ const errorText = (err: unknown) => (err instanceof Error ? err.message : String
 export default function AddRecruitersDialog({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
   const [mode, setMode] = useState<Mode>('one')
   const [busy, setBusy] = useState(false)
+  const [startedAt, setStartedAt] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [summary, setSummary] = useState<ImportSummary | null>(null)
@@ -34,6 +36,7 @@ export default function AddRecruitersDialog({ onClose, onAdded }: { onClose: () 
 
   async function run(action: () => Promise<void>) {
     setBusy(true)
+    setStartedAt(Date.now())
     setError(null)
     setNotice(null)
     try {
@@ -251,6 +254,16 @@ export default function AddRecruitersDialog({ onClose, onAdded }: { onClose: () 
                 className={inputClass}
               />
             </Field>
+          )}
+
+          {busy && mode !== 'one' && (
+            <Working
+              kind="recruiters"
+              startedAt={startedAt}
+              active={0}
+              steps={['Checking every address before it is saved']}
+              note="Format, mistyped providers, throwaway domains, and whether the domain can receive mail at all."
+            />
           )}
 
           {mode !== 'one' && (

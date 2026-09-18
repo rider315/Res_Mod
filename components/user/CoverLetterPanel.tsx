@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useId, useRef, useState } from 'react'
+import Working from '@/components/user/Working'
 import { Copy, Download, Mail, Pencil } from '@/components/brand/Icons'
 import { readApiError } from '@/components/user/billing-client'
 import {
@@ -70,6 +71,7 @@ export default function CoverLetterPanel({ tailoringId, name, isOwner, settings 
   const [recipient, setRecipient] = useState('')
   const [notes, setNotes] = useState('')
   const [busy, setBusy] = useState<'write' | 'save' | 'pdf' | null>(null)
+  const [startedAt, setStartedAt] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
@@ -127,6 +129,7 @@ export default function CoverLetterPanel({ tailoringId, name, isOwner, settings 
 
   async function write() {
     setBusy('write')
+    setStartedAt(Date.now())
     setError(null)
     setNotice(null)
     try {
@@ -285,10 +288,18 @@ export default function CoverLetterPanel({ tailoringId, name, isOwner, settings 
             <p className="text-sm font-semibold text-[var(--color-text-muted)]">
               You&apos;ve written {max} cover letters for this resume. Edit the latest one instead.
             </p>
+          ) : busy === 'write' ? (
+            <Working
+              kind="letter"
+              startedAt={startedAt}
+              active={0}
+              steps={['Writing your letter from the tailored resume']}
+              note="Built from what the resume already says, in the tone you picked."
+            />
           ) : (
             <div className="flex flex-wrap items-center gap-3">
               <button onClick={write} disabled={busy !== null} className={primaryButton}>
-                <Mail size={16} /> {busy === 'write' ? 'Writing your letter…' : letter ? 'Rewrite the letter' : 'Write my cover letter'}
+                <Mail size={16} /> {letter ? 'Rewrite the letter' : 'Write my cover letter'}
               </button>
               {letter && (
                 <button onClick={() => setChoosing(false)} disabled={busy !== null} className={secondaryButton}>

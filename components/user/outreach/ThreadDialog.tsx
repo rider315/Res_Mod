@@ -1,5 +1,6 @@
 'use client'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import Working from '@/components/user/Working'
 import { Copy, ExternalLink, Inbox, Refresh, Reply, Trash, Wand } from '@/components/brand/Icons'
 import { ApiError } from '@/components/user/billing-client'
 import { errorBox, inputClass, linkButton, primaryButton, ResumeSummary, secondaryButton, successBox } from '@/components/user/shared'
@@ -271,6 +272,9 @@ export default function ThreadDialog(props: ThreadDialogProps) {
                   placeholder="Paste the recruiter’s reply…"
                   className={`${inputClass} resize-y`}
                 />
+                {busy === 'reply' && (
+                  <Working kind="reply" active={0} steps={['Reading what they want, and drafting an answer']} />
+                )}
                 <button onClick={readReply} disabled={busy !== null || reply.trim().length < 10} className={primaryButton}>
                   <Wand size={15} /> {busy === 'reply' ? 'Reading…' : 'Read the reply'}
                 </button>
@@ -303,6 +307,9 @@ export default function ThreadDialog(props: ThreadDialogProps) {
                         </button>
                       ))}
                     </div>
+                    {busy === 'followUp' && (
+                      <Working kind="email" active={0} steps={['Writing a short follow-up on the same thread']} />
+                    )}
                     <button onClick={writeFollowUp} disabled={busy !== null} className={due ? primaryButton : secondaryButton}>
                       <Wand size={15} /> {busy === 'followUp' ? 'Writing…' : 'Write a follow-up'}
                     </button>

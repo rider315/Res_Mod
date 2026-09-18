@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import Working from '@/components/user/Working'
 import { Check, Copy, ExternalLink, Paperclip, Send, Trash } from '@/components/brand/Icons'
 import { cardClass, errorBox, inputClass, linkButton, primaryButton, secondaryButton, successBox } from '@/components/user/shared'
 import { gmailComposeUrl, LIMITS, mailtoUrl, outlookComposeUrl } from '@/lib/outreach/model'
@@ -37,6 +38,7 @@ export default function EmailEditor({ email, recruiter, mailbox, attachment, onC
   const [body, setBody] = useState(email.body)
   const [attachResume, setAttachResume] = useState(email.attachResume && attachment !== null)
   const [busy, setBusy] = useState<'save' | 'send' | 'delete' | 'mark' | null>(null)
+  const [startedAt, setStartedAt] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(email.lastError)
   const [notice, setNotice] = useState<string | null>(null)
   const [confirming, setConfirming] = useState(false)
@@ -56,6 +58,7 @@ export default function EmailEditor({ email, recruiter, mailbox, attachment, onC
 
   async function run(kind: 'save' | 'send' | 'delete' | 'mark', action: () => Promise<void>) {
     setBusy(kind)
+    setStartedAt(Date.now())
     setError(null)
     setNotice(null)
     try {
@@ -166,6 +169,16 @@ export default function EmailEditor({ email, recruiter, mailbox, attachment, onC
 
       {error && <div className={errorBox}>{error}</div>}
       {notice && !error && <div className={successBox}>{notice}</div>}
+
+      {busy === 'send' && (
+        <Working
+          kind="send"
+          startedAt={startedAt}
+          active={0}
+          steps={['Sending from your mailbox']}
+          note="Building the resume PDF, signing in to your mailbox, and handing the email over."
+        />
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         {mailbox ? (

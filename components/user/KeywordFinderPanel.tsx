@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { ArrowLeft, ArrowRight, CheckCircle, Close, Search, Target } from '@/components/brand/Icons'
+import Working from '@/components/user/Working'
 import { ApiError, readApiError } from '@/components/user/billing-client'
 import {
   backLinkClass,
@@ -57,6 +58,7 @@ export default function KeywordFinderPanel({
 }: KeywordFinderPanelProps) {
   const [jobDescription, setJobDescription] = useState('')
   const [busy, setBusy] = useState(false)
+  const [startedAt, setStartedAt] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<KeywordFinderResult | null>(null)
   const [resumeId, setResumeId] = useState(resumes[0]?.id ?? '')
@@ -70,6 +72,7 @@ export default function KeywordFinderPanel({
 
   async function find() {
     setBusy(true)
+    setStartedAt(Date.now())
     setError(null)
     setResult(null)
     setMatch(null)
@@ -176,6 +179,15 @@ export default function KeywordFinderPanel({
           </label>
           {error && <div className={errorBox}>{error}</div>}
           {aiOff && <p className="text-sm font-semibold text-[var(--color-warning)]">The AI isn&apos;t available right now. Please check back soon.</p>}
+          {busy && (
+            <Working
+              kind="keywords"
+              startedAt={startedAt}
+              active={0}
+              steps={['Reading the job post for the terms it screens on']}
+              note="Scored from the job post itself, not from another model call."
+            />
+          )}
           <button onClick={find} disabled={busy || length < 80 || aiOff} className={`w-full ${primaryButton} py-3 text-base`}>
             <Search size={18} /> {busy ? 'Finding keywords…' : 'Find keywords'}
           </button>
