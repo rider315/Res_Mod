@@ -2677,6 +2677,16 @@ async function applyTests() {
     !/comingSoon: true/.test(read('app/LoginPage.tsx')),
     'a card still decides on its own')
 
+  // Next replaces the global fetch with one that caches by request, and Neon
+  // sends every query over fetch. Without this the app replays old answers: rows
+  // were added and every later read returned the counts from before them.
+  check('database reads are never replayed from a cached fetch',
+    read('lib/db/index.ts').includes("neon(url, { fetchOptions: { cache: 'no-store' } })"),
+    read('lib/db/index.ts')
+      .split('\n')
+      .filter((line) => line.includes('neon('))
+      .join(' | '))
+
   // ---- who the weekly recruiter list is for
   const paying = (entitled, credits) => quota.isPaying({ entitled, credits })
   check('the recruiter list is for accounts that pay: a plan in force, or credits still on it',
