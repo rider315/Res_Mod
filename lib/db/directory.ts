@@ -56,6 +56,49 @@ const open = () =>
     lt(schema.directoryRecruiters.takenCount, LIMITS.directoryTakesPerRecruiter)
   )
 
+/** One published week, as the public pages describe it. Counts only — never a contact. */
+export interface PublishedWeek {
+  batch: string
+  published: number
+  /** Still open to new accounts: the rest have been taken as often as they are open to. */
+  open: number
+  fields: string[]
+}
+
+/**
+ * Every week that has been published, newest first, with what went up in it.
+ *
+ * This is what the weekly pages are built from. It returns counts and field
+ * names and nothing else: no address, no name, no employer. The same rule as
+ * the directory page itself, for the same reason.
+ */
+export async function publishedWeeks(limit = 60): Promise<PublishedWeek[]> {
+  const rows = await getDb()
+    .select({
+      batch: schema.directoryRecruiters.batch,
+      published: count(),
+      open: sql<number>`count(*) filter (where suppressed = false and taken_count < ${LIMITS.directoryTakesPerRecruiter})`,
+      fields: sql<string[]>`array_agg(distinct nullif(field, '') order by nullif(field, ''))`,
+    })
+    .from(schema.directoryRecruiters)
+    .groupBy(schema.directoryRecruiters.batch)
+    .orderBy(desc(schema.directoryRecruiters.batch))
+    .limit(limit)
+
+  return rows.map((row) => ({
+    batch: row.batch,
+    published: Number(row.published),
+    open: Number(row.open),
+    fields: (row.fields ?? []).filter(Boolean),
+  }))
+}
+
+/** One week, or null when nothing was published then. */
+export async function publishedWeek(batch: string): Promise<PublishedWeek | null> {
+  const weeks = await publishedWeeks(400)
+  return weeks.find((week) => week.batch === batch) ?? null
+}
+
 export async function latestBatch(): Promise<string | null> {
   const [row] = await getDb()
     .select({ batch: schema.directoryRecruiters.batch })

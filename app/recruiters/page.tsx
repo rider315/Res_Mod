@@ -3,7 +3,8 @@ import SiteHeader from '@/components/brand/SiteHeader'
 import { SignedOutOnly, StartButton } from '@/components/brand/SignInButton'
 import { CheckCircle, ChevronDown, Mail, Users } from '@/components/brand/Icons'
 import { LIMITS } from '@/lib/outreach/model'
-import { directoryFields, directoryStats, latestBatch } from '@/lib/db/directory'
+import Link from 'next/link'
+import { directoryFields, directoryStats, latestBatch, publishedWeeks, type PublishedWeek } from '@/lib/db/directory'
 import JsonLd from '@/components/brand/JsonLd'
 import { absolute, breadcrumbSchema, faqSchema } from '@/lib/seo'
 
@@ -40,6 +41,8 @@ interface Published {
   open: number
   batches: number
   fields: Array<{ field: string; open: number }>
+  /** Every week so far, each its own page a search engine can find. */
+  weeks: PublishedWeek[]
 }
 
 /**
@@ -49,9 +52,9 @@ interface Published {
  */
 async function published(): Promise<Published | null> {
   try {
-    const [batch, stats, fields] = await Promise.all([latestBatch(), directoryStats(), directoryFields()])
+    const [batch, stats, fields, weeks] = await Promise.all([latestBatch(), directoryStats(), directoryFields(), publishedWeeks(12)])
     if (stats.total === 0) return null
-    return { batch, open: stats.open, batches: stats.batches, fields: fields.slice(0, 8) }
+    return { batch, open: stats.open, batches: stats.batches, fields: fields.slice(0, 8), weeks }
   } catch (err) {
     console.warn('[recruiters] the published counts could not be read:', err instanceof Error ? err.message : err)
     return null
@@ -195,6 +198,32 @@ export default async function RecruitersPage() {
           </div>
         </div>
       </section>
+
+      {live && live.weeks.length > 0 && (
+        <section className="px-4 sm:px-6 pb-20">
+          <div className="max-w-5xl mx-auto">
+            <h2 className="text-3xl sm:text-4xl font-black">Every week so far</h2>
+            <p className="mt-3 text-[var(--color-text-muted)]">
+              Each batch keeps its own page, so you can see what went up and when.
+            </p>
+            <ul className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {live.weeks.map((week) => (
+                <li key={week.batch}>
+                  <Link
+                    href={`/recruiters/week/${week.batch}`}
+                    className="flex items-center justify-between gap-3 nb-card rounded-[10px] px-4 py-3.5 hover:bg-[var(--color-accent-soft)]"
+                  >
+                    <span className="font-bold">{weekOf(week.batch)}</span>
+                    <span className="text-sm text-[var(--color-text-muted)] tabular-nums whitespace-nowrap">
+                      {week.published} contacts
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
 
       <section className="px-4 sm:px-6 py-20 bg-[var(--color-bg)] border-t-[1.6px] border-[var(--color-ink)]">
         <div className="max-w-3xl mx-auto">
