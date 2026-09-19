@@ -92,11 +92,11 @@ const FAQ: Array<[string, string]> = [
   ],
   [
     'Where do the addresses come from?',
-    'Public sources: careers pages, company sites and public professional profiles. Nothing is bought, scraped from a private service, or guessed at from a pattern.',
+    'They are the work addresses of people who hire: recruiters, HR leads and hiring managers. The list is one Chills holds privately — it is never published on a page, never sold, and never handed over in bulk. Each contact reaches only a limited number of accounts and then comes off it for good.',
   ],
   [
     'I am a recruiter and I do not want to be on this list.',
-    'Write to us from the address you want removed and it comes off at once and can never be taken again, by anyone. No account keeps it.',
+    'Write to us from the address you want removed. It comes off at once and can never be taken again by anyone, and no account that already has it can be given it a second time.',
   ],
 ]
 
@@ -220,6 +220,16 @@ export default async function RecruitersPage() {
           <div className="mt-12 flex justify-center">
             <StartButton label="See this week’s list" to={OUTREACH} />
           </div>
+
+          {/* Not inside an accordion: a recruiter who lands here looking for the
+              way off the list should not have to open anything to find it. */}
+          <p className="mt-12 text-center text-sm text-[var(--color-text-muted)] leading-relaxed">
+            Are you a recruiter who would rather not be on this list?{' '}
+            <a href="/contact" className="underline font-semibold text-[var(--color-text)]">
+              Tell us
+            </a>{' '}
+            from the address you want removed, and it comes off for good — no account can be given it again.
+          </p>
         </div>
       </section>
 
