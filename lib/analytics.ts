@@ -48,18 +48,54 @@ export interface ConversionDetail {
  * Report one conversion. Does nothing at all when the campaign isn't set up, the
  * label is missing, or the tag was blocked — which is why a payment should never
  * depend on this having worked.
+ *
+ * Whatever happens, it says so on console.debug. Silence used to be the whole
+ * problem: nothing reaches Google Ads until a campaign is running, so a missing
+ * label and a working tag look identical from the reports — both are zero. This
+ * line is the only way to tell them apart before spending anything. It is at
+ * debug level, which browsers hide unless verbose logging is on, so it costs a
+ * normal visitor nothing.
  */
 export function reportConversion(name: ConversionName, detail: ConversionDetail = {}): void {
   const label = LABELS[name]
   const send = gtag()
-  if (!GOOGLE_ADS_ID || !label || !send) return
+  const why = !GOOGLE_ADS_ID
+    ? 'NEXT_PUBLIC_GOOGLE_ADS_ID is not set'
+    : !label
+      ? `NEXT_PUBLIC_ADS_${name.toUpperCase()}_LABEL is not set — set it in Vercel and redeploy, as it is read at build time`
+      : !send
+        ? 'the Google tag has not loaded, most likely blocked by an extension'
+        : null
+  if (why || !send) {
+    console.debug(`[ads] ${name} not reported: ${why ?? 'the Google tag has not loaded'}`)
+    return
+  }
   try {
     send('event', 'conversion', {
       send_to: `${GOOGLE_ADS_ID}/${label}`,
       ...(detail.value !== undefined ? { value: detail.value, currency: detail.currency ?? 'INR' } : {}),
       ...(detail.id ? { transaction_id: detail.id } : {}),
     })
+    console.debug(
+      `[ads] ${name} reported to ${GOOGLE_ADS_ID}/${label}. ` +
+        'Google Ads only records it against an ad click, so it stays at zero until a campaign is running.'
+    )
   } catch {
     // Tracking must never break the thing it is tracking.
   }
+}
+
+/**
+ * The same, except for the owner, whose own signing in and tailoring is never
+ * counted — it would report the owner testing the product as demand for it.
+ *
+ * It says so rather than doing nothing quietly, because the owner is the one
+ * person likely to be sitting there wondering why the tag didn't fire.
+ */
+export function reportUnlessOwner(name: ConversionName, isOwner: boolean, detail: ConversionDetail = {}): void {
+  if (isOwner) {
+    console.debug(`[ads] ${name} not reported: this is the owner's account, and the owner's own use is never counted`)
+    return
+  }
+  reportConversion(name, detail)
 }

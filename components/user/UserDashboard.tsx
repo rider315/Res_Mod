@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { signOut } from 'next-auth/react'
 import { useConfirm } from '@/components/ConfirmProvider'
-import { reportConversion } from '@/lib/analytics'
+import { reportUnlessOwner } from '@/lib/analytics'
 import OwnerNav from '@/components/OwnerNav'
 import SettingsModal from '@/components/SettingsModal'
 import { LogoMark } from '@/components/brand/Logo'
@@ -123,7 +123,7 @@ export default function UserDashboard({ name, email, isOwner = false, openKeywor
   // The account was just created, so the ad that brought them worked. The owner
   // is never counted: they arrive here from their own dashboard, not from an ad.
   useEffect(() => {
-    if (justSignedUp && !isOwner) reportConversion('signup')
+    if (justSignedUp) reportUnlessOwner('signup', isOwner)
   }, [justSignedUp, isOwner])
 
   useEffect(() => {
