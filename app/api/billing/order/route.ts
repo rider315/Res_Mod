@@ -8,6 +8,7 @@ import { razorpay } from '@/lib/billing/razorpay'
 import { recordOrder } from '@/lib/billing/store'
 import type { CheckoutStart } from '@/lib/billing/types'
 import { ensureUser } from '@/lib/db/resumes'
+import { checkRateLimit, RATE_LIMITS, tooManyRequests } from '@/lib/security/rate-limit'
 
 const schema = z.object({ packId: z.string() })
 
@@ -18,6 +19,8 @@ const schema = z.object({ packId: z.string() })
 export async function POST(req: NextRequest) {
   const auth = await requireCustomer()
   if (!auth.ok) return auth.response
+  const limited = await checkRateLimit(RATE_LIMITS.checkout, auth.userId)
+  if (!limited.ok) return tooManyRequests(limited, 'Too many checkouts were opened in a short time.')
 
   const parsed = schema.safeParse(await req.json().catch(() => null))
   const pack = parsed.success ? findPack(parsed.data.packId) : undefined

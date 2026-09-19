@@ -17,6 +17,7 @@ import { ImportError, pdfText } from '@/lib/import/extract'
 import { MAX_UPLOAD_BYTES } from '@/lib/resume-doc'
 import { addRecruiters, existingRecruiterEmails } from '@/lib/db/outreach'
 import { fail, firstIssue, requireOutreachAccount } from '@/lib/outreach/server'
+import { checkRateLimit, RATE_LIMITS, tooManyRequests } from '@/lib/security/rate-limit'
 
 export const maxDuration = 120
 
@@ -79,6 +80,8 @@ async function rowsFromSheet(link: string): Promise<RecruiterRow[]> {
 export async function POST(req: NextRequest) {
   const auth = await requireOutreachAccount()
   if (!auth.ok) return auth.response
+  const limited = await checkRateLimit(RATE_LIMITS.recruiterImport, auth.userId)
+  if (!limited.ok) return tooManyRequests(limited, 'Too many imports in a short time.')
 
   let rows: RecruiterRow[]
   let source: RecruiterSource

@@ -5,6 +5,7 @@ import { RazorpayConfig, razorpayConfig } from '@/lib/billing/config'
 import { paymentFacts } from '@/lib/billing/events'
 import { RAZORPAY_ID, razorpay, RazorpayError, RazorpayPayment } from '@/lib/billing/razorpay'
 import { verifyOrderPayment, verifySubscriptionPayment } from '@/lib/billing/signatures'
+import { checkRateLimit, RATE_LIMITS, tooManyRequests } from '@/lib/security/rate-limit'
 import {
   findOrder,
   findSubscription,
@@ -46,6 +47,8 @@ const unverified = () => NextResponse.json({ error: 'This payment could not be v
 export async function POST(req: NextRequest) {
   const auth = await requireCustomer()
   if (!auth.ok) return auth.response
+  const limited = await checkRateLimit(RATE_LIMITS.paymentCheck, auth.userId)
+  if (!limited.ok) return tooManyRequests(limited, 'Too many payment checks in a short time.')
 
   const config = razorpayConfig()
   if (!config) return NextResponse.json({ error: "Payments aren't switched on yet." }, { status: 503 })

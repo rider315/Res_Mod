@@ -1,5 +1,6 @@
 import mammoth from 'mammoth'
 import { extractText } from 'unpdf'
+import { assertZipWithin, ZipTooLargeError } from '@/lib/security/zip'
 import { stripMarkup } from '@/lib/latex/parse'
 import { MAX_RESUME_TEXT, MAX_UPLOAD_BYTES, SourceFormat } from '@/lib/resume-doc'
 
@@ -57,7 +58,20 @@ export async function pdfText(bytes: Uint8Array): Promise<string> {
   }
 }
 
+/**
+ * What a .docx may inflate to, all parts together. A real resume with photos is
+ * a few megabytes; mammoth inflates whatever it is given, so a zip bomb is
+ * turned away before it gets the file.
+ */
+const MAX_DOCX_INFLATED_BYTES = 60 * 1024 * 1024
+
 async function docxText(bytes: Uint8Array): Promise<string> {
+  try {
+    await assertZipWithin(bytes, MAX_DOCX_INFLATED_BYTES)
+  } catch (err) {
+    if (err instanceof ZipTooLargeError) throw new ImportError('That Word file is too large to read. Save it as PDF and try again.')
+    throw new ImportError('That Word file could not be read. Try saving it again as .docx or PDF.')
+  }
   try {
     const { value } = await mammoth.extractRawText({ buffer: Buffer.from(bytes) })
     return value

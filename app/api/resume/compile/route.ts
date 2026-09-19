@@ -10,6 +10,7 @@ import { coverLetterLatex } from '@/lib/cover-letter'
 import { renderResumeLatex } from '@/lib/import/render'
 import { ResumeDocSchema } from '@/lib/resume-doc'
 import { ChangeListSchema, tailorStoredResume } from '@/lib/tailor/splice'
+import { checkRateLimit, RATE_LIMITS, tooManyRequests } from '@/lib/security/rate-limit'
 
 const schema = z.object({
   /** Owner only: the LaTeX to compile, straight from the dashboard. */
@@ -35,6 +36,11 @@ const schema = z.object({
 export async function POST(req: NextRequest) {
   const auth = await requireAuth()
   if (!auth.ok) return auth.response
+  // The owner builds their own documents here all day; everyone else's builds are counted.
+  if (auth.role !== 'owner') {
+    const limited = await checkRateLimit(RATE_LIMITS.pdfBuild, auth.userId)
+    if (!limited.ok) return tooManyRequests(limited, 'Too many PDFs were built in a short time.')
+  }
 
   const parsed = schema.safeParse(await req.json().catch(() => null))
   if (

@@ -28,6 +28,8 @@
     "lib/cover-letter.ts",
     "lib/resume-filename.ts",
     "lib/net/**/*.ts",
+    "lib/security/origin.ts",
+    "lib/security/rate-limit.ts",
     "lib/apply/**/*.ts",
     "lib/outreach/model.ts",
     "lib/outreach/prompt.ts",

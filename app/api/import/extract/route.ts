@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/require-auth'
 import { extractResumeText, ImportError } from '@/lib/import/extract'
 import { MAX_UPLOAD_BYTES } from '@/lib/resume-doc'
+import { checkRateLimit, RATE_LIMITS, tooManyRequests } from '@/lib/security/rate-limit'
 
 /**
  * Pull the text out of an uploaded resume: PDF, .docx, .tex, .txt or .md.
@@ -13,6 +14,8 @@ import { MAX_UPLOAD_BYTES } from '@/lib/resume-doc'
 export async function POST(req: NextRequest) {
   const auth = await requireAuth()
   if (!auth.ok) return auth.response
+  const limited = await checkRateLimit(RATE_LIMITS.resumeUpload, auth.userId)
+  if (!limited.ok) return tooManyRequests(limited, 'Too many uploads in a short time.')
 
   let form: FormData
   try {

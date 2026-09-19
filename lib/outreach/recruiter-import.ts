@@ -1,5 +1,6 @@
 import JSZip from 'jszip'
 import { LIMITS } from '@/lib/outreach/model'
+import { readEntryCapped, ZipTooLargeError } from '@/lib/security/zip'
 
 /**
  * Reading recruiters out of wherever people keep them: a CSV or Excel export, a
@@ -189,16 +190,15 @@ function columnIndex(reference: string): number {
 async function readPart(zip: JSZip, path: string): Promise<string | null> {
   const entry = zip.file(path)
   if (!entry) return null
-  // JSZip keeps the declared size on the entry; checking it first stops a zip bomb before it inflates.
-  const declared = (entry as unknown as { _data?: { uncompressedSize?: number } })._data?.uncompressedSize
-  if (typeof declared === 'number' && declared > MAX_SHEET_CHARS) {
-    throw new RecruiterImportError('That workbook is too large to read. Keep recruiter lists under a few thousand rows.')
+  // Inflated as a stream and stopped at the cap: a zip can lie about how large its parts are.
+  try {
+    return await readEntryCapped(entry, MAX_SHEET_CHARS)
+  } catch (err) {
+    if (err instanceof ZipTooLargeError) {
+      throw new RecruiterImportError('That workbook is too large to read. Keep recruiter lists under a few thousand rows.')
+    }
+    throw err
   }
-  const text = await entry.async('string')
-  if (text.length > MAX_SHEET_CHARS) {
-    throw new RecruiterImportError('That workbook is too large to read. Keep recruiter lists under a few thousand rows.')
-  }
-  return text
 }
 
 /** The first sheet of an .xlsx workbook, as rows of cell text. */

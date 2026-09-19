@@ -2866,6 +2866,93 @@ async function researchTests() {
     without.includes("Describe the company's work only as the job post does"))
 }
 
+// ---------------------------------------------------------------- 21. security
+const originCheck = require(BUILD + '/lib/security/origin')
+const rateLimit = require(BUILD + '/lib/security/rate-limit')
+const zipLimits = require(BUILD + '/lib/security/zip')
+const JSZip = require('jszip')
+
+async function securityTests() {
+  console.log('\n=== security: headers, cross-site writes, rate limits, zip bombs ===')
+
+  // ---- the headers every response carries
+  const { contentSecurityPolicy, securityHeaders } = await import(require('url').pathToFileURL(path.join(__dirname, '..', 'lib', 'security', 'headers.mjs')).href)
+  const live = contentSecurityPolicy({ development: false })
+  const dev = contentSecurityPolicy({ development: true })
+  const directive = (policy, name) => (policy.split('; ').find((part) => part.startsWith(name + ' ')) ?? '').split(' ').slice(1)
+  check('the live policy stops framing, plugins and base-tag tricks, and never allows eval',
+    directive(live, 'frame-ancestors').join() === "'none'" && directive(live, 'object-src').join() === "'none'" &&
+    directive(live, 'base-uri').join() === "'self'" && !live.includes("'unsafe-eval'") && live.includes('upgrade-insecure-requests'),
+    live)
+  check('scripts may come only from the site, Razorpay, Puter and Google’s tag',
+    directive(live, 'script-src').every((source) =>
+      ["'self'", "'unsafe-inline'"].includes(source) || /^https:\/\/(\*\.razorpay\.com|js\.puter\.com|www\.googletagmanager\.com|www\.googleadservices\.com|googleads\.g\.doubleclick\.net|www\.google\.com)$/.test(source)),
+    directive(live, 'script-src').join(' '))
+  check('forms may post only to the site, Overleaf and Google sign-in, and violations are reported',
+    directive(live, 'form-action').join(' ') === "'self' https://www.overleaf.com https://accounts.google.com" &&
+    directive(live, 'report-uri').join() === '/api/csp-report')
+  check('the dev server may evaluate code for hot reload, and stays on plain http',
+    directive(dev, 'script-src').includes("'unsafe-eval'") && !dev.includes('upgrade-insecure-requests'))
+  const headers = Object.fromEntries(securityHeaders({ development: false }).map(({ key, value }) => [key, value]))
+  check('every response says: no sniffing, no framing, HTTPS for two years, and little referrer',
+    headers['X-Content-Type-Options'] === 'nosniff' && headers['X-Frame-Options'] === 'DENY' &&
+    /max-age=63072000; includeSubDomains/.test(headers['Strict-Transport-Security']) &&
+    headers['Referrer-Policy'] === 'strict-origin-when-cross-origin' && /camera=\(\)/.test(headers['Permissions-Policy']) &&
+    headers['Cross-Origin-Opener-Policy'] === 'same-origin-allow-popups',
+    JSON.stringify(headers))
+
+  // ---- writes another website started
+  const { isCrossSiteWrite } = originCheck
+  const write = (over) => isCrossSiteWrite({ method: 'POST', path: '/api/resumes', host: 'chills.pro', origin: 'https://chills.pro', referer: null, ...over })
+  check('a write from the site’s own pages goes through, whichever of its addresses it is on',
+    !write({}) && !write({ host: 'res-mod.vercel.app', origin: 'https://res-mod.vercel.app' }) && !write({ host: 'CHILLS.PRO' }))
+  check('a write another website started is refused, by its Origin or failing that its Referer',
+    write({ origin: 'https://evil.example' }) && write({ origin: null, referer: 'https://evil.example/page' }) &&
+    write({ origin: 'https://chills.pro.evil.example' }) && write({ host: 'localhost:3000', origin: 'http://localhost:4000' }))
+  check('a page that hides where it is ("null") is refused too', write({ origin: 'null' }))
+  check('reads, and requests no web page started, are left to the route’s own checks',
+    !write({ method: 'GET', origin: 'https://evil.example' }) && !write({ origin: null, referer: null }))
+  check('Razorpay’s signed webhook, sign-in and policy reports keep their own checks',
+    !write({ path: '/api/billing/webhook', origin: 'https://evil.example' }) &&
+    !write({ path: '/api/auth/signin/google', origin: 'https://evil.example' }) &&
+    !write({ path: '/api/csp-report', origin: 'null' }) && write({ path: '/api/billing/order', origin: 'https://evil.example' }))
+
+  // ---- counting requests
+  const { checkLocalRateLimit, RATE_LIMITS } = rateLimit
+  const tight = { name: 'test-limit', limit: 3, windowSeconds: 60 }
+  const start = 1_000_000
+  const verdicts = [0, 1, 2, 3].map((i) => checkLocalRateLimit(tight, 'address-a', start + i * 1000))
+  check('requests go through up to the limit, and the next is told how long to wait',
+    verdicts.slice(0, 3).every((v) => v.ok) && !verdicts[3].ok && verdicts[3].retryAfterSeconds === 57,
+    JSON.stringify(verdicts))
+  check('another address has its own count, and a new window starts fresh',
+    checkLocalRateLimit(tight, 'address-b', start + 4000).ok && checkLocalRateLimit(tight, 'address-a', start + 61_000).ok)
+  check('connecting a mailbox is limited hard enough that stolen passwords can’t be tried through Chills',
+    RATE_LIMITS.mailbox.limit <= 5 && RATE_LIMITS.mailbox.windowSeconds >= 15 * 60)
+
+  // ---- zip bombs
+  const bomb = new JSZip()
+  bomb.file('xl/workbook.xml', 'a'.repeat(25 * 1024 * 1024))
+  const bombBytes = await bomb.generateAsync({ type: 'uint8array', compression: 'DEFLATE', compressionOptions: { level: 9 } })
+  let refused = null
+  const before = process.memoryUsage().heapUsed
+  await recruiterImport.readXlsx(bombBytes).catch((err) => (refused = err))
+  check('a small workbook that inflates past the cap is refused before it is held whole',
+    bombBytes.length < 200_000 && refused instanceof recruiterImport.RecruiterImportError && /too large/.test(refused.message) &&
+    process.memoryUsage().heapUsed - before < 60 * 1024 * 1024,
+    JSON.stringify({ zipped: bombBytes.length, refused: refused && refused.message }))
+
+  const docx = new JSZip()
+  docx.file('word/document.xml', '<w:document/>')
+  docx.file('word/media/filler.bin', new Uint8Array(1024 * 1024))
+  const fine = await docx.generateAsync({ type: 'uint8array', compression: 'DEFLATE' })
+  let passed = true
+  await zipLimits.assertZipWithin(fine, 60 * 1024 * 1024).catch(() => (passed = false))
+  let stopped = false
+  await zipLimits.assertZipWithin(fine, 512 * 1024).catch((err) => (stopped = err instanceof zipLimits.ZipTooLargeError))
+  check('an ordinary document passes the check, and the same one over a smaller budget is stopped', passed && stopped)
+}
+
 importTests()
   .then(tailorTests)
   .then(billingTests)
@@ -2878,6 +2965,7 @@ importTests()
   .then(outreachTests)
   .then(applyTests)
   .then(researchTests)
+  .then(securityTests)
   .then(summary, (err) => {
     check('the async tests ran to completion', false, err && err.stack)
     summary()

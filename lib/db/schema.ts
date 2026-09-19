@@ -461,6 +461,18 @@ export const directoryClaims = pgTable(
 )
 
 /**
+ * How often sensitive routes were called lately, for their rate limits
+ * (lib/security/rate-limit.ts). One row per limit and account, counted in
+ * fixed windows.
+ */
+export const rateLimits = pgTable('rate_limits', {
+  /** "<limit>:<account id>", such as "mailbox:1234". */
+  key: text('key').primaryKey(),
+  windowStart: timestamp('window_start', { withTimezone: true }).notNull().defaultNow(),
+  hits: integer('hits').notNull().default(0),
+})
+
+/**
  * What a company's own website says about it, read for recruiter emails
  * (lib/outreach/company-research.ts). Shared by every account: it is public
  * text, and one read serves every email to that company.

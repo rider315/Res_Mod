@@ -4,6 +4,7 @@ import { hasEmailFormat } from '@/lib/outreach/email-check'
 import { MailboxError, verifyMailbox } from '@/lib/outreach/mailbox'
 import { deleteMailbox, getMailboxStatus, saveMailbox } from '@/lib/db/outreach'
 import { fail, firstIssue, requireOutreachAccount } from '@/lib/outreach/server'
+import { checkRateLimit, RATE_LIMITS, tooManyRequests } from '@/lib/security/rate-limit'
 
 export const maxDuration = 60
 
@@ -15,6 +16,8 @@ export const maxDuration = 60
 export async function PUT(req: NextRequest) {
   const auth = await requireOutreachAccount()
   if (!auth.ok) return auth.response
+  const limited = await checkRateLimit(RATE_LIMITS.mailbox, auth.userId)
+  if (!limited.ok) return tooManyRequests(limited, 'Too many tries at connecting a mailbox.')
 
   const parsed = MailboxInputSchema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) return fail(400, firstIssue(parsed.error))
