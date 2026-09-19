@@ -455,7 +455,68 @@ function looseIndex(text: string, needle: string): number {
   return at >= 0 ? positions[at] : -1
 }
 
-const tidyColumn = (value: string) => clean(value.replace(/^[,.\-\s]+|[,.\-\s]+$/g, ''))
+/**
+ * One column's text. A name the source wrote twice in a row — "Securelynkx
+ * Networks Securelynkx Networks", from a title column that repeated the company
+ * column — is collapsed back to one, because it goes into an email addressed to
+ * someone who works there.
+ */
+function tidyColumn(value: string): string {
+  const text = clean(value.replace(/^[,.\-\s]+|[,.\-\s]+$/g, ''))
+  const half = Math.floor(text.length / 2)
+  const first = text.slice(0, half).trim()
+  return first.length >= 4 && first.toLowerCase() === text.slice(half).trim().toLowerCase() ? first : text
+}
+
+/**
+ * The words an HR job title is built from. Deliberately only the ones that name
+ * a role or the function it sits in — not "management", "delivery", "business"
+ * or "solutions", which turn up in company names at least as often and would cut
+ * "Education Management Solutions" in half.
+ */
+const TITLE_WORDS = new Set([
+  'chief', 'head', 'director', 'vp', 'avp', 'svp', 'president', 'vice', 'manager', 'lead', 'partner', 'specialist',
+  'executive', 'associate', 'officer', 'recruiter', 'recruitment', 'recruiting', 'consultant', 'senior', 'global',
+  'deputy', 'assistant', 'hr', 'chro', 'human', 'resources', 'talent', 'acquisition', 'people', 'staffing',
+  'operations', 'admin', 'generalist', 'sourcer', 'ta',
+])
+
+/**
+ * Where the title ends when the domain gave nothing away: "Recruitment Delivery
+ * Head SA Technologies" at satincorp.com, whose name appears nowhere in either.
+ *
+ * The title comes first in these lists and is built from a small vocabulary, so
+ * the last word of that vocabulary is the end of it. This runs only after both
+ * domain matches have failed, because a company actually called "Talent Corp"
+ * would be cut in half by it — and such a company almost always has the name in
+ * its domain, so the earlier matches take it first.
+ */
+function whereTheTitleEnds(after: string): number {
+  const words = Array.from(after.matchAll(/[A-Za-z][A-Za-z.&/-]*/g))
+  let end = -1
+  for (const word of words) {
+    if (TITLE_WORDS.has(word[0].toLowerCase().replace(/[^a-z]/g, ''))) end = word.index! + word[0].length
+  }
+  // Something has to be left over to be the company, and something to be the title.
+  return end > 0 && after.length - end >= 3 ? end : -1
+}
+
+/**
+ * Where the company's name starts, when only the opening of its domain appears
+ * in the text: "appinessworld" against "… Resources Appiness Interactive".
+ *
+ * The longest opening wins, so the match is as specific as the domain allows,
+ * and it must begin a word — otherwise a four-letter opening like "tech" would
+ * cut "Tech Lead" in half. Five characters is the shortest worth trusting for
+ * the same reason. Returns -1 when nothing matches.
+ */
+function openingOfDomain(after: string, base: string): number {
+  for (let length = base.length - 1; length >= 5; length--) {
+    const at = looseIndex(after, base.slice(0, length))
+    if (at > 0 && !/[a-zA-Z0-9]/.test(after[at - 1] ?? '')) return at
+  }
+  return -1
+}
 
 /**
  * The job title and company columns after an address. The company is found by
@@ -469,11 +530,26 @@ function titleAndCompany(after: string, domain: string): { title: string; compan
   if (base.length >= 3) {
     const at = looseIndex(after, base)
     if (at >= 0) return { title: tidyColumn(after.slice(0, at)), company: tidyColumn(after.slice(at)) }
+
+    // A company whose domain says more than its name does: "Appiness Interactive"
+    // at appinessworld.com, "Skience" at skience.co. The exact label isn't in the
+    // text, but the start of it is, and that is where the title ends. Without
+    // this the whole of "Head Of Human Resources Appiness Interactive" became the
+    // company, and that name then went into the email as the company's own.
+    const opening = openingOfDomain(after, base)
+    if (opening > 0) return { title: tidyColumn(after.slice(0, opening)), company: tidyColumn(after.slice(opening)) }
   }
 
   const spaced = after.split(/\s{2,}/).filter(Boolean)
   if (spaced.length >= 2) {
     return { title: tidyColumn(spaced.slice(0, -1).join(' ')), company: tidyColumn(spaced[spaced.length - 1]) }
+  }
+
+  const byTitle = whereTheTitleEnds(after)
+  if (byTitle > 0) {
+    // "Head of HR at Securelynkx Networks": the "at" belongs to the title's
+    // sentence, not to the company's name.
+    return { title: tidyColumn(after.slice(0, byTitle)), company: tidyColumn(after.slice(byTitle).trim().replace(/^at\s+/i, '')) }
   }
   for (let i = after.length - 2; i >= 0; i--) {
     if (/[a-z]/.test(after[i]) && /[A-Z]/.test(after[i + 1]) && after.length - (i + 1) >= 3) {

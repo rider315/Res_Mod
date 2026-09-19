@@ -2089,6 +2089,32 @@ async function outreachTests() {
     byEmail['priya.rao@northwind.com'].company === 'Northwind Traders' && byEmail['priya.rao@northwind.com'].title === 'Talent Partner' &&
     byEmail['karan.mehta@fabrikam.com'].company === 'Fabrikam', JSON.stringify(pdfRows.map((row) => [row.email, row.title, row.company])))
 
+  // A PDF that extracts with real spaces, where the domain doesn't spell the
+  // company out. Both used to put the whole of "Head Of Human Resources Appiness
+  // Interactive" in the company, and that name then went into the email.
+  const spacedRows = recruitersFromPdfText([
+    'SNo Name Email Title Company',
+    // The domain says more than the name does: the start of it is the company.
+    '1 Deepika Pandita deepika@appinessworld.com Head Of Human Resources Appiness Interactive',
+    // The domain shares nothing at all: the title's own vocabulary ends it.
+    '2 Asha Menon asha@etggs.com Director - Human Resources ETG Digital',
+    '3 Ravi Kumar ravi@satincorp.com Recruitment Delivery Head SA Technologies',
+    // "Management" and "Solutions" belong to company names at least as often as titles.
+    '4 Nisha Patel nisha@simulationiq.com VP - HR & Operations Education Management Solutions',
+    // The source repeated the company, and wrote "at" into the title.
+    '5 Arun Nair arun@slx.co.in Head of HR at Securelynkx Networks Securelynkx Networks',
+  ].join('\n'))
+  const spaced = Object.fromEntries(spacedRows.map((row) => [row.email.toLowerCase(), row]))
+  check('PDF tables: the title is split off even when the domain does not spell the company out',
+    spacedRows.length === 5 &&
+    spaced['deepika@appinessworld.com'].company === 'Appiness Interactive' &&
+    spaced['deepika@appinessworld.com'].title === 'Head Of Human Resources' &&
+    spaced['asha@etggs.com'].company === 'ETG Digital' && spaced['asha@etggs.com'].title === 'Director - Human Resources' &&
+    spaced['ravi@satincorp.com'].company === 'SA Technologies' && spaced['ravi@satincorp.com'].title === 'Recruitment Delivery Head' &&
+    spaced['nisha@simulationiq.com'].company === 'Education Management Solutions' &&
+    spaced['arun@slx.co.in'].company === 'Securelynkx Networks' && spaced['arun@slx.co.in'].title === 'Head of HR',
+    JSON.stringify(spacedRows.map((row) => [row.email, row.title, row.company])))
+
   // ---- checking addresses (no DNS here: EMAIL_VALIDATION_MX is covered by the route checks)
   const { checkEmail, checkEmails, hasEmailFormat } = emailCheck
   const good = await checkEmail('  Priya.Rao@NorthWind.com ', { lookUpDomain: false })
