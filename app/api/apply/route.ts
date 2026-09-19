@@ -18,6 +18,7 @@ import { fail, firstIssue, generatorFor, OwnerAiFields, puterRefusal, requireOut
 import type { CompanyNote } from '@/lib/outreach/types'
 import { ResumeDocSchema } from '@/lib/resume-doc'
 import { TAILOR_LEVELS } from '@/lib/tailor/levels'
+import { checkRateLimit, RATE_LIMITS, tooManyRequests } from '@/lib/security/rate-limit'
 
 /** Reading the posting, its keywords, four tailoring passes and the email. */
 export const maxDuration = 300
@@ -64,6 +65,8 @@ export async function POST(req: NextRequest) {
   const startedAt = Date.now()
   const auth = await requireOutreachAccount()
   if (!auth.ok) return auth.response
+  const limited = await checkRateLimit(RATE_LIMITS.aiRun, auth.userId)
+  if (!limited.ok) return tooManyRequests(limited, 'Too many complete applications were started in a short time.')
 
   const parsed = schema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) return fail(400, firstIssue(parsed.error))

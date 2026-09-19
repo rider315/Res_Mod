@@ -14,6 +14,7 @@ import { ResumeDocSchema } from '@/lib/resume-doc'
 import { renderCheckedResume } from '@/lib/import/render'
 import { chooseAi, settleAiFailure } from '@/lib/billing/ai-access'
 import { AiCallError } from '@/lib/ai-errors'
+import { checkRateLimit, RATE_LIMITS, tooManyRequests } from '@/lib/security/rate-limit'
 
 // Keyword extraction, the level's passes and the keyword pass are several model calls.
 export const maxDuration = 300
@@ -56,6 +57,8 @@ export async function POST(req: NextRequest, { params }: Params) {
   const startedAt = Date.now()
   const auth = await requireAuth()
   if (!auth.ok) return auth.response
+  const limited = await checkRateLimit(RATE_LIMITS.aiRun, auth.userId)
+  if (!limited.ok) return tooManyRequests(limited, 'Too many tailorings were started in a short time.')
   if (!auth.userId) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
   const parsed = schema.safeParse(await req.json().catch(() => null))

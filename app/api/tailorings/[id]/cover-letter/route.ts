@@ -16,6 +16,7 @@ import {
   resumeTextFromLatex,
   writeCoverLetter,
 } from '@/lib/cover-letter'
+import { checkRateLimit, RATE_LIMITS, tooManyRequests } from '@/lib/security/rate-limit'
 
 export const maxDuration = 120
 
@@ -51,6 +52,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
 export async function POST(req: NextRequest, { params }: Params) {
   const auth = await requireAuth()
   if (!auth.ok) return auth.response
+  const limited = await checkRateLimit(RATE_LIMITS.aiLight, auth.userId)
+  if (!limited.ok) return tooManyRequests(limited, 'Too many cover letters were written in a short time.')
 
   const parsed = schema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) {

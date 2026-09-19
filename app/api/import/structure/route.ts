@@ -7,6 +7,7 @@ import { generateAIResponse } from '@/lib/ai-provider'
 import { structureResume } from '@/lib/import/structure'
 import { MAX_RESUME_TEXT } from '@/lib/resume-doc'
 import { chooseAi, settleAiFailure } from '@/lib/billing/ai-access'
+import { checkRateLimit, RATE_LIMITS, tooManyRequests } from '@/lib/security/rate-limit'
 
 // A long resume plus a possible retry can take a while on a slower model.
 export const maxDuration = 300
@@ -29,6 +30,8 @@ const schema = z.object({
 export async function POST(req: NextRequest) {
   const auth = await requireAuth()
   if (!auth.ok) return auth.response
+  const limited = await checkRateLimit(RATE_LIMITS.aiLight, auth.userId)
+  if (!limited.ok) return tooManyRequests(limited, 'Too many resumes were imported in a short time.')
 
   const parsed = schema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) {

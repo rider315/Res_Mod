@@ -5,6 +5,7 @@ import { AIProvider } from '@/types/resume'
 import { getProvider, PROVIDER_ORDER } from '@/lib/providers'
 import { resolveApiKey, resolveModel } from '@/lib/ai-provider'
 import { checkConnection } from '@/lib/ai-connection'
+import { checkRateLimit, RATE_LIMITS, tooManyRequests } from '@/lib/security/rate-limit'
 
 const schema = z.object({
   provider: z.enum(PROVIDER_ORDER as [AIProvider, ...AIProvider[]]),
@@ -20,6 +21,8 @@ export async function POST(req: NextRequest) {
   // AI settings belong to the owner: everyone else runs on the AI the owner chose.
   const auth = await requireOwner()
   if (!auth.ok) return auth.response
+  const limited = await checkRateLimit(RATE_LIMITS.admin, auth.userId)
+  if (!limited.ok) return tooManyRequests(limited, 'Too many AI tests were run in a short time.')
 
   const parsed = schema.safeParse(await req.json())
   if (!parsed.success) return NextResponse.json({ error: 'Invalid request' }, { status: 400 })

@@ -5,6 +5,7 @@ import { isThreadStage, LIMITS, stageAfterReply } from '@/lib/outreach/model'
 import { UnusableAnswerError, analyzeReply } from '@/lib/outreach/prompt'
 import { getOutreachProfile, getThread, saveReply } from '@/lib/db/outreach'
 import { fail, firstIssue, generatorFor, OwnerAiFields, puterRefusal, requireOutreachAccount, resolveSource } from '@/lib/outreach/server'
+import { checkRateLimit, RATE_LIMITS, tooManyRequests } from '@/lib/security/rate-limit'
 
 export const maxDuration = 300
 
@@ -27,6 +28,8 @@ const schema = z.object({
 export async function POST(req: NextRequest, { params }: Params) {
   const auth = await requireOutreachAccount()
   if (!auth.ok) return auth.response
+  const limited = await checkRateLimit(RATE_LIMITS.aiLight, auth.userId)
+  if (!limited.ok) return tooManyRequests(limited, 'Too many replies were read in a short time.')
 
   const parsed = schema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) return fail(400, firstIssue(parsed.error))

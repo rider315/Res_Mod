@@ -10,6 +10,7 @@ import {
   markCancelAtCycleEnd,
   saveSubscriptionState,
 } from '@/lib/billing/store'
+import { checkRateLimit, RATE_LIMITS, tooManyRequests } from '@/lib/security/rate-limit'
 
 /**
  * Cancel Pro at the end of the cycle already paid for: the runs stay until then,
@@ -18,6 +19,8 @@ import {
 export async function POST() {
   const auth = await requireCustomer()
   if (!auth.ok) return auth.response
+  const limited = await checkRateLimit(RATE_LIMITS.checkout, auth.userId)
+  if (!limited.ok) return tooManyRequests(limited, 'Too many cancellations were tried in a short time.')
 
   const config = razorpayConfig()
   if (!config) return NextResponse.json({ error: "Payments aren't switched on yet." }, { status: 503 })

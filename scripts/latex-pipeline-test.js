@@ -2687,6 +2687,29 @@ async function applyTests() {
       .filter((line) => line.includes('neon('))
       .join(' | '))
 
+  // Every route that spends a model call must also be guarded against a burst.
+  // The billing meters say what a run costs; they do not stop twenty starting at
+  // once, and each of those can hold a function for five minutes.
+  const aiRoutes = ['app/api/apply/route.ts', 'app/api/resumes/[id]/tailor/route.ts', 'app/api/optimize/route.ts',
+    'app/api/revamp/route.ts', 'app/api/keywords/route.ts', 'app/api/import/structure/route.ts',
+    'app/api/tailorings/[id]/cover-letter/route.ts', 'app/api/outreach/emails/route.ts',
+    'app/api/outreach/emails/[id]/follow-up/route.ts', 'app/api/outreach/emails/[id]/replies/route.ts']
+  const unguarded = aiRoutes.filter((route) => !read(route).includes('checkRateLimit'))
+  check('every route that spends a model call is also guarded against a burst',
+    unguarded.length === 0, unguarded.join(', '))
+
+  // A guard in the GET handler protects nothing and slows down a read.
+  const onGet = aiRoutes.filter((route) => {
+    let handler = ''
+    for (const line of read(route).split(/\r?\n/)) {
+      const found = /export async function ([A-Z]+)/.exec(line)
+      if (found) handler = found[1]
+      if (line.includes('checkRateLimit(') && handler === 'GET') return true
+    }
+    return false
+  })
+  check('no burst guard sits on a route that only reads', onGet.length === 0, onGet.join(', '))
+
   // ---- who the weekly recruiter list is for
   const paying = (entitled, credits) => quota.isPaying({ entitled, credits })
   check('the recruiter list is for accounts that pay: a plan in force, or credits still on it',

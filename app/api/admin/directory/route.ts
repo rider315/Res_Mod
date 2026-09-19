@@ -15,6 +15,7 @@ import {
 import { ImportError, pdfText } from '@/lib/import/extract'
 import { MAX_UPLOAD_BYTES } from '@/lib/resume-doc'
 import { directoryStats, publishBatch, suppressContacts } from '@/lib/db/directory'
+import { checkRateLimit, RATE_LIMITS, tooManyRequests } from '@/lib/security/rate-limit'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -53,6 +54,8 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const auth = await requireOwner()
   if (!auth.ok) return auth.response
+  const limited = await checkRateLimit(RATE_LIMITS.admin, auth.userId)
+  if (!limited.ok) return tooManyRequests(limited, 'Too many directory changes were made in a short time.')
 
   const form = await req.formData().catch(() => null)
   const file = form?.get('file')

@@ -6,6 +6,7 @@ import { generateAIResponse, resolveApiKey, resolveModel } from '@/lib/ai-provid
 import { runOptimization } from '@/lib/run-optimization'
 import { PROVIDER_ORDER } from '@/lib/providers'
 import { DEFAULT_PROFILE_ID, getProfile, PROFILE_ORDER, ResumeProfileId } from '@/lib/profiles'
+import { checkRateLimit, RATE_LIMITS, tooManyRequests } from '@/lib/security/rate-limit'
 
 // An optimize run makes up to three sequential model calls, and a thinking model
 // can spend over a minute on each. Pin the limit to the Hobby maximum under Fluid
@@ -40,6 +41,8 @@ export async function POST(req: NextRequest) {
   // until regular users have resumes of their own to tailor.
   const auth = await requireOwner()
   if (!auth.ok) return auth.response
+  const limited = await checkRateLimit(RATE_LIMITS.aiRun, auth.userId)
+  if (!limited.ok) return tooManyRequests(limited, 'Too many runs were started in a short time.')
 
   const body = await req.json()
   const parsed = schema.safeParse(body)

@@ -15,6 +15,7 @@ import {
   markSent,
 } from '@/lib/db/outreach'
 import { fail, requireOutreachAccount, resolveSource } from '@/lib/outreach/server'
+import { checkRateLimit, RATE_LIMITS, tooManyRequests } from '@/lib/security/rate-limit'
 
 export const maxDuration = 120
 
@@ -33,6 +34,8 @@ const today = () => new Date().toLocaleDateString('en-IN', { day: 'numeric', mon
 export async function POST(req: NextRequest, { params }: Params) {
   const auth = await requireOutreachAccount()
   if (!auth.ok) return auth.response
+  const limited = await checkRateLimit(RATE_LIMITS.emailSend, auth.userId)
+  if (!limited.ok) return tooManyRequests(limited, 'Too many emails were sent in a short time.')
 
   const email = await getEmailRow(auth.userId, params.id)
   if (!email) return fail(404, 'Email not found')

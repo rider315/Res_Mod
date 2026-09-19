@@ -40,6 +40,29 @@ export const RATE_LIMITS = {
   pdfBuild: { name: 'pdf-build', limit: 60, windowSeconds: 60 * 60 },
   /** A page with a policy problem reports a few times, not hundreds. */
   cspReport: { name: 'csp-report', limit: 30, windowSeconds: 60 },
+  /**
+   * A whole run: a tailoring, a complete application, an optimize or a revamp.
+   * Each can hold a serverless function for five minutes, so a burst ties up far
+   * more than it spends. Set above the daily AI cap's pace, since what a run
+   * costs is already metered; this only stops someone firing twenty at once.
+   */
+  aiRun: { name: 'ai-run', limit: 20, windowSeconds: 60 * 60 },
+  /** The shorter model calls: keywords, a cover letter, structuring an import, reading a reply. */
+  aiLight: { name: 'ai-light', limit: 60, windowSeconds: 60 * 60 },
+  /** Writing or rewriting a draft, which is a model call and a row. */
+  emailWrite: { name: 'email-write', limit: 40, windowSeconds: 60 * 60 },
+  /** Sending signs in to the user's own mail server; the daily cap is separate. */
+  emailSend: { name: 'email-send', limit: 60, windowSeconds: 60 * 60 },
+  /**
+   * Anything that writes a row: saving a resume, adding or deleting recruiters,
+   * editing a draft, deleting an account. Plain reads are deliberately not
+   * limited — every check here is itself a database write, so counting reads
+   * would double the app's traffic to guard against something that costs a
+   * query.
+   */
+  mutation: { name: 'mutation', limit: 120, windowSeconds: 60 * 60 },
+  /** The owner's own screens. Generous: it is one person, and publishing a list is real work. */
+  admin: { name: 'admin', limit: 120, windowSeconds: 60 * 60 },
 } satisfies Record<string, RateLimit>
 
 export type RateVerdict = { ok: true } | { ok: false; retryAfterSeconds: number }

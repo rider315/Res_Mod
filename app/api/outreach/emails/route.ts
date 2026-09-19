@@ -32,6 +32,7 @@ import {
   requireOutreachAccount,
   resolveSource,
 } from '@/lib/outreach/server'
+import { checkRateLimit, RATE_LIMITS, tooManyRequests } from '@/lib/security/rate-limit'
 
 export const maxDuration = 300
 
@@ -97,6 +98,8 @@ const firstName = (name: string) => name.trim().split(/\s+/)[0] ?? ''
 export async function POST(req: NextRequest) {
   const auth = await requireOutreachAccount()
   if (!auth.ok) return auth.response
+  const limited = await checkRateLimit(RATE_LIMITS.emailWrite, auth.userId)
+  if (!limited.ok) return tooManyRequests(limited, 'Too many emails were written in a short time.')
 
   const parsed = schema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) return fail(400, firstIssue(parsed.error))

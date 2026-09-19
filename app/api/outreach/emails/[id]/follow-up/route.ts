@@ -6,6 +6,7 @@ import { LIMITS } from '@/lib/outreach/model'
 import { UnusableAnswerError, signatureLines, writeFollowUp } from '@/lib/outreach/prompt'
 import { createEmail, getOutreachProfile, getThread } from '@/lib/db/outreach'
 import { fail, firstIssue, generatorFor, OwnerAiFields, puterRefusal, requireOutreachAccount, resolveSource } from '@/lib/outreach/server'
+import { checkRateLimit, RATE_LIMITS, tooManyRequests } from '@/lib/security/rate-limit'
 
 export const maxDuration = 300
 
@@ -25,6 +26,8 @@ const DAY_MS = 24 * 60 * 60 * 1000
 export async function POST(req: NextRequest, { params }: Params) {
   const auth = await requireOutreachAccount()
   if (!auth.ok) return auth.response
+  const limited = await checkRateLimit(RATE_LIMITS.emailWrite, auth.userId)
+  if (!limited.ok) return tooManyRequests(limited, 'Too many follow-ups were written in a short time.')
 
   const parsed = schema.safeParse(await req.json().catch(() => ({})))
   if (!parsed.success) return fail(400, firstIssue(parsed.error))

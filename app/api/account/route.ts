@@ -6,6 +6,7 @@ import { subscriptionFacts } from '@/lib/billing/events'
 import { razorpay, RazorpayError } from '@/lib/billing/razorpay'
 import { openSubscriptions, saveSubscriptionState, SubscriptionRow } from '@/lib/billing/store'
 import { deleteAccountData } from '@/lib/db/account'
+import { checkRateLimit, RATE_LIMITS, tooManyRequests } from '@/lib/security/rate-limit'
 
 const schema = z.object({ confirm: z.literal('DELETE') })
 
@@ -28,6 +29,8 @@ const canCharge = (sub: SubscriptionRow) =>
 export async function DELETE(req: NextRequest) {
   const auth = await requireAuth()
   if (!auth.ok) return auth.response
+  const limited = await checkRateLimit(RATE_LIMITS.mutation, auth.userId)
+  if (!limited.ok) return tooManyRequests(limited, 'Too many account requests were made in a short time.')
   if (!auth.userId) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   if (auth.role === 'owner') {
     return NextResponse.json({ error: "The owner account can't be deleted from here." }, { status: 400 })

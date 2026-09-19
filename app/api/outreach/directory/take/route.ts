@@ -4,6 +4,7 @@ import { LIMITS } from '@/lib/outreach/model'
 import { takeFromDirectory } from '@/lib/db/directory'
 import { addRecruiters } from '@/lib/db/outreach'
 import { fail, firstIssue, requireOutreachAccount, requirePayingAccount } from '@/lib/outreach/server'
+import { checkRateLimit, RATE_LIMITS, tooManyRequests } from '@/lib/security/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,6 +23,8 @@ const schema = z.object({
 export async function POST(req: NextRequest) {
   const auth = await requireOutreachAccount()
   if (!auth.ok) return auth.response
+  const limited = await checkRateLimit(RATE_LIMITS.mutation, auth.userId)
+  if (!limited.ok) return tooManyRequests(limited, 'Too many recruiters were taken in a short time.')
   const unpaid = await requirePayingAccount(auth)
   if (unpaid) return unpaid
 

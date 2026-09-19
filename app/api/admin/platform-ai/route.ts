@@ -14,6 +14,7 @@ import {
   savePlatformAi,
   storedSettingFor,
 } from '@/lib/billing/platform-ai'
+import { checkRateLimit, RATE_LIMITS, tooManyRequests } from '@/lib/security/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,6 +48,8 @@ export async function GET() {
 export async function PUT(req: NextRequest) {
   const auth = await requireOwner()
   if (!auth.ok) return auth.response
+  const limited = await checkRateLimit(RATE_LIMITS.admin, auth.userId)
+  if (!limited.ok) return tooManyRequests(limited, 'Too many AI settings changes were made in a short time.')
 
   const parsed = schema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
