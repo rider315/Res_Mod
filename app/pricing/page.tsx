@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import PolicyPage from '@/components/PolicyPage'
 import { CheckCircle } from '@/components/brand/Icons'
-import { freeTailorings } from '@/lib/billing/config'
+import { freeTailorings, razorpayConfig, tiersOnSale } from '@/lib/billing/config'
 import {
   CREDIT_PACKS,
   EMAIL_DRAFTS_PER_MONTH,
@@ -30,8 +30,14 @@ function Points({ items }: { items: string[] }) {
   )
 }
 
+/** The prices change with what Razorpay has a plan for, so nothing here may be cached. */
+export const dynamic = 'force-dynamic'
+
 export default function Pricing() {
   const free = freeTailorings()
+  // "Coming soon" is a fact about the Razorpay account, not a line to keep in
+  // the markup: the day a plan exists for Premium, this page has to stop saying it.
+  const premiumOnSale = tiersOnSale(razorpayConfig()).includes('premium')
 
   return (
     <PolicyPage
@@ -83,15 +89,15 @@ export default function Pricing() {
         <div className="nb-card p-7 flex flex-col">
           <div className="flex items-start justify-between gap-2">
             <h2 className="text-xl font-extrabold text-[var(--color-text)]">{PREMIUM_PLAN.label}</h2>
-            <span className="nb-chip bg-[var(--color-yellow)] text-[#0a0a0a] whitespace-nowrap">Coming soon</span>
+            {!premiumOnSale && <span className="nb-chip bg-[var(--color-yellow)] text-[#0a0a0a] whitespace-nowrap">Coming soon</span>}
           </div>
-          <p className="mt-3 text-[var(--color-text-faint)]">
+          <p className={`mt-3 ${premiumOnSale ? 'text-[var(--color-text)]' : 'text-[var(--color-text-faint)]'}`}>
             <span className="text-4xl font-black">{formatPrice(PREMIUM_PLAN.pricePaise)}</span>
             <span className="text-[var(--color-text-muted)]"> / month</span>
           </p>
-          <p className="mt-2 text-sm font-semibold text-[var(--color-text-muted)]">
-            Not on sale yet — this is what it will do.
-          </p>
+          {!premiumOnSale && (
+            <p className="mt-2 text-sm font-semibold text-[var(--color-text-muted)]">Not on sale yet — this is what it will do.</p>
+          )}
           <Points
             items={[
               `${PREMIUM_PLAN.appliesPerCycle} complete applications a month`,

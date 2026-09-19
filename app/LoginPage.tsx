@@ -34,6 +34,8 @@ import { CREDIT_PACKS, EMAIL_DRAFTS_PER_MONTH, formatPrice, IMPORTS_PER_MONTH, P
 interface LoginPageProps {
   /** Free tailorings every account gets; null while Chills AI isn't switched on. */
   freeTailorings: number | null
+  /** Premium can actually be bought: a plan for it exists at Razorpay. */
+  premiumOnSale: boolean
   /** Arrived here straight after deleting an account. */
   accountDeleted: boolean
 }
@@ -194,7 +196,7 @@ const FAQ: Array<[string, React.ReactNode]> = [
   ],
 ]
 
-export default function LoginPage({ freeTailorings, accountDeleted }: LoginPageProps) {
+export default function LoginPage({ freeTailorings, premiumOnSale, accountDeleted }: LoginPageProps) {
   const startNote = freeTailorings
     ? `${freeTailorings} free tailorings · No card needed`
     : 'Sign in with Google to get started'
@@ -406,7 +408,7 @@ export default function LoginPage({ freeTailorings, accountDeleted }: LoginPageP
           <p className="mt-3 text-center text-lg text-[var(--color-text-muted)]">
             Start free. Get Pro or a credit pack whenever you like.
           </p>
-          <PricingCards freeTailorings={freeTailorings} />
+          <PricingCards freeTailorings={freeTailorings} premiumOnSale={premiumOnSale} />
           <div className="mt-12 flex flex-col items-center gap-3">
             <StartButton label="Get started" />
             <Link href="/pricing" className="text-sm font-bold underline underline-offset-4">
@@ -532,7 +534,7 @@ function OutreachVisual() {
   )
 }
 
-function PricingCards({ freeTailorings }: { freeTailorings: number | null }) {
+function PricingCards({ freeTailorings, premiumOnSale }: { freeTailorings: number | null; premiumOnSale: boolean }) {
   const free = freeTailorings ?? 3
   const cards: Array<{ name: string; price: string; per?: string; points: string[]; highlight?: boolean; note?: string; comingSoon?: boolean }> = [
     {
@@ -568,7 +570,7 @@ function PricingCards({ freeTailorings }: { freeTailorings: number | null }) {
       price: formatPrice(PREMIUM_PLAN.pricePaise),
       per: '/month',
       note: 'The whole application in one run',
-      comingSoon: true,
+      comingSoon: !premiumOnSale,
       points: [
         `${PREMIUM_PLAN.appliesPerCycle} complete applications a month`,
         'Chills reads the posting you point it at',

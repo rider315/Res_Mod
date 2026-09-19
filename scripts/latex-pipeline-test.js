@@ -2667,6 +2667,16 @@ async function applyTests() {
     /bills every 3 month/.test(planCheck.planProblem('pro', { period: 'month', interval: 3, item: { amount: 19_900, currency: 'INR' } }) ?? ''),
     String(planCheck.planProblem('premium', monthly(19_900))))
 
+  // Premium opens with one environment variable, so no screen may decide for
+  // itself that it is still coming: each has to ask whether a plan exists.
+  check('no public page hardcodes Premium as coming soon',
+    read('app/pricing/page.tsx').includes("tiersOnSale(razorpayConfig()).includes('premium')") &&
+    /{!premiumOnSale && <span[^>]*>Coming soon/.test(read('app/pricing/page.tsx')) &&
+    read('app/LoginPage.tsx').includes('comingSoon: !premiumOnSale') &&
+    read('app/page.tsx').includes("premiumOnSale={onSale.includes('premium')}") &&
+    !/comingSoon: true/.test(read('app/LoginPage.tsx')),
+    'a card still decides on its own')
+
   // ---- who the weekly recruiter list is for
   const paying = (entitled, credits) => quota.isPaying({ entitled, credits })
   check('the recruiter list is for accounts that pay: a plan in force, or credits still on it',
