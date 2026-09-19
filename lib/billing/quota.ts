@@ -42,6 +42,18 @@ export function runsLeft(state: QuotaState): number {
   return (state.subscription ? remaining(state.subscription) : 0) + remaining(state.free) + Math.max(0, state.credits)
 }
 
+/**
+ * Whether an account is paying, which is what the larger allowances and the
+ * recruiter directory are for. A plan in force counts, and so do credits still
+ * on the account: a credit pack is a payment, and the cheapest way in.
+ *
+ * Defined once here because it decides several different things, and they must
+ * not drift into meaning slightly different kinds of "paid".
+ */
+export function isPaying({ entitled, credits }: { entitled: boolean; credits: number }): boolean {
+  return entitled || credits > 0
+}
+
 export function importLimit(paying: boolean): number {
   return paying ? IMPORTS_PER_MONTH.paid : IMPORTS_PER_MONTH.free
 }

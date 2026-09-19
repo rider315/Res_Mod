@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { LIMITS } from '@/lib/outreach/model'
 import { takeFromDirectory } from '@/lib/db/directory'
 import { addRecruiters } from '@/lib/db/outreach'
-import { fail, firstIssue, requireOutreachAccount } from '@/lib/outreach/server'
+import { fail, firstIssue, requireOutreachAccount, requirePayingAccount } from '@/lib/outreach/server'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,6 +22,8 @@ const schema = z.object({
 export async function POST(req: NextRequest) {
   const auth = await requireOutreachAccount()
   if (!auth.ok) return auth.response
+  const unpaid = await requirePayingAccount(auth)
+  if (unpaid) return unpaid
 
   const parsed = schema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) return fail(400, firstIssue(parsed.error))

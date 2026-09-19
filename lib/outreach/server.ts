@@ -6,6 +6,9 @@ import { getProvider, PROVIDER_ORDER } from '@/lib/providers'
 import { generateAIResponse } from '@/lib/ai-provider'
 import type { CallUsage } from '@/lib/ai-usage'
 import type { GenerateFn } from '@/lib/run-optimization'
+import { loadQuota } from '@/lib/billing/store'
+import { TIERS } from '@/lib/billing/plans'
+import { BILLING_CODES } from '@/lib/billing/types'
 import { ensureUser, getResume } from '@/lib/db/resumes'
 import { getTailoring } from '@/lib/db/tailorings'
 import { renderResumeLatex } from '@/lib/import/render'
@@ -49,6 +52,34 @@ export async function requireOutreachAccount() {
     return { ok: false as const, response: fail(503, 'Your account couldn’t be loaded just now. Try again in a moment.') }
   }
   return auth
+}
+
+/**
+ * The recruiter directory is for accounts that pay: a plan in force, or credits
+ * still on the account. The owner always has it.
+ *
+ * It is the one thing here that costs Chills something real to keep up — the
+ * list has to be found, checked and kept fresh every week — and a free account
+ * that could take forty contacts a week would empty it for the people paying.
+ *
+ * Checked on the server, in both the browsing and the taking, because a screen
+ * that merely hides the list is not a gate.
+ */
+export async function requirePayingAccount(auth: { role: string; userId: string }): Promise<NextResponse | null> {
+  if (auth.role === 'owner') return null
+  try {
+    const quota = await loadQuota(auth.userId)
+    if (quota.paying) return null
+  } catch (err) {
+    console.error('[outreach] could not check whether the account pays:', err instanceof Error ? err.message : err)
+    return fail(503, 'Your plan couldn’t be checked just now. Try again in a moment.')
+  }
+  return fail(
+    402,
+    `The weekly recruiter list comes with ${TIERS.pro.label}, or with any credit pack. ` +
+      'Everything else — tailoring, cover letters and emails to recruiters you add yourself — stays on the free plan.',
+    BILLING_CODES.directoryNeedsPlan
+  )
 }
 
 /** Puter only runs in a browser, so the server can't write emails with it. */

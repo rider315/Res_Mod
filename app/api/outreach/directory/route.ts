@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { LIMITS } from '@/lib/outreach/model'
 import { directoryFields, latestBatch, listDirectory, takenThisWeek } from '@/lib/db/directory'
-import { requireOutreachAccount } from '@/lib/outreach/server'
+import { requireOutreachAccount, requirePayingAccount } from '@/lib/outreach/server'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,6 +16,8 @@ export const dynamic = 'force-dynamic'
 export async function GET(req: NextRequest) {
   const auth = await requireOutreachAccount()
   if (!auth.ok) return auth.response
+  const unpaid = await requirePayingAccount(auth)
+  if (unpaid) return unpaid
 
   const params = req.nextUrl.searchParams
   const [entries, fields, newest, takenWeek] = await Promise.all([

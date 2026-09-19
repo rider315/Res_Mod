@@ -2667,6 +2667,17 @@ async function applyTests() {
     /bills every 3 month/.test(planCheck.planProblem('pro', { period: 'month', interval: 3, item: { amount: 19_900, currency: 'INR' } }) ?? ''),
     String(planCheck.planProblem('premium', monthly(19_900))))
 
+  // ---- who the weekly recruiter list is for
+  const paying = (entitled, credits) => quota.isPaying({ entitled, credits })
+  check('the recruiter list is for accounts that pay: a plan in force, or credits still on it',
+    paying(true, 0) && paying(false, 5) && paying(true, 5) && !paying(false, 0),
+    JSON.stringify([paying(true, 0), paying(false, 5), paying(false, 0)]))
+  check('the free plan no longer advertises the weekly list, and the paid ones do',
+    !/Email any recruiter you add yourself[sS]{0,400}?fresh list of recruiters/.test(read('app/pricing/page.tsx')) &&
+    read('app/pricing/page.tsx').includes('Email any recruiter you add yourself') &&
+    read('app/pricing/page.tsx').includes('fresh list of recruiters every week, yours to take from') &&
+    read('app/LoginPage.tsx').includes('Email any recruiter you add yourself'))
+
   // ---- the counters a cycle's applications are kept in
   const cycleStart = new Date('2026-09-01T00:00:00Z')
   const now = new Date('2026-09-18T10:00:00Z')

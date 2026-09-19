@@ -15,6 +15,8 @@ export const BILLING_CODES = {
   applyTier: 'apply_needs_premium',
   /** It does, but this cycle's applications are used up. */
   applyLimit: 'apply_limit_reached',
+  /** The weekly recruiter list is for accounts that pay. */
+  directoryNeedsPlan: 'directory_needs_plan',
 } as const
 
 /** GET /api/billing for a regular account. */
@@ -43,6 +45,8 @@ export interface BillingStatus {
    * unless the plan in force includes them, which today means Premium.
    */
   applies: (Allowance & { resetsAt: string }) | null
+  /** The account pays: a plan in force, or credits on it. The recruiter list is for these. */
+  paying: boolean
   imports: Allowance & { resetsAt: string }
   /** Recruiter emails the AI can write this month. */
   emailDrafts: Allowance & { resetsAt: string }

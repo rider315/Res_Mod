@@ -398,7 +398,7 @@ export default function OutreachPanel(props: OutreachPanelProps) {
           </div>
         ))}
 
-      {tab === 'directory' && <DirectoryBoard onTaken={refresh} />}
+      {tab === 'directory' && <DirectoryBoard onTaken={refresh} onOpenBilling={props.onOpenBilling} />}
 
       {tab === 'tracker' && <TrackerBoard threads={threads} recruiters={list.length} onOpenThread={setOpenThread} />}
 

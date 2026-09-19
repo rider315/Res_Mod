@@ -54,7 +54,7 @@ export default function Pricing() {
               `${free} tailorings, once for every account`,
               'A cover letter for each one',
               `${EMAIL_DRAFTS_PER_MONTH.free} AI-written recruiter emails a month`,
-              'A fresh list of recruiters every week',
+              'Email any recruiter you add yourself',
               `${IMPORTS_PER_MONTH.free} resume imports a month`,
               'Keyword finder and match check',
               'Tailoring history and PDF downloads',
@@ -73,7 +73,7 @@ export default function Pricing() {
               `${PRO_PLAN.runsPerCycle} tailorings every month`,
               'A cover letter for each one',
               `${EMAIL_DRAFTS_PER_MONTH.paid} AI-written recruiter emails a month`,
-              'A fresh list of recruiters every week',
+              'A fresh list of recruiters every week, yours to take from',
               `${IMPORTS_PER_MONTH.paid} resume imports a month`,
               'Renews monthly; cancel any time',
             ]}
@@ -119,6 +119,7 @@ export default function Pricing() {
               'Credits never expire',
               'Used after your Pro and free tailorings',
               `While you have credits, ${EMAIL_DRAFTS_PER_MONTH.paid} AI-written recruiter emails a month`,
+              'And the weekly recruiter list, while they last',
             ]}
           />
         </div>

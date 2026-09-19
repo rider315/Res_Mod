@@ -6,6 +6,7 @@ import {
   DAILY_AI_REQUESTS,
   draftLimit,
   importLimit,
+  isPaying,
   nextDayStart,
   nextMonthStart,
   QuotaState,
@@ -228,6 +229,8 @@ export interface QuotaSnapshot {
   tier: PaidTier | null
   /** The subscription's runs can be used right now. */
   entitled: boolean
+  /** The account has paid: a plan in force, or credits still on it (lib/billing/quota.ts). */
+  paying: boolean
   /** The counter the plan's runs come from; null without a plan in force. */
   subscriptionBucket: string | null
   /** How many of this cycle's runs may still be complete applications; null unless the tier includes them. */
@@ -291,10 +294,11 @@ export async function loadQuota(userId: string, now = new Date()): Promise<Quota
     subscription,
     tier,
     entitled,
+    paying: isPaying({ entitled, credits }),
     subscriptionBucket,
     applies: applyBucket ? { used: used(applyBucket), limit: TIERS[tier ?? 'pro'].appliesPerCycle } : null,
-    imports: { used: used(importBucket), limit: importLimit(entitled || credits > 0) },
-    emailDrafts: { used: used(draftBucket), limit: draftLimit(entitled || credits > 0) },
+    imports: { used: used(importBucket), limit: importLimit(isPaying({ entitled, credits })) },
+    emailDrafts: { used: used(draftBucket), limit: draftLimit(isPaying({ entitled, credits })) },
     emailSends: { used: used(sendBucket), limit: EMAIL_SENDS_PER_DAY },
   }
 }
@@ -509,6 +513,7 @@ export async function getBillingStatus(userId: string): Promise<BillingStatus> {
       credits: quota.state.credits,
     },
     applies: quota.applies ? { ...quota.applies, resetsAt: subscription?.currentEnd?.toISOString() ?? importsResetAt } : null,
+    paying: quota.paying,
     imports: { ...quota.imports, resetsAt: importsResetAt },
     emailDrafts: { ...quota.emailDrafts, resetsAt: importsResetAt },
     emailSends: { ...quota.emailSends, resetsAt: nextDayStart(quota.now).toISOString() },

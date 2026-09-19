@@ -8,9 +8,10 @@ import { directoryFields, directoryStats, latestBatch } from '@/lib/db/directory
 /**
  * The weekly recruiter list, for people who haven't signed up yet.
  *
- * It exists because it is the one thing Chills gives away that nobody else
- * does, and because "I don't know who to email" is where most cold outreach
- * stops — long before the writing of the email is the problem.
+ * It exists because "I don't know who to email" is where most cold outreach
+ * stops, long before the writing of the email is the problem — and because the
+ * list is what a paid plan is actually for. The page sells it; the gate itself
+ * is on the server (lib/outreach/server.ts).
  *
  * NOTHING ON THIS PAGE MAY IDENTIFY A RECRUITER. No address, no name, no
  * employer. Only counts, fields and the week the batch went up. These are real
@@ -84,7 +85,7 @@ const FAQ: Array<[string, string]> = [
   ],
   [
     'Does it cost anything?',
-    'No. The list comes with every free account, along with three résumé tailorings and ten AI-written emails a month.',
+    'The list comes with a paid plan — Pro, or any credit pack, and credits never expire. Finding the contacts, checking them and keeping them fresh every week is the part of Chills that takes real work, and a free account taking forty a week would empty it for the people paying for it. Everything else stays free: tailoring a résumé, the cover letter with it, the keyword finder, and writing and sending emails to recruiters you add yourself.',
   ],
   [
     'Do you send the emails for me?',
@@ -121,7 +122,7 @@ export default async function RecruitersPage() {
           <div className="mt-9 flex flex-col items-center gap-3">
             <StartButton label="See this week’s list" to={OUTREACH} />
             <SignedOutOnly>
-              <p className="text-sm font-bold text-[var(--color-text-muted)]">Sign in with Google · Free · No card needed</p>
+              <p className="text-sm font-bold text-[var(--color-text-muted)]">Sign in with Google · The list comes with Pro or a credit pack</p>
             </SignedOutOnly>
           </div>
 
@@ -182,8 +183,8 @@ export default async function RecruitersPage() {
               </>
             ) : (
               <p className="text-[var(--color-text-muted)]">
-                The next batch goes up shortly. Make a free account and it will be waiting in Outreach when it does — along with the
-                three résumé tailorings and ten AI-written emails every account gets.
+                The next batch goes up shortly. Make an account and the three free tailorings, the cover letters and the keyword
+                finder are yours straight away; the list itself opens with Pro or a credit pack.
               </p>
             )}
           </div>

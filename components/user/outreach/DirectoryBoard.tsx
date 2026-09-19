@@ -3,6 +3,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { Briefcase, CheckCircle, Plus, Search, Sparkles, Users } from '@/components/brand/Icons'
 import { cardClass, errorBox, inputClass, primaryButton, secondaryButton, successBox } from '@/components/user/shared'
 import Working from '@/components/user/Working'
+import { ApiError } from '@/components/user/billing-client'
+import { BILLING_CODES } from '@/lib/billing/types'
 import { directoryApi, DirectoryEntry, DirectoryList } from '@/components/user/outreach/outreach-client'
 
 /**
@@ -16,7 +18,7 @@ import { directoryApi, DirectoryEntry, DirectoryList } from '@/components/user/o
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err))
 
-export default function DirectoryBoard({ onTaken }: { onTaken: () => void }) {
+export default function DirectoryBoard({ onTaken, onOpenBilling }: { onTaken: () => void; onOpenBilling: () => void }) {
   const [list, setList] = useState<DirectoryList | null>(null)
   const [field, setField] = useState('')
   const [query, setQuery] = useState('')
@@ -26,12 +28,19 @@ export default function DirectoryBoard({ onTaken }: { onTaken: () => void }) {
   const [startedAt, setStartedAt] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  /** The list is for accounts that pay, and this one does not. */
+  const [needsPlan, setNeedsPlan] = useState(false)
 
   const load = useCallback(async () => {
     try {
       setList(await directoryApi.list({ field, q: query, newOnly }))
       setError(null)
+      setNeedsPlan(false)
     } catch (err) {
+      if (err instanceof ApiError && err.code === BILLING_CODES.directoryNeedsPlan) {
+        setNeedsPlan(true)
+        return
+      }
       setError(errorText(err))
       setList((current) => current ?? { entries: [], fields: [], latestBatch: null, weeklyLeft: 0, weeklyLimit: 0 })
     }
@@ -68,6 +77,38 @@ export default function DirectoryBoard({ onTaken }: { onTaken: () => void }) {
     if (next.has(id)) next.delete(id)
     else next.add(id)
     setPicked(next)
+  }
+
+  // The server refused, so there is no list to show. Say what it costs and what
+  // is still free, rather than an error the account can do nothing about.
+  if (needsPlan) {
+    return (
+      <section className={`${cardClass} p-6 space-y-4 bg-[var(--color-yellow-soft)]`}>
+        <h2 className="text-2xl font-black flex items-center gap-2.5">
+          <Sparkles size={22} /> The weekly list comes with a paid plan
+        </h2>
+        <p className="text-[var(--color-text-muted)] leading-relaxed">
+          Every week Chills publishes a fresh batch of hiring contacts — found, checked and kept up to date — and you can take up
+          to 40 of them. That is the part of Chills that costs real work to keep going, so it comes with Pro, or with any credit
+          pack.
+        </p>
+        <ul className="space-y-2 text-sm">
+          {[
+            'Still free: tailoring, cover letters, the keyword finder',
+            'Still free: writing and sending emails to recruiters you add yourself',
+            'A credit pack is the cheapest way in, and the credits never expire',
+          ].map((line) => (
+            <li key={line} className="flex items-start gap-2.5">
+              <CheckCircle size={18} className="text-[var(--color-success)] shrink-0 mt-0.5" />
+              <span>{line}</span>
+            </li>
+          ))}
+        </ul>
+        <button onClick={onOpenBilling} className={primaryButton}>
+          See plans
+        </button>
+      </section>
+    )
   }
 
   if (!list) return <p className="text-sm font-semibold text-[var(--color-text-muted)]">Loading the directory…</p>
