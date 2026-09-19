@@ -4,6 +4,8 @@ import { SignedOutOnly, StartButton } from '@/components/brand/SignInButton'
 import { CheckCircle, ChevronDown, Mail, Users } from '@/components/brand/Icons'
 import { LIMITS } from '@/lib/outreach/model'
 import { directoryFields, directoryStats, latestBatch } from '@/lib/db/directory'
+import JsonLd from '@/components/brand/JsonLd'
+import { absolute, breadcrumbSchema, faqSchema } from '@/lib/seo'
 
 /**
  * The weekly recruiter list, for people who haven't signed up yet.
@@ -25,6 +27,7 @@ export const metadata = {
   title: 'A fresh list of recruiters every week | Chills',
   description:
     'Chills publishes a new list of hiring contacts every week. Take the ones that fit, and send each a résumé tailored to the job with an email written from it.',
+  alternates: { canonical: absolute('/recruiters') },
 }
 
 /** The counts change as the week's batch is taken, so nothing here may be cached. */
@@ -107,6 +110,8 @@ export default async function RecruitersPage() {
 
   return (
     <div className="min-h-screen bg-[var(--color-surface)] text-[var(--color-text)]">
+      {/* Built from FAQ itself, so the answers Google quotes are the ones on the page. */}
+      <JsonLd data={[faqSchema(FAQ), breadcrumbSchema([{ name: 'Chills', path: '/' }, { name: 'Weekly recruiter list', path: '/recruiters' }])]} />
       <SiteHeader />
 
       <section className="px-4 sm:px-6 pt-16 pb-16 bg-[var(--color-accent-soft)] border-b-[1.6px] border-[var(--color-ink)]">

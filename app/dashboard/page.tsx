@@ -6,6 +6,9 @@ import { ensureUser } from '@/lib/db/resumes'
 import Dashboard from '@/components/Dashboard'
 import UserDashboard from '@/components/user/UserDashboard'
 
+/** The signed-in app: one person's resumes, nothing for a search engine. */
+export const metadata = { robots: { index: false, follow: false } }
+
 export default async function DashboardPage({ searchParams }: { searchParams: { workspace?: string; open?: string } }) {
   const session = await getServerSession(authOptions)
   if (!session) redirect('/')

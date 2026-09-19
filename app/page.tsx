@@ -3,6 +3,9 @@ import { redirect } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
 import { freeTailorings, razorpayConfig, tiersOnSale } from '@/lib/billing/config'
 import { getPlatformAi } from '@/lib/billing/platform-ai'
+import JsonLd from '@/components/brand/JsonLd'
+import { organizationSchema, softwareSchema } from '@/lib/seo'
+import { PRO_PLAN } from '@/lib/billing/plans'
 import LoginPage from './LoginPage'
 
 export default async function Home({ searchParams }: { searchParams: { deleted?: string } }) {
@@ -13,10 +16,13 @@ export default async function Home({ searchParams }: { searchParams: { deleted?:
   // against. One environment variable opens it everywhere at once.
   const onSale = platform ? tiersOnSale(razorpayConfig()) : []
   return (
-    <LoginPage
+    <>
+      <JsonLd data={[organizationSchema(), softwareSchema({ priceFrom: PRO_PLAN.pricePaise })]} />
+      <LoginPage
       freeTailorings={platform ? freeTailorings() : null}
       premiumOnSale={onSale.includes('premium')}
-      accountDeleted={searchParams.deleted === '1'}
-    />
+        accountDeleted={searchParams.deleted === '1'}
+      />
+    </>
   )
 }

@@ -12,9 +12,14 @@ import {
   PRO_PLAN,
 } from '@/lib/billing/plans'
 import { DAILY_AI_REQUESTS } from '@/lib/billing/quota'
+import JsonLd from '@/components/brand/JsonLd'
+import { absolute, breadcrumbSchema } from '@/lib/seo'
 
 export const metadata = {
   title: 'Pricing | Chills',
+  description:
+    'What Chills costs: three free tailorings for every account, then Pro at a monthly price or one-time credit packs that never expire. Prices in rupees.',
+  alternates: { canonical: absolute('/pricing') },
 }
 
 function Points({ items }: { items: string[] }) {
@@ -51,6 +56,8 @@ export default function Pricing() {
         </>
       }
     >
+      <JsonLd data={breadcrumbSchema([{ name: 'Chills', path: '/' }, { name: 'Pricing', path: '/pricing' }])} />
+
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4 items-stretch">
         <div className="nb-card p-7 flex flex-col">
           <h2 className="text-xl font-extrabold text-[var(--color-text)]">Free</h2>

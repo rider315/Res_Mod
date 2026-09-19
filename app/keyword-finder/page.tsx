@@ -3,11 +3,14 @@ import SiteHeader from '@/components/brand/SiteHeader'
 import { SignedOutOnly, StartButton } from '@/components/brand/SignInButton'
 import { CheckCircle, ChevronDown, Search, Target } from '@/components/brand/Icons'
 import { DAILY_AI_REQUESTS } from '@/lib/billing/quota'
+import JsonLd from '@/components/brand/JsonLd'
+import { absolute, breadcrumbSchema, faqSchema } from '@/lib/seo'
 
 export const metadata = {
   title: 'Job description keyword finder | Chills',
   description:
     'Find the keywords a job description screens for, scored and split into must-haves and nice-to-haves, and check your resume against them.',
+  alternates: { canonical: absolute('/keyword-finder') },
 }
 
 const EXAMPLE: Array<{ term: string; score: number; where: string; required: boolean }> = [
@@ -46,6 +49,7 @@ const FINDER = '/dashboard?open=keywords'
 export default function KeywordFinderPage() {
   return (
     <div className="min-h-screen bg-[var(--color-surface)] text-[var(--color-text)]">
+      <JsonLd data={[faqSchema(FAQ), breadcrumbSchema([{ name: 'Chills', path: '/' }, { name: 'Keyword finder', path: '/keyword-finder' }])]} />
       <SiteHeader />
 
       <section className="px-4 sm:px-6 pt-16 pb-16 bg-[var(--color-accent-soft)] border-b-[1.6px] border-[var(--color-ink)]">
