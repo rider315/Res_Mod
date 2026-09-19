@@ -98,14 +98,23 @@ interface UserDashboardProps {
   isOwner?: boolean
   /** Start on the keyword finder, as the public keyword finder page links here. */
   openKeywordFinder?: boolean
+  /** Start on the recruiter list, as the public recruiters page links here. */
+  openRecruiters?: boolean
   /** The account was created by this visit: the one time a signup is worth reporting. */
   justSignedUp?: boolean
 }
 
-export default function UserDashboard({ name, email, isOwner = false, openKeywordFinder = false, justSignedUp = false }: UserDashboardProps) {
+export default function UserDashboard({
+  name,
+  email,
+  isOwner = false,
+  openKeywordFinder = false,
+  openRecruiters = false,
+  justSignedUp = false,
+}: UserDashboardProps) {
   const confirm = useConfirm()
   const [view, setView] = useState<View>({ kind: 'list' })
-  const [overlay, setOverlay] = useState<Overlay>(openKeywordFinder ? 'keywords' : null)
+  const [overlay, setOverlay] = useState<Overlay>(openKeywordFinder ? 'keywords' : openRecruiters ? 'outreach' : null)
   const [resumes, setResumes] = useState<ResumeSummary[] | null>(null)
   const [listError, setListError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -134,12 +143,12 @@ export default function UserDashboard({ name, email, isOwner = false, openKeywor
   }, [isOwner])
 
   useEffect(() => {
-    if (!openKeywordFinder) return
+    if (!openKeywordFinder && !openRecruiters) return
     // The link has done its job: reloading shouldn't reopen the finder once it's closed.
     const url = new URL(window.location.href)
     url.searchParams.delete('open')
     window.history.replaceState(null, '', url)
-  }, [openKeywordFinder])
+  }, [openKeywordFinder, openRecruiters])
 
   const refresh = useCallback(async () => {
     try {
@@ -474,6 +483,7 @@ export default function UserDashboard({ name, email, isOwner = false, openKeywor
             settings={settings}
             billing={billing}
             context={outreachContext}
+            openTab={openRecruiters ? 'directory' : undefined}
             onClearContext={() => setOutreachContext(null)}
             onBillingChanged={refreshBilling}
             onOpenBilling={() => openOverlay('billing')}

@@ -4,7 +4,7 @@ import Logo from '@/components/brand/Logo'
 /** The public pages' footer. */
 
 const GROUPS: Array<[string, Array<[string, string]>]> = [
-  ['Product', [['/#how-it-works', 'How it works'], ['/keyword-finder', 'Keyword finder'], ['/pricing', 'Pricing']]],
+  ['Product', [['/#how-it-works', 'How it works'], ['/recruiters', 'Weekly recruiter list'], ['/keyword-finder', 'Keyword finder'], ['/pricing', 'Pricing']]],
   ['Policies', [['/terms', 'Terms of Service'], ['/privacy', 'Privacy Policy'], ['/refunds', 'Cancellation and Refunds'], ['/shipping', 'Shipping and Delivery']]],
   ['Help', [['/#faq', 'FAQ'], ['/contact', 'Contact']]],
 ]

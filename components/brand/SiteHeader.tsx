@@ -9,6 +9,7 @@ import { LoginButton } from '@/components/brand/SignInButton'
 const LINKS: Array<[string, string]> = [
   ['/#how-it-works', 'How it works'],
   ['/#outreach', 'Recruiter emails'],
+  ['/recruiters', 'Weekly recruiter list'],
   ['/keyword-finder', 'Keyword finder'],
   ['/pricing', 'Pricing'],
 ]

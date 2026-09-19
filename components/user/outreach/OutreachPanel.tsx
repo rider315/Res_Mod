@@ -37,6 +37,8 @@ interface OutreachPanelProps {
   billing: BillingStatus | null | undefined
   /** Opened from a tailored copy: new emails are about that job. */
   context: OutreachContext | null
+  /** Which tab to land on; the public recruiters page sends people to the list. */
+  openTab?: Tab
   onClearContext: () => void
   onBillingChanged: () => void
   onOpenBilling: () => void
@@ -62,7 +64,7 @@ const STOPPERS = new Set<string>([
 export default function OutreachPanel(props: OutreachPanelProps) {
   const confirm = useConfirm()
   const { isOwner, settings, billing, context } = props
-  const [tab, setTab] = useState<Tab>('write')
+  const [tab, setTab] = useState<Tab>(props.openTab ?? 'write')
   const [recruiters, setRecruiters] = useState<RecruiterSummary[] | null>(null)
   const [threads, setThreads] = useState<ThreadSummary[]>([])
   const [setup, setSetup] = useState<OutreachSetup | null>(null)

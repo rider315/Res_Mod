@@ -33,6 +33,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
         email={session.user?.email ?? ''}
         isOwner={owner}
         openKeywordFinder={searchParams.open === 'keywords'}
+        openRecruiters={searchParams.open === 'outreach'}
         justSignedUp={justSignedUp}
       />
     )
