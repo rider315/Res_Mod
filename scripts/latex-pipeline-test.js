@@ -1655,6 +1655,7 @@ const mailbox = require(BUILD + '/lib/outreach/mailbox')
 const delivery = require(BUILD + '/lib/outreach/delivery')
 const connect = require(BUILD + '/lib/extension/connect')
 const contactLib = require(BUILD + '/lib/contact')
+const jobsLib = require(BUILD + '/lib/jobs')
 const net = require('net')
 
 /**
@@ -2808,6 +2809,44 @@ async function applyTests() {
   check('the composer names the job a tailored copy carries',
     composer.includes('`Uses the job it was tailored for — ${describeTailoring(chosenTailoring)}.`'),
     'the hint is still generic')
+
+  // ---- the saved jobs screen
+  //
+  // Without it the captured rows are write-only and the extension's own button
+  // points at nothing, which is what it did on the day it shipped.
+  check('the statuses the screen offers are the ones the server will take',
+    jobsLib.JOB_STATUSES.every((status) => jobsLib.isJobStatus(status)) &&
+    !jobsLib.isJobStatus('sent') && !jobsLib.isJobStatus('') &&
+    jobsLib.JOB_STATUSES.every((status) => typeof jobsLib.STATUS_LABELS[status] === 'string'),
+    jobsLib.JOB_STATUSES.join(', '))
+
+  check('the capture route validates against that same list',
+    read('app/api/extension/capture/route.ts').includes('z.enum(JOB_STATUSES)') &&
+    read('lib/db/extension.ts').includes("export { JOB_STATUSES, type JobStatus } from '@/lib/jobs'"),
+    'the route and the screen could drift apart')
+
+  check('a job with no title is still called something',
+    jobsLib.describeJob({ title: '', company: 'Northwind' }) === 'Northwind' &&
+    jobsLib.describeJob({ title: 'Platform Engineer', company: '' }) === 'Platform Engineer' &&
+    jobsLib.describeJob({ title: '', company: '' }) === 'A saved job',
+    jobsLib.describeJob({ title: '', company: '' }))
+
+  const jobsPanel = read('components/user/JobsPanel.tsx')
+  check('nothing but the user moves a job along',
+    !/status.*=.*['"]applied['"]/.test(jobsPanel.replace(/STATUS_LABELS[\s\S]*?\}/, '')) &&
+    jobsPanel.includes('onChange={(e) => setStatus(job, e.target.value)}'),
+    'something sets a status on the user’s behalf')
+
+  check('removing a job keeps the resume tailored for it',
+    jobsPanel.includes('Any resume you tailored for it stays in your history') &&
+    read('lib/db/schema.ts').includes("tailoringId: uuid('tailoring_id').references(() => tailorings.id, { onDelete: 'set null' })"),
+    'deleting a job could take work with it')
+
+  check('the extension’s Saved jobs button opens the saved jobs',
+    read('extension/sidepanel.js').includes("send('openInChills', { where: 'jobs' })") &&
+    read('extension/background.js').includes("? '/dashboard?open=jobs'") &&
+    read('app/dashboard/page.tsx').includes("openJobs={searchParams.open === 'jobs'}"),
+    'the button still points at nothing')
 
   // ---- the extension's connect flow
   //

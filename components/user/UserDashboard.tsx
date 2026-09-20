@@ -8,6 +8,7 @@ import SettingsModal from '@/components/SettingsModal'
 import { LogoMark } from '@/components/brand/Logo'
 import {
   ArrowRight,
+  Briefcase,
   Download,
   FileText,
   History as HistoryIcon,
@@ -27,6 +28,8 @@ import KeywordFinderPanel from '@/components/user/KeywordFinderPanel'
 import OutreachCard from '@/components/user/outreach/OutreachCard'
 import OutreachPanel from '@/components/user/outreach/OutreachPanel'
 import ApplyPanel from '@/components/user/ApplyPanel'
+import JobsPanel from '@/components/user/JobsPanel'
+import type { JobRow } from '@/lib/jobs'
 import type { OutreachContext } from '@/components/user/outreach/outreach-client'
 import QuotaDialog from '@/components/user/QuotaDialog'
 import ResumeEditor from '@/components/user/ResumeEditor'
@@ -75,7 +78,7 @@ type View =
  * Screens that open over the current view. The view stays mounted underneath,
  * so a pasted job description survives a trip to buy tailorings or look something up.
  */
-type Overlay = 'billing' | 'history' | 'account' | 'keywords' | 'outreach' | 'apply' | null
+type Overlay = 'billing' | 'history' | 'account' | 'keywords' | 'outreach' | 'apply' | 'jobs' | null
 
 const FORMAT_LABEL: Record<string, string> = { pdf: 'PDF', docx: 'Word', latex: 'LaTeX', text: 'text' }
 
@@ -100,6 +103,8 @@ interface UserDashboardProps {
   openKeywordFinder?: boolean
   /** Start on the recruiter list, as the public recruiters page links here. */
   openRecruiters?: boolean
+  /** Start on the saved jobs, as the extension's own button does. */
+  openJobs?: boolean
   /** A job the browser extension captured, to be worked on here. */
   capturedJobId?: string
   /** The account was created by this visit: the one time a signup is worth reporting. */
@@ -112,12 +117,15 @@ export default function UserDashboard({
   isOwner = false,
   openKeywordFinder = false,
   openRecruiters = false,
+  openJobs = false,
   capturedJobId,
   justSignedUp = false,
 }: UserDashboardProps) {
   const confirm = useConfirm()
   const [view, setView] = useState<View>({ kind: 'list' })
-  const [overlay, setOverlay] = useState<Overlay>(openKeywordFinder ? 'keywords' : openRecruiters ? 'outreach' : null)
+  const [overlay, setOverlay] = useState<Overlay>(
+    openKeywordFinder ? 'keywords' : openRecruiters ? 'outreach' : openJobs ? 'jobs' : null
+  )
   const [resumes, setResumes] = useState<ResumeSummary[] | null>(null)
   const [listError, setListError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -129,10 +137,8 @@ export default function UserDashboard({
   const [quotaDialog, setQuotaDialog] = useState<'run' | 'import' | null>(null)
   /** What Outreach was opened for: a tailored copy's job, or any job. */
   const [outreachContext, setOutreachContext] = useState<OutreachContext | null>(null)
-  /** The job the extension sent over, waiting for a resume to be picked for it. */
-  const [capturedJob, setCapturedJob] = useState<{ id: string; title: string; company: string; description: string } | null>(
-    null
-  )
+  /** A saved job waiting for a resume to be picked for it. */
+  const [capturedJob, setCapturedJob] = useState<JobRow | null>(null)
 
   const firstName = name.trim().split(/\s+/)[0]
 
@@ -150,14 +156,14 @@ export default function UserDashboard({
   }, [isOwner])
 
   useEffect(() => {
-    if (!openKeywordFinder && !openRecruiters && !capturedJobId) return
+    if (!openKeywordFinder && !openRecruiters && !openJobs && !capturedJobId) return
     // The link has done its job: reloading shouldn't reopen the finder once it's
     // closed, or bring a finished job back.
     const url = new URL(window.location.href)
     url.searchParams.delete('open')
     url.searchParams.delete('job')
     window.history.replaceState(null, '', url)
-  }, [openKeywordFinder, openRecruiters, capturedJobId])
+  }, [openKeywordFinder, openRecruiters, openJobs, capturedJobId])
 
   /**
    * The extension sent a job over. Fetch what it captured so the posting is
@@ -230,6 +236,14 @@ export default function UserDashboard({
     setOutreachContext(context)
     openOverlay('outreach')
   }
+
+  /** A saved job, opened wherever it was asked for. The posting goes with it either way. */
+  const jobContext = (job: JobRow): OutreachContext => ({
+    tailoringId: '',
+    jobTitle: job.title,
+    company: job.company,
+    jobDescription: job.description,
+  })
 
   function goHome() {
     setOverlay(null)
@@ -353,6 +367,9 @@ export default function UserDashboard({
             )}
             <NavButton active={overlay === 'apply'} onClick={() => openOverlay('apply')} icon={<Sparkles size={16} />}>
               Apply
+            </NavButton>
+            <NavButton active={overlay === 'jobs'} onClick={() => openOverlay('jobs')} icon={<Briefcase size={16} />}>
+              Jobs
             </NavButton>
             <NavButton active={overlay === 'keywords'} onClick={() => openOverlay('keywords')} icon={<Search size={16} />}>
               Keywords
@@ -547,6 +564,26 @@ export default function UserDashboard({
           )}
         </div>
 
+        {overlay === 'jobs' && (
+          <JobsPanel
+            // Tailoring needs a resume, and only the user knows which. One
+            // resume and there is nothing to ask; otherwise the job waits on
+            // the list with its name on it.
+            onTailor={(job) => {
+              setOverlay(null)
+              if (resumes?.length === 1) {
+                const [only] = resumes
+                setView({ kind: 'tailor', resumeId: only.id, title: only.title, jobDescription: job.description })
+              } else {
+                setCapturedJob(job)
+                setView({ kind: 'list' })
+              }
+              window.scrollTo({ top: 0 })
+            }}
+            onEmail={(job) => openOutreach(jobContext(job))}
+            onBack={() => setOverlay(null)}
+          />
+        )}
         {overlay === 'billing' && <BillingPanel billing={billing} onBillingChange={setBilling} onBack={() => setOverlay(null)} />}
         {overlay === 'history' && <HistoryPanel {...aiProps} onEmailRecruiters={openOutreach} onBack={() => setOverlay(null)} />}
         {overlay === 'outreach' && (

@@ -108,8 +108,9 @@ export async function revokeToken(userId: string, id: string): Promise<boolean> 
 
 // ─── Captured jobs ───────────────────────────────────────────────────────────
 
-export const JOB_STATUSES = ['saved', 'applied', 'interviewing', 'offer', 'closed'] as const
-export type JobStatus = (typeof JOB_STATUSES)[number]
+// The stages live in lib/jobs.ts so the panel that sets one and the route that
+// validates it cannot drift apart.
+export { JOB_STATUSES, type JobStatus } from '@/lib/jobs'
 
 export interface CapturedJob {
   id: string

@@ -300,7 +300,10 @@ for (const [id, where] of [
   })
 }
 
-$('open-saved').addEventListener('click', () => send('openInChills', { jobId: '', where: 'tailor' }).catch(() => {}))
+// Opens the list of everything saved, not a job: there is no one job here to
+// mean. It used to send an empty id at the tailor screen, which the app threw
+// away, so the button opened a dashboard and did nothing it said.
+$('open-saved').addEventListener('click', () => send('openInChills', { where: 'jobs' }).catch(() => {}))
 
 // Following the user between tabs is the whole point of a side panel: the
 // posting on screen and the panel beside it must be the same job.

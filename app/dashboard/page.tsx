@@ -41,6 +41,8 @@ export default async function DashboardPage({
         isOwner={owner}
         openKeywordFinder={searchParams.open === 'keywords'}
         openRecruiters={searchParams.open === 'outreach'}
+        // The extension's Saved jobs button, which carries no job of its own.
+        openJobs={searchParams.open === 'jobs'}
         // A job the browser extension captured and sent here to be worked on.
         capturedJobId={searchParams.job?.trim() || undefined}
         justSignedUp={justSignedUp}

@@ -181,9 +181,21 @@ const HANDLERS = {
   score: ({ resumeId, jobDescription, jobId }) =>
     api('/api/extension/score', { method: 'POST', body: { resumeId, jobDescription, jobId } }),
 
-  /** Hand the job to the app, where the review screen lives. */
+  /**
+   * Hand the job to the app, where the review screens live.
+   *
+   * `jobs` carries no job of its own: it opens the list of everything saved,
+   * which is what the panel's own Saved jobs button wants. The other two carry
+   * one, and the app opens the screen that was asked for with the posting
+   * already in it.
+   */
   async openInChills({ jobId, where }) {
-    const path = where === 'outreach' ? `/dashboard?open=outreach&job=${jobId}` : `/dashboard?open=tailor&job=${jobId}`
+    const path =
+      where === 'jobs'
+        ? '/dashboard?open=jobs'
+        : where === 'outreach'
+          ? `/dashboard?open=outreach&job=${encodeURIComponent(jobId)}`
+          : `/dashboard?open=tailor&job=${encodeURIComponent(jobId)}`
     await chrome.tabs.create({ url: `${await baseUrl()}${path}` })
     return { ok: true }
   },
