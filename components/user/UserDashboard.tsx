@@ -100,6 +100,8 @@ interface UserDashboardProps {
   openKeywordFinder?: boolean
   /** Start on the recruiter list, as the public recruiters page links here. */
   openRecruiters?: boolean
+  /** A job the browser extension captured, to be worked on here. */
+  capturedJobId?: string
   /** The account was created by this visit: the one time a signup is worth reporting. */
   justSignedUp?: boolean
 }
@@ -110,6 +112,7 @@ export default function UserDashboard({
   isOwner = false,
   openKeywordFinder = false,
   openRecruiters = false,
+  capturedJobId,
   justSignedUp = false,
 }: UserDashboardProps) {
   const confirm = useConfirm()
@@ -126,6 +129,10 @@ export default function UserDashboard({
   const [quotaDialog, setQuotaDialog] = useState<'run' | 'import' | null>(null)
   /** What Outreach was opened for: a tailored copy's job, or any job. */
   const [outreachContext, setOutreachContext] = useState<OutreachContext | null>(null)
+  /** The job the extension sent over, waiting for a resume to be picked for it. */
+  const [capturedJob, setCapturedJob] = useState<{ id: string; title: string; company: string; description: string } | null>(
+    null
+  )
 
   const firstName = name.trim().split(/\s+/)[0]
 
@@ -143,12 +150,31 @@ export default function UserDashboard({
   }, [isOwner])
 
   useEffect(() => {
-    if (!openKeywordFinder && !openRecruiters) return
-    // The link has done its job: reloading shouldn't reopen the finder once it's closed.
+    if (!openKeywordFinder && !openRecruiters && !capturedJobId) return
+    // The link has done its job: reloading shouldn't reopen the finder once it's
+    // closed, or bring a finished job back.
     const url = new URL(window.location.href)
     url.searchParams.delete('open')
+    url.searchParams.delete('job')
     window.history.replaceState(null, '', url)
-  }, [openKeywordFinder, openRecruiters])
+  }, [openKeywordFinder, openRecruiters, capturedJobId])
+
+  // The extension sent a job over. Fetch what it captured so the job
+  // description is here rather than on a clipboard.
+  useEffect(() => {
+    if (!capturedJobId) return
+    let cancelled = false
+    fetch(`/api/extension/capture?id=${encodeURIComponent(capturedJobId)}`, { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled || !data?.job) return
+        setCapturedJob(data.job)
+      })
+      .catch(() => null)
+    return () => {
+      cancelled = true
+    }
+  }, [capturedJobId])
 
   const refresh = useCallback(async () => {
     try {
@@ -266,9 +292,20 @@ export default function UserDashboard({
 
   const startTailoring = (resumeId: string, title: string, jobDescription?: string) => {
     setOverlay(null)
-    setView({ kind: 'tailor', resumeId, title, jobDescription })
+    // A job the extension captured is what the tailoring is for, unless the
+    // caller brought a description of its own.
+    setView({ kind: 'tailor', resumeId, title, jobDescription: jobDescription ?? capturedJob?.description })
+    setCapturedJob(null)
     window.scrollTo({ top: 0 })
   }
+
+  // One resume and a job waiting for it leaves nothing to choose, so don't ask.
+  useEffect(() => {
+    if (!capturedJob || !resumes || resumes.length !== 1 || view.kind !== 'list') return
+    const [only] = resumes
+    setView({ kind: 'tailor', resumeId: only.id, title: only.title, jobDescription: capturedJob.description })
+    setCapturedJob(null)
+  }, [capturedJob, resumes, view.kind])
 
   return (
     <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)]">
@@ -361,6 +398,25 @@ export default function UserDashboard({
               </div>
 
               {!isOwner && billing?.platformAi && <PlanStrip billing={billing} onOpenBilling={() => openOverlay('billing')} />}
+
+              {/* The extension captured a job and more than one resume could answer it. */}
+              {capturedJob && (
+                <div className="nb-card rounded-[10px] p-4 bg-[var(--color-accent-soft,var(--color-surface))] flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-xs font-black uppercase tracking-wide text-[var(--color-text-muted)]">
+                      From your browser
+                    </p>
+                    <p className="font-extrabold truncate">
+                      {capturedJob.title || 'A job you saved'}
+                      {capturedJob.company && <span className="font-semibold"> · {capturedJob.company}</span>}
+                    </p>
+                    <p className="text-sm text-[var(--color-text-muted)]">Pick the resume to tailor for it.</p>
+                  </div>
+                  <button onClick={() => setCapturedJob(null)} className={secondaryButton}>
+                    Not now
+                  </button>
+                </div>
+              )}
 
               {listError && <div className={errorBox}>{listError}</div>}
 

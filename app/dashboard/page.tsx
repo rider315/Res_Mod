@@ -9,7 +9,11 @@ import UserDashboard from '@/components/user/UserDashboard'
 /** The signed-in app: one person's resumes, nothing for a search engine. */
 export const metadata = { robots: { index: false, follow: false } }
 
-export default async function DashboardPage({ searchParams }: { searchParams: { workspace?: string; open?: string } }) {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: { workspace?: string; open?: string; job?: string }
+}) {
   const session = await getServerSession(authOptions)
   if (!session) redirect('/')
 
@@ -37,6 +41,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
         isOwner={owner}
         openKeywordFinder={searchParams.open === 'keywords'}
         openRecruiters={searchParams.open === 'outreach'}
+        // A job the browser extension captured and sent here to be worked on.
+        capturedJobId={searchParams.job?.trim() || undefined}
         justSignedUp={justSignedUp}
       />
     )

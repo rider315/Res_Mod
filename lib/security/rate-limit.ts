@@ -63,6 +63,16 @@ export const RATE_LIMITS = {
   mutation: { name: 'mutation', limit: 120, windowSeconds: 60 * 60 },
   /** The owner's own screens. Generous: it is one person, and publishing a list is real work. */
   admin: { name: 'admin', limit: 120, windowSeconds: 60 * 60 },
+  /**
+   * The extension capturing postings. Higher than a plain mutation because
+   * reading job pages is how the extension is meant to be used — somebody
+   * working through a board all evening should never hit this — but bounded,
+   * because unlike the app's own screens this one is driven by a script and a
+   * loose content script could otherwise write a row per page load.
+   */
+  capture: { name: 'capture', limit: 240, windowSeconds: 60 * 60 },
+  /** Cutting or retiring an extension key. Rare by nature; a burst is someone probing. */
+  extensionKey: { name: 'extension-key', limit: 10, windowSeconds: 60 * 60 },
 } satisfies Record<string, RateLimit>
 
 export type RateVerdict = { ok: true } | { ok: false; retryAfterSeconds: number }

@@ -473,6 +473,76 @@ export const rateLimits = pgTable('rate_limits', {
 })
 
 /**
+ * A browser extension's key to one account's API.
+ *
+ * Only the hash is kept. The token itself is shown to the extension once, at the
+ * end of the connect flow, and never again — a leaked table must not be a
+ * cupboard of working keys. `revokedAt` retires one without deleting the row, so
+ * "when did this stop working" stays answerable.
+ *
+ * These tokens do not open the whole API. Routes decide for themselves whether
+ * an extension may call them (lib/require-auth.ts), and the ones that take money
+ * or delete an account never do.
+ */
+export const extensionTokens = pgTable(
+  'extension_tokens',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** SHA-256 of the token, hex. The token itself is never stored. */
+    tokenHash: text('token_hash').notNull().unique(),
+    /** Which browser this key was cut for, as the connect page was told. */
+    label: text('label').notNull().default('Browser extension'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  },
+  (table) => [index('extension_tokens_user_idx').on(table.userId)]
+)
+
+/**
+ * A job posting the extension picked up off a page.
+ *
+ * It is captured so the user does not have to carry a job description from one
+ * window to another: the extension stores it, the dashboard opens it. Keeping
+ * them also answers "what have I applied to", which the email tracker cannot —
+ * it only knows about jobs that led to an email.
+ *
+ * `status` moves by hand: saved → applied → interviewing → offer → closed.
+ */
+export const capturedJobs = pgTable(
+  'captured_jobs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** The posting's own page, and the site it came from ("linkedin", "naukri", "other"). */
+    url: text('url').notNull().default(''),
+    source: text('source').notNull().default('other'),
+    title: text('title').notNull().default(''),
+    company: text('company').notNull().default(''),
+    location: text('location').notNull().default(''),
+    description: text('description').notNull().default(''),
+    status: text('status').notNull().default('saved'),
+    /** The last coverage this job was scored at, so the list can show it without scoring again. */
+    score: integer('score'),
+    /** What came of it, once something did. */
+    tailoringId: uuid('tailoring_id').references(() => tailorings.id, { onDelete: 'set null' }),
+    capturedAt: timestamp('captured_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('captured_jobs_user_idx').on(table.userId, table.capturedAt),
+    // One row per posting per account: capturing the same page twice is a
+    // refresh of what is there, not a second job to apply to.
+    uniqueIndex('captured_jobs_user_url_idx').on(table.userId, table.url),
+  ]
+)
+
+/**
  * What a company's own website says about it, read for recruiter emails
  * (lib/outreach/company-research.ts). Shared by every account: it is public
  * text, and one read serves every email to that company.

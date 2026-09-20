@@ -4,6 +4,7 @@ import { signOut } from 'next-auth/react'
 import { readApiError } from '@/components/user/billing-client'
 import { dangerButton, errorBox, inputClass, backLinkClass } from '@/components/user/shared'
 import { ArrowLeft } from '@/components/brand/Icons'
+import ExtensionKeys from '@/components/user/ExtensionKeys'
 import { clearLocalAppData } from '@/lib/settings-storage'
 
 /** The signed-in account: who it is, where its data lives, and deleting it. */
@@ -74,6 +75,8 @@ export default function AccountPanel({ email, onBack, onOpenHistory }: AccountPa
           has the details.
         </p>
       </section>
+
+      <ExtensionKeys />
 
       <section className="nb-card rounded-[10px] p-5 space-y-3 bg-[var(--color-error-highlight)]">
         <h2 className="text-xl font-black text-[var(--color-error)]">Delete your account</h2>

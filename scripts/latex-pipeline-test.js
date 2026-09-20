@@ -1653,6 +1653,7 @@ const recruiterImport = require(BUILD + '/lib/outreach/recruiter-import')
 const emailCheck = require(BUILD + '/lib/outreach/email-check')
 const mailbox = require(BUILD + '/lib/outreach/mailbox')
 const delivery = require(BUILD + '/lib/outreach/delivery')
+const connect = require(BUILD + '/lib/extension/connect')
 const net = require('net')
 
 /**
@@ -2709,6 +2710,96 @@ async function applyTests() {
     return false
   })
   check('no burst guard sits on a route that only reads', onGet.length === 0, onGet.join(', '))
+
+  // ---- what a browser extension's key may reach
+  //
+  // An extension token is a bare string sitting on a disk, and it answers for
+  // the account until it is revoked. A session cookie at least rides along with
+  // a browser somebody is sitting at. So the routes that take money, change a
+  // plan, delete an account or open the owner's controls must never accept one,
+  // and the way they refuse is by simply not asking for it.
+  const extensionSafe = ['app/api/extension/session/route.ts', 'app/api/extension/capture/route.ts',
+    'app/api/extension/score/route.ts']
+  const missingOptIn = extensionSafe.filter((route) => !read(route).includes('allowExtension: true'))
+  check('the extension routes accept the extension', missingOptIn.length === 0, missingOptIn.join(', '))
+
+  const neverExtension = ['app/api/billing/route.ts', 'app/api/billing/subscribe/route.ts',
+    'app/api/billing/order/route.ts', 'app/api/billing/verify/route.ts', 'app/api/billing/cancel/route.ts',
+    'app/api/account/route.ts', 'app/api/admin/overview/route.ts', 'app/api/admin/directory/route.ts',
+    'app/api/admin/platform-ai/route.ts', 'app/api/outreach/emails/[id]/send/route.ts',
+    'app/api/outreach/mailbox/route.ts', 'app/api/extension/token/route.ts']
+  const tooOpen = neverExtension.filter((route) => read(route).includes('allowExtension'))
+  check('no money, mailbox, owner or key route takes an extension token', tooOpen.length === 0, tooOpen.join(', '))
+
+  // A key that could mint another key would outlive its own revocation.
+  check('an extension key cannot mint another extension key',
+    !read('app/api/extension/token/route.ts').includes('allowExtension'),
+    read('app/api/extension/token/route.ts').includes('allowExtension') ? 'the mint route opted in' : 'ok')
+
+  // requireAuth must refuse a bearer token unless the route asked for one: the
+  // default decides every route nobody thought about.
+  check('extension tokens are refused unless a route opts in',
+    /options\.allowExtension/.test(read('lib/require-auth.ts')) &&
+    !/allowExtension\s*=\s*true/.test(read('lib/require-auth.ts')),
+    'requireAuth does not default to deny')
+
+  // requireOwner passes no options, so the owner's routes deny by that default.
+  check('the owner guard never inherits an extension token',
+    /requireAuth\(\)/.test(read('lib/require-auth.ts').split('export async function requireOwner')[1] ?? ''),
+    'requireOwner asks requireAuth for something')
+
+  // Deleting an account anonymises the user row rather than removing it, so the
+  // cascade from users never fires. Anything keyed to a user has to be listed.
+  const deletes = read('lib/db/account.ts')
+  check('deleting an account cuts off every browser extension it had',
+    deletes.includes('delete from extension_tokens where user_id') &&
+    deletes.includes('delete from captured_jobs where user_id'),
+    'a deleted account would keep working keys')
+
+  // ---- the extension's connect flow
+  //
+  // The connect page hands a working key to whatever address it is given, so
+  // the check on that address is the whole security of the flow.
+  const chromeCallback = 'https://abcdefghijklmnopabcdefghijklmnop.chromiumapp.org/'
+  const goodState = 'a'.repeat(24)
+  check('a key is only ever sent to a Chrome extension callback',
+    Boolean(connect.connectTarget(chromeCallback, goodState)) &&
+    !connect.connectTarget('https://evil.example/', goodState) &&
+    !connect.connectTarget('http://abcdefghijklmnopabcdefghijklmnop.chromiumapp.org/', goodState) &&
+    // The one that looks right until it is read to the end.
+    !connect.connectTarget('https://abcdefghijklmnopabcdefghijklmnop.chromiumapp.org.evil.example/', goodState) &&
+    !connect.connectTarget('https://chromiumapp.org/', goodState) &&
+    !connect.connectTarget('https://short.chromiumapp.org/', goodState) &&
+    // Not a–p, so not an extension id however much it looks like one.
+    !connect.connectTarget('https://zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz.chromiumapp.org/', goodState),
+    'an address that should have been refused was accepted')
+
+  // Hostnames are case-insensitive and URL parsing lowers them, so the id an
+  // allowlist is checked against is the same however the address was typed.
+  check('a callback is judged by its normalised host, not the casing it arrived in',
+    connect.connectTarget('https://ABCDEFGHIJKLMNOPabcdefghijklmnop.chromiumapp.org/', goodState)?.extensionId ===
+      'abcdefghijklmnopabcdefghijklmnop',
+    String(connect.connectTarget('https://ABCDEFGHIJKLMNOPabcdefghijklmnop.chromiumapp.org/', goodState)?.extensionId))
+
+  check('a callback carrying its own query or fragment is refused',
+    !connect.connectTarget(`${chromeCallback}?next=https://evil.example`, goodState) &&
+    !connect.connectTarget(`${chromeCallback}#token=stolen`, goodState),
+    'a decorated callback was accepted')
+
+  check('a connect request without a long enough state is refused',
+    !connect.connectTarget(chromeCallback, 'short') && !connect.connectTarget(chromeCallback, undefined),
+    'a weak state was accepted')
+
+  check('an allowlist, when set, keeps other extensions out',
+    Boolean(connect.connectTarget(chromeCallback, goodState, ['abcdefghijklmnopabcdefghijklmnop'])) &&
+    !connect.connectTarget(chromeCallback, goodState, ['ponmlkjihgfedcbaponmlkjihgfedcba']),
+    'the allowlist did not hold')
+
+  // The token goes in the fragment, which no server and no proxy log ever sees.
+  const delivery = connect.deliveryUrl(connect.connectTarget(chromeCallback, goodState), 'cx_secret')
+  check('a key is delivered in the fragment, never the query string',
+    delivery.includes('#token=cx_secret') && !delivery.includes('?token='),
+    delivery)
 
   // ---- who the weekly recruiter list is for
   const paying = (entitled, credits) => quota.isPaying({ entitled, credits })

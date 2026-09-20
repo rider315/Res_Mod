@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chills</title>
+    <link rel="stylesheet" href="sidepanel.css" />
+  </head>
+  <body>
+    <header class="bar">
+      <div class="brand">
+        <img src="icons/48.png" alt="" width="24" height="24" />
+        <span>Chills</span>
+      </div>
+      <button id="account" class="link" hidden></button>
+    </header>
+
+    <main id="main">
+      <!-- Not connected -->
+      <section id="view-connect" class="view">
+        <h1>Tailor your resume to the job you're looking at</h1>
+        <p class="muted">
+          Connect the extension to your Chills account. It reads the posting on the page and scores your resume against it —
+          it can't send email, change your plan, or delete anything.
+        </p>
+        <button id="connect" class="btn primary">Connect Chills</button>
+        <p id="connect-error" class="error" hidden></p>
+      </section>
+
+      <!-- Connected, reading the page -->
+      <section id="view-job" class="view" hidden>
+        <div id="permission" class="card warn" hidden>
+          <p>Chills hasn't been allowed to read <strong id="permission-origin"></strong>.</p>
+          <button id="grant" class="btn">Allow this site</button>
+        </div>
+
+        <div id="nojob" class="card" hidden>
+          <p class="muted">No job posting on this page. Open one and press Read again.</p>
+        </div>
+
+        <div id="job" class="card" hidden>
+          <p class="eyebrow" id="job-source"></p>
+          <h2 id="job-title"></h2>
+          <p class="muted" id="job-company"></p>
+
+          <div class="row">
+            <label for="resume">Score against</label>
+            <select id="resume"></select>
+          </div>
+
+          <button id="score" class="btn primary">Score my resume</button>
+
+          <div id="result" hidden>
+            <div class="score">
+              <div class="score-number" id="score-value">–</div>
+              <div class="score-note">
+                <strong id="score-required"></strong>
+                <span class="muted" id="score-all"></span>
+              </div>
+            </div>
+            <div class="meter"><div id="meter-fill"></div></div>
+            <div id="missing"></div>
+          </div>
+
+          <div class="actions">
+            <button id="save" class="btn">Save job</button>
+            <button id="tailor" class="btn primary">Tailor in Chills</button>
+          </div>
+          <button id="outreach" class="btn wide">Email a recruiter about this</button>
+        </div>
+
+        <p id="error" class="error" hidden></p>
+        <button id="reread" class="link wide">Read this page again</button>
+      </section>
+    </main>
+
+    <footer class="bar bottom">
+      <span id="quota" class="muted"></span>
+      <button id="open-saved" class="link">Saved jobs</button>
+    </footer>
+
+    <script type="module" src="sidepanel.js"></script>
+  </body>
+</html>
