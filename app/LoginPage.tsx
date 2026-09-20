@@ -22,7 +22,15 @@ import {
   Sliders,
   Upload,
 } from '@/components/brand/Icons'
-import { CREDIT_PACKS, EMAIL_DRAFTS_PER_MONTH, formatPrice, IMPORTS_PER_MONTH, PREMIUM_PLAN, PRO_PLAN } from '@/lib/billing/plans'
+import {
+  CREDIT_PACKS,
+  EMAIL_DRAFTS_PER_MONTH,
+  EMAIL_SENDS_PER_DAY,
+  formatPrice,
+  IMPORTS_PER_MONTH,
+  PREMIUM_PLAN,
+  PRO_PLAN,
+} from '@/lib/billing/plans'
 
 /**
  * The public home page: what Chills does, how, reaching recruiters with the
@@ -84,7 +92,7 @@ const WAYS: Array<{ icon: React.ReactNode; name: string; title: string; text: st
     icon: <Mail size={22} />,
     name: 'On its own',
     title: 'Recruiter emails',
-    text: 'Import the recruiters you want to reach, and Chills writes each a short email from your resume. Send from your own mailbox, then track who opened, who replied, and what to say next.',
+    text: 'Import the recruiters you want to reach, and Chills writes each a short email from your resume — one of them, or a whole list in a single go. Send from your own mailbox, then track who opened, who replied, and what to say next.',
   },
   {
     icon: <Layers size={22} />,
@@ -96,6 +104,11 @@ const WAYS: Array<{ icon: React.ReactNode; name: string; title: string; text: st
 ]
 
 const OUTREACH_POINTS: Array<{ icon: React.ReactNode; title: string; text: string }> = [
+  {
+    icon: <Layers size={18} />,
+    title: 'The whole list in one go',
+    text: 'Select every recruiter you want to reach and Chills writes them all at once, each email from the resume that fits that company. Send the set with one press; they leave a few seconds apart, so your mailbox never looks like it is spraying mail.',
+  },
   {
     icon: <Pencil size={18} />,
     title: 'Written from your resume',
@@ -170,6 +183,15 @@ const FAQ: Array<[string, React.ReactNode]> = [
       Yes. Add the recruiters you want to reach, and Chills writes each one a <strong>short email from your resume</strong>. You read and
       edit it, then send it from <strong>your own mailbox with the tailored PDF attached</strong>, or open it in Gmail or Outlook and send it
       there. Chills never emails anyone without you pressing Send.
+    </>,
+  ],
+  [
+    'Do I have to write and send every email one by one?',
+    <>
+      No. Select any number of recruiters and Chills <strong>writes them all in one go</strong>, each email from the resume that fits that
+      company, and each one still personal to the person it is going to. Send the whole set with one press: they leave{' '}
+      <strong>a few seconds apart</strong> so your mailbox is not read as spam, up to {EMAIL_SENDS_PER_DAY} a day. Keep the page open while
+      a batch runs — and as ever, nothing goes out until you press Send.
     </>,
   ],
   [
@@ -351,8 +373,8 @@ export default function LoginPage({ freeTailorings, premiumOnSale, accountDelete
               Then get it in front of <span className="nb-highlight">a recruiter</span>
             </h2>
             <p className="mt-4 text-lg text-[var(--color-text-muted)]">
-              Import the recruiters you want to reach, from a spreadsheet, a PDF list or a Google Sheet, and send each one a personal email
-              with the resume tailored for their job.
+              Import the recruiters you want to reach, from a spreadsheet, a PDF list or a Google Sheet. Select as many as you like and
+              Chills writes them all at once — every email personal to its recruiter, with the resume tailored for their job attached.
             </p>
             <ul className="mt-8 space-y-5">
               {OUTREACH_POINTS.map((point) => (
