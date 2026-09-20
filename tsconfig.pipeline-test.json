@@ -47,6 +47,7 @@
     "lib/billing/config.ts",
     "lib/billing/plan-check.ts",
     "lib/extension/connect.ts",
+    "lib/contact.ts",
     "types/resume.ts"
   ]
 }

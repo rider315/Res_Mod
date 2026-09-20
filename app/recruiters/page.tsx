@@ -3,6 +3,7 @@ import SiteHeader from '@/components/brand/SiteHeader'
 import { SignedOutOnly, StartButton } from '@/components/brand/SignInButton'
 import { CheckCircle, ChevronDown, Mail, Users } from '@/components/brand/Icons'
 import { EMAIL_SENDS_PER_DAY } from '@/lib/billing/plans'
+import { supportEmail } from '@/lib/contact'
 import { LIMITS } from '@/lib/outreach/model'
 import Link from 'next/link'
 import { directoryFields, directoryStats, latestBatch, publishedWeeks, type PublishedWeek } from '@/lib/db/directory'
@@ -108,7 +109,9 @@ const FAQ: Array<[string, string]> = [
   ],
   [
     'I am a recruiter and I do not want to be on this list.',
-    'Write to us from the address you want removed. It comes off at once and can never be taken again by anyone, and no account that already has it can be given it a second time.',
+    // The address is spelled out rather than linked: someone asking to be taken
+    // off a list should not have to go looking for where to ask.
+    `Write to ${supportEmail()} from the address you want removed. It comes off at once and can never be taken again by anyone, and no account that already has it can be given it a second time.`,
   ],
 ]
 

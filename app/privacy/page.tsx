@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import PolicyPage, { PolicySection } from '@/components/PolicyPage'
+import { supportEmail } from '@/lib/contact'
 import { getPlatformAi } from '@/lib/billing/platform-ai'
 import { getProvider } from '@/lib/providers'
 
@@ -21,8 +22,13 @@ export default async function PrivacyPolicy() {
       <PolicySection title="1. What this covers">
         <p>
           Chills is an online service that tailors resumes to job descriptions. This policy explains what Chills
-          stores, why, who else handles it, and how you delete it. Questions go to the address on the{' '}
-          <Link href="/contact" className="text-[var(--color-primary)] hover:underline">Contact</Link> page.
+          stores, why, who else handles it, and how you delete it. Questions, and any request about your own data,
+          go to{' '}
+          <a href={`mailto:${supportEmail()}`} className="text-[var(--color-primary)] hover:underline">
+            {supportEmail()}
+          </a>
+          , also on the <Link href="/contact" className="text-[var(--color-primary)] hover:underline">Contact</Link>{' '}
+          page.
         </p>
       </PolicySection>
 

@@ -9,6 +9,8 @@
  * Client-safe: no database, no fetch.
  */
 
+import { supportEmail } from '@/lib/contact'
+
 /** Where the site lives. APP_URL when set, else the production domain. */
 export function siteUrl(): URL {
   try {
@@ -53,6 +55,18 @@ export function organizationSchema() {
     logo: `${site}/icon.svg`,
     description: 'Résumé tailoring and recruiter outreach for job seekers in India.',
     areaServed: 'IN',
+    // Published so a search result can offer a way to write, rather than making
+    // somebody find the Contact page to ask a question.
+    email: supportEmail(),
+    contactPoint: [
+      {
+        '@type': 'ContactPoint',
+        contactType: 'customer support',
+        email: supportEmail(),
+        areaServed: 'IN',
+        availableLanguage: ['en', 'hi'],
+      },
+    ],
   }
 }
 

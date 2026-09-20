@@ -1654,6 +1654,7 @@ const emailCheck = require(BUILD + '/lib/outreach/email-check')
 const mailbox = require(BUILD + '/lib/outreach/mailbox')
 const delivery = require(BUILD + '/lib/outreach/delivery')
 const connect = require(BUILD + '/lib/extension/connect')
+const contactLib = require(BUILD + '/lib/contact')
 const net = require('net')
 
 /**
@@ -2755,6 +2756,32 @@ async function applyTests() {
     deletes.includes('delete from extension_tokens where user_id') &&
     deletes.includes('delete from captured_jobs where user_id'),
     'a deleted account would keep working keys')
+
+  // ---- the address people write to
+  //
+  // A site that takes payments and holds résumés must always show somewhere to
+  // write. The variable is the override, not the switch that turns it on.
+  check('the support address is published whether or not the variable is set',
+    contactLib.supportEmail(undefined) === 'support@chills.pro' &&
+    contactLib.supportEmail('') === 'support@chills.pro' &&
+    contactLib.supportEmail('  help@chills.pro  ') === 'help@chills.pro',
+    contactLib.supportEmail(undefined))
+
+  check('a variable that is not an address is ignored rather than published',
+    contactLib.supportEmail('not an address') === 'support@chills.pro' &&
+    contactLib.supportEmail('support@') === 'support@chills.pro' &&
+    contactLib.supportEmail('@chills.pro') === 'support@chills.pro',
+    contactLib.supportEmail('not an address'))
+
+  // The recruiter asking to come off the list should not have to go looking for
+  // where to ask, and that answer is published as structured data too.
+  check('the removal answer names the address instead of pointing at a page',
+    read('app/recruiters/page.tsx').includes('`Write to ${supportEmail()} from the address you want removed.'),
+    'the removal FAQ still says "write to us" with no address')
+
+  check('the privacy policy names the address for a data request',
+    read('app/privacy/page.tsx').includes('mailto:${supportEmail()}'),
+    'the privacy policy only links to the contact page')
 
   // ---- the extension's connect flow
   //
