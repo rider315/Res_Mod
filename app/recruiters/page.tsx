@@ -2,6 +2,7 @@ import SiteFooter from '@/components/brand/SiteFooter'
 import SiteHeader from '@/components/brand/SiteHeader'
 import { SignedOutOnly, StartButton } from '@/components/brand/SignInButton'
 import { CheckCircle, ChevronDown, Mail, Users } from '@/components/brand/Icons'
+import { EMAIL_SENDS_PER_DAY } from '@/lib/billing/plans'
 import { LIMITS } from '@/lib/outreach/model'
 import Link from 'next/link'
 import { directoryFields, directoryStats, latestBatch, publishedWeeks, type PublishedWeek } from '@/lib/db/directory'
@@ -74,8 +75,8 @@ const HOW: Array<[string, string]> = [
     'Pick the ones that fit what you do. They land in your own list, and nobody else can take one that has been taken too often.',
   ],
   [
-    'Chills writes each email',
-    "It reads the company's own website, so the email says something true about them, and it can tailor your résumé to the role first.",
+    'Chills writes them all at once',
+    "Select the whole week's worth and every email is written together, each one reading that company's own website so it says something true about them, and tailoring your résumé to the role first.",
   ],
   ['Sent from your own mailbox', 'Replies come to you, and a copy sits in your Sent folder. Chills never sends from a shared address.'],
 ]
@@ -88,6 +89,10 @@ const FAQ: Array<[string, string]> = [
   [
     'How many can I take?',
     `Up to ${LIMITS.directoryPerWeek} a week. Each contact can only be taken by ${LIMITS.directoryTakesPerRecruiter} accounts in total, and then it comes off the list — the point is that the person you write to has not already had the same email from a hundred people.`,
+  ],
+  [
+    `I took ${LIMITS.directoryPerWeek} contacts. Do I write ${LIMITS.directoryPerWeek} emails?`,
+    `No. Select them all and Chills writes every email in one go, each from the résumé that fits that company and each still personal to the person reading it. Sending is one press as well: they leave a few seconds apart so your mailbox is not read as spam, up to ${EMAIL_SENDS_PER_DAY} a day. Keep the page open while a batch runs, and as always nothing goes out until you press Send.`,
   ],
   [
     'Does it cost anything?',
