@@ -7,6 +7,7 @@ import { readRunStream } from '@/components/user/run-stream'
 import { ApiError } from '@/components/user/billing-client'
 import { AiUsage, emptyUsage } from '@/lib/ai-usage'
 import { APPLY_STAGES, ApplyStage } from '@/lib/apply/run'
+import type { JobRow } from '@/lib/jobs'
 import { BILLING_CODES } from '@/lib/billing/types'
 import { COVER_LETTER_TONES, TONE_LABELS } from '@/lib/cover-letter'
 import { LEVELS, TAILOR_LEVELS, TailorLevel } from '@/lib/tailor/levels'
@@ -46,6 +47,11 @@ interface ApplyPanelProps {
   /** Shown when the plan, or this cycle, has no complete applications left. */
   onOpenBilling: () => void
   onImportResume: () => void
+  /**
+   * A saved job to run against. Its posting is already read, so the run starts
+   * from that text rather than opening the employer's page a second time.
+   */
+  job?: JobRow | null
   onBack: () => void
 }
 
@@ -70,14 +76,18 @@ export default function ApplyPanel({
   onOpenOutreach,
   onOpenBilling,
   onImportResume,
+  job = null,
   onBack,
 }: ApplyPanelProps) {
   const [recruiters, setRecruiters] = useState<RecruiterSummary[] | null>(null)
   const [resumeId, setResumeId] = useState('')
   const [recruiterId, setRecruiterId] = useState('')
-  const [jobUrl, setJobUrl] = useState('')
-  const [jobText, setJobText] = useState('')
-  const [pasting, setPasting] = useState(false)
+  // A saved job arrives with its posting already read, so the run starts from
+  // that text: pasting is the mode, and the text is in. The link is kept so the
+  // finished application still points at where the job came from.
+  const [jobUrl, setJobUrl] = useState(job?.url ?? '')
+  const [jobText, setJobText] = useState(job?.description ?? '')
+  const [pasting, setPasting] = useState(Boolean(job?.description))
   const [level, setLevel] = useState<TailorLevel>('hard')
   const [tone, setTone] = useState<(typeof COVER_LETTER_TONES)[number]>('professional')
   const [notes, setNotes] = useState('')
@@ -265,9 +275,11 @@ export default function ApplyPanel({
               />
             )}
             <p className="mt-1.5 text-xs text-[var(--color-text-muted)]">
-              {pasting
-                ? 'Chills uses exactly this text for both the resume and the email.'
-                : 'Chills opens the page itself and uses the employer’s own words. If a board blocks it, paste the posting instead.'}
+              {job?.description && pasting && jobText === job.description
+                ? `Read from ${job.source} when you saved this job. Chills uses exactly this text — edit it, or paste over it.`
+                : pasting
+                  ? 'Chills uses exactly this text for both the resume and the email.'
+                  : 'Chills opens the page itself and uses the employer’s own words. If a board blocks it, paste the posting instead.'}
             </p>
           </Field>
 

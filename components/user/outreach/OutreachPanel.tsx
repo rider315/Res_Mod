@@ -400,7 +400,21 @@ export default function OutreachPanel(props: OutreachPanelProps) {
           </div>
         ))}
 
-      {tab === 'directory' && <DirectoryBoard onTaken={refresh} onOpenBilling={props.onOpenBilling} />}
+      {tab === 'directory' && (
+        <DirectoryBoard
+          onTaken={refresh}
+          // Taking someone was the decision; finding them again is not a second
+          // one. Select them and go, so the batch dialog opens on exactly the
+          // people just taken — and on its own warning about what a batch costs.
+          onWriteTo={async (recruiterIds) => {
+            await refresh()
+            setSelected(new Set(recruiterIds))
+            setFocusedId(null)
+            setTab('write')
+          }}
+          onOpenBilling={props.onOpenBilling}
+        />
+      )}
 
       {tab === 'tracker' && <TrackerBoard threads={threads} recruiters={list.length} onOpenThread={setOpenThread} />}
 

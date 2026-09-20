@@ -49,5 +49,8 @@ export async function POST(req: NextRequest) {
     skipped: result.skipped,
     overLimit: added.overLimit,
     weeklyLeft: result.weeklyLeft,
+    // Who was added, so taking them can lead straight to writing to them
+    // rather than to an instruction about which tab to open.
+    ids: added.ids,
   })
 }

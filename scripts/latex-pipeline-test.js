@@ -2848,6 +2848,35 @@ async function applyTests() {
     read('app/dashboard/page.tsx').includes("openJobs={searchParams.open === 'jobs'}"),
     'the button still points at nothing')
 
+  // ---- what a job already in hand saves the user doing again
+  const panel = read('components/user/outreach/OutreachPanel.tsx')
+  check('taking a recruiter from the weekly list leads to writing to them',
+    read('app/api/outreach/directory/take/route.ts').includes('ids: added.ids') &&
+    read('components/user/outreach/DirectoryBoard.tsx').includes('onWriteTo(taken)') &&
+    /setSelected\(new Set\(recruiterIds\)\)[\s\S]{0,80}setTab\('write'\)/.test(panel),
+    'the directory still ends in an instruction')
+
+  const apply = read('components/user/ApplyPanel.tsx')
+  check('a complete application works from the posting already read',
+    apply.includes("useState(job?.description ?? '')") &&
+    apply.includes('useState(Boolean(job?.description))') &&
+    dash.includes('job={capturedJob}'),
+    'Premium still asks for a posting it has')
+
+  check('the saved resume is still what a complete application runs on',
+    apply.includes("useState(job?.url ?? '')"),
+    'the link to where the job came from was dropped')
+
+  check('importing with a job waiting goes on to tailor against it',
+    /if \(capturedJob && view\.resumeId === null\)[\s\S]{0,120}startTailoring\(/.test(dash),
+    'a first import still lands back on the list')
+
+  // A job parked while someone edits a resume they already had is not a request
+  // to run anything.
+  check('editing an existing resume never starts a run by itself',
+    dash.includes('view.resumeId === null'),
+    'any save could jump into a tailoring')
+
   // ---- the extension's connect flow
   //
   // The connect page hands a working key to whatever address it is given, so

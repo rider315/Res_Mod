@@ -540,7 +540,21 @@ export default function UserDashboard({
               initialDoc={view.doc}
               initialTitle={view.title}
               initialLatex={view.latex}
-              onSaved={() => refresh()}
+              /**
+               * A job was waiting when this resume was imported, so tailoring it
+               * to that job is what they came to do — not a look at a list they
+               * would have to pick the same resume out of again.
+               *
+               * Only for a resume that did not exist before. Editing a saved one
+               * while a job happens to be parked is not a request to run
+               * anything, and jumping there would be a surprise.
+               */
+              onSaved={(resume) => {
+                refresh()
+                if (capturedJob && view.resumeId === null) {
+                  startTailoring(resume.id, resume.title, capturedJob.description)
+                }
+              }}
               onBack={() => {
                 setView({ kind: 'list' })
                 refresh()
@@ -571,11 +585,14 @@ export default function UserDashboard({
             // the list with its name on it.
             onTailor={(job) => {
               setOverlay(null)
+              // Held either way: with one resume there is nothing to ask and the
+              // run starts, with several the job waits on the list with its name
+              // on it — and in both cases a Premium run opened next finds it.
+              setCapturedJob(job)
               if (resumes?.length === 1) {
                 const [only] = resumes
                 setView({ kind: 'tailor', resumeId: only.id, title: only.title, jobDescription: job.description })
               } else {
-                setCapturedJob(job)
                 setView({ kind: 'list' })
               }
               window.scrollTo({ top: 0 })
@@ -612,6 +629,9 @@ export default function UserDashboard({
             resumes={resumes}
             settings={settings}
             isOwner={isOwner}
+            // A job already in hand: the run works from the posting the
+            // extension read rather than opening the employer's page again.
+            job={capturedJob}
             onOpenOutreach={openOutreach}
             onOpenBilling={() => openOverlay('billing')}
             onImportResume={() => {

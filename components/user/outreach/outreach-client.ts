@@ -178,7 +178,7 @@ export const directoryApi = {
     return call<DirectoryList>(`/api/outreach/directory${query ? `?${query}` : ''}`, 'The recruiter directory couldn’t be loaded.')
   },
   take: (ids: string[]) =>
-    call<{ added: number; skipped: number; overLimit: number; weeklyLeft: number }>(
+    call<{ added: number; skipped: number; overLimit: number; weeklyLeft: number; ids: string[] }>(
       '/api/outreach/directory/take',
       'Those recruiters couldn’t be added.',
       { method: 'POST', json: { ids } }

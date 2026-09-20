@@ -1,6 +1,6 @@
 'use client'
 import { useCallback, useEffect, useState } from 'react'
-import { Briefcase, CheckCircle, Plus, Search, Sparkles, Users } from '@/components/brand/Icons'
+import { Briefcase, CheckCircle, Mail, Plus, Search, Sparkles, Users } from '@/components/brand/Icons'
 import { cardClass, errorBox, inputClass, primaryButton, secondaryButton, successBox } from '@/components/user/shared'
 import Working from '@/components/user/Working'
 import { ApiError } from '@/components/user/billing-client'
@@ -18,7 +18,16 @@ import { directoryApi, DirectoryEntry, DirectoryList } from '@/components/user/o
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err))
 
-export default function DirectoryBoard({ onTaken, onOpenBilling }: { onTaken: () => void; onOpenBilling: () => void }) {
+export default function DirectoryBoard({
+  onTaken,
+  onWriteTo,
+  onOpenBilling,
+}: {
+  onTaken: () => void
+  /** Go and write to the ones just taken, with them already selected. */
+  onWriteTo: (recruiterIds: string[]) => void
+  onOpenBilling: () => void
+}) {
   const [list, setList] = useState<DirectoryList | null>(null)
   const [field, setField] = useState('')
   const [query, setQuery] = useState('')
@@ -28,6 +37,8 @@ export default function DirectoryBoard({ onTaken, onOpenBilling }: { onTaken: ()
   const [startedAt, setStartedAt] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  /** Who the last take added, so the notice can lead somewhere. */
+  const [taken, setTaken] = useState<string[]>([])
   /** The list is for accounts that pay, and this one does not. */
   const [needsPlan, setNeedsPlan] = useState(false)
 
@@ -60,9 +71,12 @@ export default function DirectoryBoard({ onTaken, onOpenBilling }: { onTaken: ()
       const result = await directoryApi.take(Array.from(picked))
       setPicked(new Set())
       setNotice(
-        `${result.added} recruiter${result.added === 1 ? '' : 's'} added to your list. ` +
-          `They're on the Write and send tab now${result.weeklyLeft > 0 ? `, and you can take ${result.weeklyLeft} more this week.` : '.'}`
+        `${result.added} recruiter${result.added === 1 ? '' : 's'} added to your list` +
+          `${result.weeklyLeft > 0 ? `, and you can take ${result.weeklyLeft} more this week.` : '.'}`
       )
+      // Taking someone already said the intent. Hand them straight over rather
+      // than naming the tab to go and find them on.
+      setTaken(result.ids ?? [])
       await load()
       onTaken()
     } catch (err) {
@@ -175,7 +189,16 @@ export default function DirectoryBoard({ onTaken, onOpenBilling }: { onTaken: ()
       )}
 
       {error && <div className={errorBox}>{error}</div>}
-      {notice && !error && <div className={successBox}>{notice}</div>}
+      {notice && !error && (
+        <div className={`${successBox} flex flex-wrap items-center justify-between gap-3`}>
+          <span>{notice}</span>
+          {taken.length > 0 && (
+            <button onClick={() => onWriteTo(taken)} className={primaryButton}>
+              <Mail size={16} /> Write to {taken.length === 1 ? 'them' : `all ${taken.length}`}
+            </button>
+          )}
+        </div>
+      )}
 
       {busy ? (
         <Working kind="recruiters" startedAt={startedAt} active={0} steps={['Adding them to your list']} />
