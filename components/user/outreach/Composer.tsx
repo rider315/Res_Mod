@@ -94,8 +94,11 @@ export default function Composer(props: ComposerProps) {
 
   const [source, setSource] = useState(() => defaultSourceKey(recruiter, context, tailorings, resumes))
   const [jobTitle, setJobTitle] = useState(context?.jobTitle ?? '')
-  const [jobDescription, setJobDescription] = useState('')
-  const [showJobPost, setShowJobPost] = useState(false)
+  // A context carrying a posting came from a captured job, which has no tailored
+  // copy to read the job back from. Open the field with it already in, so the
+  // one thing the extension went and fetched is not asked for again.
+  const [jobDescription, setJobDescription] = useState(context?.jobDescription ?? '')
+  const [showJobPost, setShowJobPost] = useState(Boolean(context?.jobDescription))
   const [tone, setTone] = useState<CoverLetterTone>('professional')
   const [notes, setNotes] = useState('')
   const [attachResume, setAttachResume] = useState(true)
@@ -308,7 +311,13 @@ export default function Composer(props: ComposerProps) {
         <div className={errorBox}>Import a resume first: every email is written from one, and it goes along as a PDF.</div>
       ) : (
         <>
-          <Field label="Write from" hint={chosenTailoring ? 'Uses the job this copy was tailored for.' : undefined}>
+          {/* Naming the job is the point: "the job this copy was tailored for" is
+              true but unverifiable, and a careful person pastes the post again
+              rather than trust it. */}
+          <Field
+            label="Write from"
+            hint={chosenTailoring ? `Uses the job it was tailored for — ${describeTailoring(chosenTailoring)}.` : undefined}
+          >
             <select value={source} onChange={(e) => setSource(e.target.value)} disabled={busy} className={inputClass}>
               {sourceGroups.tailored.length > 0 && (
                 <optgroup label="Tailored copies">

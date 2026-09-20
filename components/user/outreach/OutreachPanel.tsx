@@ -19,7 +19,7 @@ import SenderSetup from '@/components/user/outreach/SenderSetup'
 import ThreadDialog from '@/components/user/outreach/ThreadDialog'
 import TrackerBoard from '@/components/user/outreach/TrackerBoard'
 import { Segmented } from '@/components/user/outreach/controls'
-import { describeTailoring, outreachApi, OutreachContext, ownerAi } from '@/components/user/outreach/outreach-client'
+import { describeTailoring, isCapturedJob, outreachApi, OutreachContext, ownerAi } from '@/components/user/outreach/outreach-client'
 
 /**
  * Recruiter outreach: the recruiters to write to, an email for each written
@@ -282,7 +282,9 @@ export default function OutreachPanel(props: OutreachPanelProps) {
             <span>
               <span className="block font-black">Emailing about {describeTailoring(contextCopy ?? context)}</span>
               <span className="block text-sm text-[var(--color-text-muted)]">
-                New emails are written from that tailored copy and attach it. Add the recruiters for this job, then write to them.
+                {isCapturedJob(context)
+                  ? 'The job post came with it, so the email is written against it. Pick the recruiter, and tailor a resume for it here if you want one.'
+                  : 'New emails are written from that tailored copy and attach it. Add the recruiters for this job, then write to them.'}
               </span>
             </span>
           </p>

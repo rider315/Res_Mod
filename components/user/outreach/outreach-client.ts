@@ -186,11 +186,27 @@ export const directoryApi = {
 }
 
 /** What the Outreach screen was opened for, when it came from a tailored copy. */
+/**
+ * The job Outreach was opened for.
+ *
+ * It arrives two ways, and the difference is one field. From a tailored copy
+ * there is a `tailoringId` and the job post needs no carrying: the server reads
+ * it back off that copy. From a job the browser extension captured there is no
+ * tailoring yet, so the posting itself has to come along — otherwise the user
+ * pastes a job Chills already holds.
+ */
 export interface OutreachContext {
+  /** The tailored copy this is about; empty when the job has not been tailored for yet. */
   tailoringId: string
   jobTitle: string
   company: string
+  /** The posting, when it came from a captured job rather than from a tailoring. */
+  jobDescription?: string
 }
+
+/** Whether this context brought a posting of its own, rather than a copy to read it from. */
+export const isCapturedJob = (context: OutreachContext | null): boolean =>
+  Boolean(context && !context.tailoringId && context.jobDescription)
 
 export function describeTailoring(item: { jobTitle: string; company: string }): string {
   if (item.jobTitle && item.company) return `${item.jobTitle} at ${item.company}`

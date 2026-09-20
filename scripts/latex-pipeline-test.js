@@ -2783,6 +2783,32 @@ async function applyTests() {
     read('app/privacy/page.tsx').includes('mailto:${supportEmail()}'),
     'the privacy policy only links to the contact page')
 
+  // ---- a captured job reaching the screen that was asked for
+  //
+  // The extension's "Email a recruiter about this" used to fetch the job and
+  // throw it away: the banner holding it rendered in the list view, under an
+  // overlay that was never told about it. These three hold the seam shut.
+  const dash = read('components/user/UserDashboard.tsx')
+  check('a captured job opened for outreach goes in as its context, not under the overlay',
+    /if \(openRecruiters\) \{\s*setOutreachContext\(\{/.test(dash) && dash.includes('jobDescription: data.job.description'),
+    'the outreach path still leaves the job on the list')
+
+  check('arriving with a job does not land on the weekly directory',
+    dash.includes("openTab={openRecruiters && !capturedJobId ? 'directory' : undefined}"),
+    'a captured job still opens the directory tab')
+
+  const composer = read('components/user/outreach/Composer.tsx')
+  check('the composer starts with the posting the job brought with it',
+    composer.includes("useState(context?.jobDescription ?? '')") &&
+    composer.includes('useState(Boolean(context?.jobDescription))'),
+    'the job post field still starts empty')
+
+  // Saying which job it is, rather than that there is one: a hint the reader
+  // cannot check is a hint they paste the job post past.
+  check('the composer names the job a tailored copy carries',
+    composer.includes('`Uses the job it was tailored for — ${describeTailoring(chosenTailoring)}.`'),
+    'the hint is still generic')
+
   // ---- the extension's connect flow
   //
   // The connect page hands a working key to whatever address it is given, so

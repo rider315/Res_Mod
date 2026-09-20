@@ -159,8 +159,16 @@ export default function UserDashboard({
     window.history.replaceState(null, '', url)
   }, [openKeywordFinder, openRecruiters, capturedJobId])
 
-  // The extension sent a job over. Fetch what it captured so the job
-  // description is here rather than on a clipboard.
+  /**
+   * The extension sent a job over. Fetch what it captured so the posting is
+   * here rather than on a clipboard.
+   *
+   * Where it lands depends on what the extension was asked for. "Email a
+   * recruiter about this" opens Outreach, and the job has to go in as its
+   * context or the overlay covers the banner and the posting is thrown away —
+   * which is exactly what it used to do. Everything else leaves the job on the
+   * list, waiting for a resume to be picked for it.
+   */
   useEffect(() => {
     if (!capturedJobId) return
     let cancelled = false
@@ -168,13 +176,22 @@ export default function UserDashboard({
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (cancelled || !data?.job) return
+        if (openRecruiters) {
+          setOutreachContext({
+            tailoringId: '',
+            jobTitle: data.job.title ?? '',
+            company: data.job.company ?? '',
+            jobDescription: data.job.description ?? '',
+          })
+          return
+        }
         setCapturedJob(data.job)
       })
       .catch(() => null)
     return () => {
       cancelled = true
     }
-  }, [capturedJobId])
+  }, [capturedJobId, openRecruiters])
 
   const refresh = useCallback(async () => {
     try {
@@ -539,7 +556,10 @@ export default function UserDashboard({
             settings={settings}
             billing={billing}
             context={outreachContext}
-            openTab={openRecruiters ? 'directory' : undefined}
+            // The recruiters page sends people to the weekly list. The extension
+            // sends them to write about one job, and landing on the directory
+            // instead is a detour away from what they pressed.
+            openTab={openRecruiters && !capturedJobId ? 'directory' : undefined}
             onClearContext={() => setOutreachContext(null)}
             onBillingChanged={refreshBilling}
             onOpenBilling={() => openOverlay('billing')}
